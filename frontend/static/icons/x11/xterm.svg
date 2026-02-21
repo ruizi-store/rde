@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="termBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e1e2e"/>
+      <stop offset="100%" style="stop-color:#313244"/>
+    </linearGradient>
+  </defs>
+  <!-- 终端窗口 -->
+  <rect x="4" y="8" width="56" height="48" rx="4" fill="url(#termBg)" stroke="#45475a" stroke-width="2"/>
+  <!-- 标题栏 -->
+  <rect x="4" y="8" width="56" height="10" rx="4" fill="#313244"/>
+  <circle cx="12" cy="13" r="3" fill="#f38ba8"/>
+  <circle cx="22" cy="13" r="3" fill="#f9e2af"/>
+  <circle cx="32" cy="13" r="3" fill="#a6e3a1"/>
+  <!-- 命令行 -->
+  <text x="10" y="32" font-family="monospace" font-size="8" fill="#a6e3a1">$</text>
+  <text x="18" y="32" font-family="monospace" font-size="8" fill="#cdd6f4">_</text>
+  <rect x="18" y="26" width="6" height="8" fill="#cdd6f4" opacity="0.7">
+    <animate attributeName="opacity" values="0.7;0;0.7" dur="1s" repeatCount="indefinite"/>
+  </rect>
+</svg>

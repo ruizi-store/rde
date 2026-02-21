@@ -1,0 +1,99 @@
+# RDE 镜像源配置
+# 此文件会被嵌入到二进制文件中
+
+regions:
+  cn:
+    apt:
+      - name: "清华大学"
+        url: "https://mirrors.tuna.tsinghua.edu.cn"
+        priority: 1
+      - name: "阿里云"
+        url: "https://mirrors.aliyun.com"
+        priority: 2
+      - name: "中科大"
+        url: "https://mirrors.ustc.edu.cn"
+        priority: 3
+    docker:
+      - name: "阿里云"
+        url: "https://registry.cn-hangzhou.aliyuncs.com"
+      - name: "腾讯云"
+        url: "https://mirror.ccs.tencentyun.com"
+    npm:
+      name: "npmmirror"
+      url: "https://registry.npmmirror.com"
+    pip:
+      url: "https://pypi.tuna.tsinghua.edu.cn/simple"
+      trusted_host: "pypi.tuna.tsinghua.edu.cn"
+    flatpak:
+      name: "上海交大"
+      url: "https://mirror.sjtu.edu.cn/flathub"
+      repo: "https://mirror.sjtu.edu.cn/flathub"
+    go:
+      name: "goproxy.cn"
+      url: "https://goproxy.cn"
+    cargo:
+      name: "中科大"
+      url: "https://mirrors.ustc.edu.cn/crates.io-index"
+    github:
+      name: "ghproxy"
+      url: "https://ghproxy.com"
+    maven:
+      name: "阿里云"
+      url: "https://maven.aliyun.com/repository/public"
+
+  intl:
+    apt:
+      - name: "Official"
+        url: ""
+    docker:
+      - name: "Docker Hub"
+        url: ""
+    npm:
+      name: "npmjs"
+      url: "https://registry.npmjs.org"
+    pip:
+      url: "https://pypi.org/simple"
+    flatpak:
+      name: "Flathub"
+      url: "https://flathub.org/repo"
+      repo: "https://flathub.org/repo"
+    go:
+      name: "proxy.golang.org"
+      url: "https://proxy.golang.org"
+    cargo:
+      name: "crates.io"
+      url: "https://crates.io"
+    github:
+      name: "GitHub"
+      url: "https://github.com"
+    maven:
+      name: "Maven Central"
+      url: "https://repo1.maven.org/maven2"
+
+lyric_sources:
+  cn:
+    - id: "netease"
+      name:
+        zh-CN: "网易云音乐"
+        en-US: "NetEase Music"
+    - id: "qq"
+      name:
+        zh-CN: "QQ音乐"
+        en-US: "QQ Music"
+    - id: "kugou"
+      name:
+        zh-CN: "酷狗音乐"
+        en-US: "Kugou Music"
+  intl:
+    - id: "genius"
+      name:
+        zh-CN: "Genius"
+        en-US: "Genius"
+    - id: "musixmatch"
+      name:
+        zh-CN: "Musixmatch"
+        en-US: "Musixmatch"
+    - id: "lrclib"
+      name:
+        zh-CN: "LRCLIB"
+        en-US: "LRCLIB"

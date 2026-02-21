@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="eyeBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5e0dc"/>
+      <stop offset="100%" style="stop-color:#f2cdcd"/>
+    </linearGradient>
+  </defs>
+  <!-- 左眼 -->
+  <ellipse cx="20" cy="32" rx="14" ry="18" fill="url(#eyeBg)" stroke="#313244" stroke-width="2"/>
+  <circle cx="22" cy="32" r="6" fill="#1e1e2e"/>
+  <circle cx="24" cy="30" r="2" fill="#fff"/>
+  <!-- 右眼 -->
+  <ellipse cx="44" cy="32" rx="14" ry="18" fill="url(#eyeBg)" stroke="#313244" stroke-width="2"/>
+  <circle cx="46" cy="32" r="6" fill="#1e1e2e"/>
+  <circle cx="48" cy="30" r="2" fill="#fff"/>
+</svg>

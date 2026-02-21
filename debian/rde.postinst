@@ -1,0 +1,562 @@
+#!/bin/bash
+set -e
+
+APP_NAME="rde"
+CONF_PATH="/etc/rde"
+CONF_FILE="${CONF_PATH}/${APP_NAME}.conf"
+CONF_FILE_SAMPLE="${CONF_PATH}/${APP_NAME}.conf.sample"
+CREDS_FILE="${CONF_PATH}/.credentials"
+DB_PATH="/var/lib/rde/db/rde.db"
+SUDOERS_FILE="/etc/sudoers.d/rde"
+RDE_USER="rde"
+
+# 生成随机字符串
+generate_password() {
+    local length=${1:-12}
+    tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c "$length"
+}
+
+# 生成随机端口 (10000-65535)
+generate_port() {
+    echo $((RANDOM % 55535 + 10000))
+}
+
+# 创建系统用户和配置 sudo
+create_system_user() {
+    echo "Creating system user ${RDE_USER}..."
+
+    # 创建系统用户（如果不存在）
+    if ! id "${RDE_USER}" &>/dev/null; then
+        useradd --system --home-dir /var/lib/rde --shell /usr/sbin/nologin --create-home "${RDE_USER}"
+        echo "System user ${RDE_USER} created"
+    else
+        echo "System user ${RDE_USER} already exists"
+    fi
+
+    # 添加用户到 docker 组（如果 docker 组存在）
+    if getent group docker &>/dev/null; then
+        usermod -aG docker "${RDE_USER}" || true
+    fi
+
+    # 配置 sudoers（免密执行特定命令）
+    cat > "${SUDOERS_FILE}" << 'EOF'
+# RDE sudo permissions
+# This file is managed by RDE, do not edit manually
+
+# Service management
+rde ALL=(ALL) NOPASSWD: /usr/bin/systemctl start *
+rde ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop *
+rde ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart *
+rde ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable *
+rde ALL=(ALL) NOPASSWD: /usr/bin/systemctl disable *
+rde ALL=(ALL) NOPASSWD: /usr/bin/systemctl status *
+
+# Package management
+rde ALL=(ALL) NOPASSWD: /usr/bin/apt update
+rde ALL=(ALL) NOPASSWD: /usr/bin/apt install *
+rde ALL=(ALL) NOPASSWD: /usr/bin/apt remove *
+rde ALL=(ALL) NOPASSWD: /usr/bin/apt upgrade *
+rde ALL=(ALL) NOPASSWD: /usr/bin/apt-get update
+rde ALL=(ALL) NOPASSWD: /usr/bin/apt-get install *
+rde ALL=(ALL) NOPASSWD: /usr/bin/apt-get remove *
+rde ALL=(ALL) NOPASSWD: /usr/bin/apt-get upgrade *
+
+# Docker management
+rde ALL=(ALL) NOPASSWD: /usr/bin/docker *
+
+# Samba management
+rde ALL=(ALL) NOPASSWD: /usr/bin/smbpasswd *
+rde ALL=(ALL) NOPASSWD: /usr/bin/pdbedit *
+rde ALL=(ALL) NOPASSWD: /usr/bin/smbcontrol *
+rde ALL=(ALL) NOPASSWD: /usr/bin/smbstatus *
+rde ALL=(ALL) NOPASSWD: /usr/bin/testparm *
+rde ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/samba/*
+rde ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/samba
+rde ALL=(ALL) NOPASSWD: /usr/bin/kill *
+
+# User management
+rde ALL=(ALL) NOPASSWD: /usr/sbin/useradd *
+rde ALL=(ALL) NOPASSWD: /usr/sbin/userdel *
+rde ALL=(ALL) NOPASSWD: /usr/bin/chown *
+rde ALL=(ALL) NOPASSWD: /usr/bin/chmod *
+
+# Mount management
+rde ALL=(ALL) NOPASSWD: /usr/bin/mount *
+rde ALL=(ALL) NOPASSWD: /usr/bin/umount *
+
+# System control
+rde ALL=(ALL) NOPASSWD: /usr/sbin/reboot
+rde ALL=(ALL) NOPASSWD: /usr/sbin/shutdown *
+EOF
+
+    # 确保 sudoers 文件权限正确
+    chmod 440 "${SUDOERS_FILE}"
+    chown root:root "${SUDOERS_FILE}"
+
+    # 验证 sudoers 语法
+    if ! visudo -c -f "${SUDOERS_FILE}" &>/dev/null; then
+        echo "Warning: sudoers file syntax error, removing..."
+        rm -f "${SUDOERS_FILE}"
+    else
+        echo "Sudoers configuration installed"
+    fi
+
+    # 创建必要的目录并设置权限
+    mkdir -p /var/lib/rde/db
+    mkdir -p /var/lib/rde/data
+    mkdir -p /var/log/rde
+    mkdir -p /var/run/rde
+    mkdir -p /var/cache/rde
+    mkdir -p "${CONF_PATH}"
+
+    chown -R "${RDE_USER}:${RDE_USER}" /var/lib/rde
+    chown -R "${RDE_USER}:${RDE_USER}" /var/log/rde
+    chown -R "${RDE_USER}:${RDE_USER}" /var/run/rde
+    chown -R "${RDE_USER}:${RDE_USER}" /var/cache/rde
+    chown -R "${RDE_USER}:${RDE_USER}" "${CONF_PATH}"
+}
+
+# ============================================
+# 模块配置函数
+# ============================================
+
+# Docker 服务配置
+configure_docker() {
+    echo "Configuring Docker service..."
+    # 确保 rde 用户在 docker 组
+    if getent group docker &>/dev/null; then
+        usermod -aG docker "${RDE_USER}" 2>/dev/null || true
+    fi
+    # 启动并启用 Docker 服务
+    if ! systemctl is-active --quiet docker 2>/dev/null; then
+        systemctl start docker 2>/dev/null || true
+    fi
+    systemctl enable docker 2>/dev/null || true
+}
+
+# Samba 服务配置
+configure_samba() {
+    echo "Configuring Samba service..."
+    # 备份原始配置
+    if [ -f /etc/samba/smb.conf ] && [ ! -f /etc/samba/smb.conf.orig ]; then
+        cp /etc/samba/smb.conf /etc/samba/smb.conf.orig
+        echo "Original smb.conf backed up"
+    fi
+    # 启用 Samba 服务
+    systemctl enable smbd nmbd 2>/dev/null || true
+}
+
+# Android Binder 内核模块配置
+configure_android_binder() {
+    echo "Configuring Android Binder module..."
+    local BINDER_MODULE_DIR="/usr/share/rde/packages/rde-pkg-android/binder-modules"
+    local DKMS_MODULE_NAME="anbox-binder"
+    local DKMS_MODULE_VERSION="1"
+
+    # 配置开机自动加载
+    if [ -f "$BINDER_MODULE_DIR/anbox.conf" ]; then
+        cp "$BINDER_MODULE_DIR/anbox.conf" /etc/modules-load.d/ 2>/dev/null || true
+        cp "$BINDER_MODULE_DIR/99-anbox.rules" /etc/udev/rules.d/ 2>/dev/null || true
+        cp "$BINDER_MODULE_DIR/99-anbox.rules" /lib/udev/rules.d/ 2>/dev/null || true
+    fi
+
+    # 模块已加载则跳过
+    if lsmod | grep -q binder_linux; then
+        echo "Binder module already loaded, skipping"
+        return 0
+    fi
+
+    # DKMS 状态检查
+    local DKMS_STATUS
+    DKMS_STATUS=$(dkms status "$DKMS_MODULE_NAME/$DKMS_MODULE_VERSION" 2>/dev/null || echo "")
+
+    if echo "$DKMS_STATUS" | grep -q "installed"; then
+        modprobe binder_linux devices=binder,hwbinder,vndbinder 2>/dev/null || true
+        return 0
+    fi
+
+    if echo "$DKMS_STATUS" | grep -q "built"; then
+        dkms install "$DKMS_MODULE_NAME/$DKMS_MODULE_VERSION" 2>/dev/null || true
+        modprobe binder_linux devices=binder,hwbinder,vndbinder 2>/dev/null || true
+        return 0
+    fi
+
+    # 完整构建流程
+    if [ -d "$BINDER_MODULE_DIR/binder" ]; then
+        rm -rf "/usr/src/$DKMS_MODULE_NAME-$DKMS_MODULE_VERSION"
+        cp -rT "$BINDER_MODULE_DIR/binder" "/usr/src/$DKMS_MODULE_NAME-$DKMS_MODULE_VERSION"
+
+        if dkms status "$DKMS_MODULE_NAME/$DKMS_MODULE_VERSION" 2>/dev/null | grep -q "$DKMS_MODULE_NAME"; then
+            rmmod binder_linux 2>/dev/null || true
+            dkms remove "$DKMS_MODULE_NAME/$DKMS_MODULE_VERSION" --all 2>/dev/null || true
+        fi
+
+        dkms add "$DKMS_MODULE_NAME/$DKMS_MODULE_VERSION" 2>/dev/null || true
+        if dkms build "$DKMS_MODULE_NAME/$DKMS_MODULE_VERSION" 2>/dev/null; then
+            dkms install "$DKMS_MODULE_NAME/$DKMS_MODULE_VERSION" 2>/dev/null || true
+        fi
+    fi
+
+    # 加载模块
+    udevadm control --reload-rules 2>/dev/null || true
+    udevadm trigger 2>/dev/null || true
+    modprobe binder_linux devices=binder,hwbinder,vndbinder 2>/dev/null || true
+
+    # 持久化模块参数
+    if [ ! -f /etc/modprobe.d/binder_linux.conf ]; then
+        echo "options binder_linux devices=binder,hwbinder,vndbinder" > /etc/modprobe.d/binder_linux.conf
+    fi
+}
+
+# Android udev 规则
+configure_android_udev() {
+    local UDEV_RULE='/etc/udev/rules.d/51-android.rules'
+    if [ ! -f "$UDEV_RULE" ]; then
+        echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="*", MODE="0666", GROUP="plugdev"' > "$UDEV_RULE"
+        udevadm control --reload-rules 2>/dev/null || true
+    fi
+}
+
+# AI 套件配置
+configure_ai() {
+    echo "Configuring AI module..."
+    local DATA_DIR="/var/lib/rde/packages/rde-pkg-ai"
+    local LOG_DIR="/var/log/rde/packages/rde-pkg-ai"
+    local RUN_DIR="/run/rde/packages/rde-pkg-ai"
+
+    mkdir -p "$DATA_DIR/data" "$DATA_DIR/bitnet" "$LOG_DIR" "$RUN_DIR"
+    chmod 755 "$DATA_DIR" "$LOG_DIR" "$RUN_DIR"
+
+    # 初始化 setup 状态
+    local SETUP_STATE_FILE="$DATA_DIR/data/setup-state.json"
+    if [ ! -f "$SETUP_STATE_FILE" ]; then
+        cat > "$SETUP_STATE_FILE" << 'AIEOF'
+{
+  "setupCompleted": false,
+  "currentStep": 0,
+  "selectedModel": null,
+  "enabledSkills": [],
+  "createdAt": null
+}
+AIEOF
+        chmod 644 "$SETUP_STATE_FILE"
+    fi
+
+    # 创建 BitNet systemd 服务
+    if [ ! -f "/etc/systemd/system/rde-pkg-ai-bitnet.service" ]; then
+        cat > /etc/systemd/system/rde-pkg-ai-bitnet.service << 'AIEOF'
+[Unit]
+Description=RDE AI BitNet Service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+WorkingDirectory=/usr/share/rde/packages/rde-pkg-ai/bitnet
+ExecStart=/usr/bin/docker compose up
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
+AIEOF
+    fi
+}
+
+# PulseAudio 系统模式配置（Linux 应用音频支持）
+configure_pulseaudio_system() {
+    echo "Configuring PulseAudio system mode..."
+
+    # 1. 创建 pulse-access 组
+    groupadd -f pulse-access 2>/dev/null || true
+
+    # 2. 将 rde 用户和 root 添加到 pulse-access 组
+    usermod -aG pulse-access root 2>/dev/null || true
+    usermod -aG pulse-access "${RDE_USER}" 2>/dev/null || true
+
+    # 3. 创建系统模式配置
+    mkdir -p /etc/pulse
+    cat > /etc/pulse/system.pa << 'PAEOF'
+# PulseAudio system mode configuration for RDE
+# Auto-generated by RDE package installer
+
+load-module module-device-restore
+load-module module-stream-restore
+load-module module-card-restore
+
+load-module module-udev-detect
+load-module module-native-protocol-unix auth-anonymous=1
+load-module module-native-protocol-tcp auth-ip-acl=127.0.0.1 auth-anonymous=1
+
+load-module module-always-sink
+load-module module-intended-roles
+load-module module-suspend-on-idle
+
+load-module module-position-event-sounds
+PAEOF
+
+    # 4. 创建 client.conf 允许连接系统模式
+    cat > /etc/pulse/client.conf << 'PAEOF'
+# Allow connecting to system mode PulseAudio
+default-server = unix:/var/run/pulse/native
+autospawn = no
+PAEOF
+
+    # 5. 创建 systemd 服务
+    cat > /etc/systemd/system/pulseaudio-system.service << 'PAEOF'
+[Unit]
+Description=PulseAudio System Mode
+After=sound.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/pulseaudio --system --realtime --disallow-exit --disallow-module-loading=0
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+LimitRTPRIO=99
+LimitNICE=-11
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target
+PAEOF
+
+    # 6. 创建运行目录
+    mkdir -p /var/run/pulse
+    chmod 755 /var/run/pulse
+
+    # 7. 重载 systemd 并启用服务
+    systemctl daemon-reload
+    systemctl enable pulseaudio-system.service 2>/dev/null || true
+    systemctl start pulseaudio-system.service 2>/dev/null || true
+
+    # 8. 刷新字体缓存（fonts-noto-cjk 等已通过 deb 依赖安装）
+    echo "Refreshing font cache..."
+    fc-cache -f 2>/dev/null || true
+
+    echo "PulseAudio system mode configured"
+}
+
+# Linux 应用管理器配置
+configure_linux_apps() {
+    echo "Configuring Linux Apps Manager..."
+    local INSTALL_DIR="/opt/rde/packages/ruizi-linux"
+    local DATA_DIR="/var/lib/rde/linux"
+
+    mkdir -p "$DATA_DIR/sessions" "$DATA_DIR/config" /var/log/rde
+    chmod 755 "$INSTALL_DIR/backend/rde-linux" 2>/dev/null || true
+
+    # 创建默认 xpra 配置
+    if [ ! -f "$DATA_DIR/config/xpra.json" ]; then
+        cat > "$DATA_DIR/config/xpra.json" << 'LEOF'
+{
+  "displayRange": [50, 99],
+  "portRange": [19050, 19099],
+  "html5": true,
+  "sharing": false,
+  "quality": 80,
+  "encoding": "auto"
+}
+LEOF
+    fi
+
+    # 初始化应用列表
+    [ ! -f "$DATA_DIR/apps.json" ] && echo "[]" > "$DATA_DIR/apps.json"
+
+    # 配置 PulseAudio 系统模式（Linux 应用音频所需）
+    configure_pulseaudio_system
+
+    # 创建 systemd 服务
+    cat > /etc/systemd/system/rde-linux.service << LEOF
+[Unit]
+Description=RDE Linux Apps Manager
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$INSTALL_DIR/backend/rde-linux
+Restart=on-failure
+RestartSec=5
+Environment=PORT=18089
+Environment=DATA_DIR=$DATA_DIR
+
+[Install]
+WantedBy=multi-user.target
+LEOF
+    systemctl enable rde-linux.service 2>/dev/null || true
+}
+
+# VM 套件配置
+configure_vm() {
+    echo "Configuring VM module..."
+    local DATA_DIR="/var/lib/rde/packages/ruizi-vm/data"
+    mkdir -p "$DATA_DIR/disks" "$DATA_DIR/iso"
+    chown -R "${RDE_USER}:${RDE_USER}" "$DATA_DIR" 2>/dev/null || true
+    chmod +x "/opt/rde/packages/ruizi-vm/backend/rde-vm" 2>/dev/null || true
+
+    # 添加 rde 用户到 kvm 组
+    if [ -c /dev/kvm ] && getent group kvm &>/dev/null; then
+        usermod -aG kvm "${RDE_USER}" 2>/dev/null || true
+    fi
+}
+
+# 创建所有模块数据目录
+create_app_directories() {
+    echo "Creating application data directories..."
+    mkdir -p /var/lib/rde/backup
+    mkdir -p /var/lib/rde/downloads
+    mkdir -p /var/lib/rde/syncthing/config
+    mkdir -p /var/lib/rde/windows/{apps,prefixes,installers}
+    chmod 755 /var/lib/rde/backup /var/lib/rde/downloads /var/lib/rde/syncthing
+    chown -R "${RDE_USER}:${RDE_USER}" /var/lib/rde
+}
+
+# 首次安装初始化
+initialize_new_install() {
+    echo "Initializing new RDE installation..."
+
+    # 固定端口 3080，用户可在 Setup 向导中选择随机端口
+    local PORT=3080
+
+    # 生成随机 JWT 密钥（每个实例唯一）
+    JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | sha256sum | cut -d' ' -f1)
+
+    # 创建配置文件
+    if [ -f "${CONF_FILE_SAMPLE}" ]; then
+        cp "${CONF_FILE_SAMPLE}" "${CONF_FILE}"
+        # 设置端口
+        sed -i "s/^HttpPort = .*/HttpPort = ${PORT}/" "${CONF_FILE}"
+    else
+        # 创建最小配置
+        cat > "${CONF_FILE}" << EOF
+[app]
+DBPath = /var/lib/rde
+LogPath = /var/log/rde/
+UserDataPath = /var/lib/rde/conf
+
+[server]
+HttpPort = ${PORT}
+HttpHost = 0.0.0.0
+RunMode = release
+
+[auth]
+JWTSecret = ${JWT_SECRET}
+
+[common]
+RuntimePath=/var/run/rde
+EOF
+    fi
+
+    # 如果使用了 sample 配置，追加 JWT 密钥和监听地址
+    if grep -q "^JWTSecret" "${CONF_FILE}" 2>/dev/null; then
+        sed -i "s/^JWTSecret = .*/JWTSecret = ${JWT_SECRET}/" "${CONF_FILE}"
+    else
+        # 在 [server] 段后追加 [auth] 段
+        if ! grep -q "^\[auth\]" "${CONF_FILE}" 2>/dev/null; then
+            cat >> "${CONF_FILE}" << EOF
+
+[auth]
+JWTSecret = ${JWT_SECRET}
+EOF
+        fi
+    fi
+
+    # 确保数据库目录存在
+    mkdir -p "$(dirname ${DB_PATH})"
+
+    # 仅初始化数据库结构，不创建管理员（由 Setup 向导完成）
+    /usr/bin/rde --init 2>/dev/null || true
+
+    # 保存安装信息
+    INSTALL_INFO_FILE="/var/lib/rde/.install_info"
+    cat > "${INSTALL_INFO_FILE}" << EOF
+PORT=${PORT}
+INSTALLED_AT=$(date)
+EOF
+
+    return 0
+}
+
+# 主逻辑
+case "$1" in
+    configure)
+        # 创建系统用户和配置 sudo（每次安装/升级都检查）
+        create_system_user
+
+        # 检查是否首次安装
+        if [ -z "$2" ]; then
+            # 首次安装
+            if [ ! -f "/var/lib/rde/.install_info" ]; then
+                initialize_new_install
+                SHOW_CREDS=1
+            fi
+        fi
+
+        # 确保配置文件存在
+        if [ ! -f "${CONF_FILE}" ]; then
+            if [ -f "${CONF_FILE_SAMPLE}" ]; then
+                cp "${CONF_FILE_SAMPLE}" "${CONF_FILE}"
+            fi
+        fi
+
+        # 确保配置文件归 rde 用户所有
+        chown "${RDE_USER}:${RDE_USER}" "${CONF_FILE}" 2>/dev/null || true
+
+        # === 模块配置 ===
+        create_app_directories
+        configure_docker
+        configure_samba
+        configure_ai
+        configure_android_binder || echo "Warning: Binder module setup failed"
+        configure_android_udev
+        configure_linux_apps
+        configure_vm
+        ;;
+esac
+
+# 重新加载 systemd
+systemctl daemon-reload
+
+# 启用服务
+echo "Enabling ${APP_NAME} service..."
+systemctl enable --force --no-ask-password "${APP_NAME}.service" 2>/dev/null || true
+
+# 如果是升级，重启服务
+if [ "$1" = "configure" ] && [ -n "$2" ]; then
+    echo "Restarting ${APP_NAME} service after upgrade..."
+    systemctl restart "${APP_NAME}.service" 2>/dev/null || true
+fi
+
+# 显示安装信息
+echo ""
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║              RDE 安装完成！                           ║"
+echo "╠══════════════════════════════════════════════════════════╣"
+
+if [ "${SHOW_CREDS}" = "1" ]; then
+    echo "║                                                          ║"
+    echo "║  请在浏览器中访问以下地址完成初始化设置:                  ║"
+    echo "║                                                          ║"
+    echo "║  访问地址: http://YOUR_IP:3080                           ║"
+    echo "║                                                          ║"
+    echo "║  首次访问将进入设置向导，您需要：                        ║"
+    echo "║    1. 设置语言和时区                                     ║"
+    echo "║    2. 创建管理员账户                                     ║"
+    echo "║    3. (可选) 配置安全选项                                ║"
+    echo "║                                                          ║"
+    echo "╠══════════════════════════════════════════════════════════╣"
+fi
+
+echo "║  查看信息: rde -info                                  ║"
+echo "║  启动服务: sudo systemctl start rde                   ║"
+echo "║  查看状态: sudo systemctl status rde                  ║"
+echo "║  查看日志: sudo journalctl -u rde -f                  ║"
+echo "╚══════════════════════════════════════════════════════════╝"
+echo ""
+
+#DEBHELPER#
+
+exit 0

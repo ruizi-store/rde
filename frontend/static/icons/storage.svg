@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="storage-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F59E0B"/>
+      <stop offset="100%" style="stop-color:#D97706"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景 -->
+  <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#storage-grad)"/>
+  <!-- 磁盘堆叠 -->
+  <!-- 顶层磁盘 -->
+  <ellipse cx="32" cy="20" rx="16" ry="5" fill="white"/>
+  <path d="M16 20 L16 26 Q16 31 32 31 Q48 31 48 26 L48 20" fill="white" fill-opacity="0.9"/>
+  <ellipse cx="32" cy="26" rx="16" ry="5" fill="white" fill-opacity="0.7"/>
+  <!-- 中层磁盘 -->
+  <path d="M16 28 L16 36 Q16 41 32 41 Q48 41 48 36 L48 28" fill="white" fill-opacity="0.8"/>
+  <ellipse cx="32" cy="36" rx="16" ry="5" fill="white" fill-opacity="0.6"/>
+  <!-- 底层磁盘 -->
+  <path d="M16 38 L16 46 Q16 51 32 51 Q48 51 48 46 L48 38" fill="white" fill-opacity="0.7"/>
+  <ellipse cx="32" cy="46" rx="16" ry="5" fill="white" fill-opacity="0.5"/>
+  <!-- 指示灯 -->
+  <circle cx="42" cy="24" r="2" fill="#22c55e"/>
+  <circle cx="42" cy="34" r="2" fill="#22c55e"/>
+  <circle cx="42" cy="44" r="2" fill="#22c55e"/>
+</svg>

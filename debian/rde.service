@@ -1,0 +1,13 @@
+[Unit]
+After=docker.service
+Wants=docker.service
+Description=RDE Main Service
+
+[Service]
+ExecStart=/usr/bin/rde -c /etc/rde/rde.conf
+Restart=always
+RestartSec=5
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

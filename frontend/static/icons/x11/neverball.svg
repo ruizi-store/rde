@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="ballGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f9e2af"/>
+      <stop offset="50%" style="stop-color:#fab387"/>
+      <stop offset="100%" style="stop-color:#f38ba8"/>
+    </linearGradient>
+    <linearGradient id="floorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#45475a"/>
+      <stop offset="100%" style="stop-color:#313244"/>
+    </linearGradient>
+  </defs>
+  <!-- 地面 -->
+  <path d="M0 48 L32 56 L64 48 L64 64 L0 64 Z" fill="url(#floorGrad)"/>
+  <!-- 球 -->
+  <circle cx="32" cy="28" r="18" fill="url(#ballGrad)"/>
+  <ellipse cx="28" cy="24" rx="4" ry="6" fill="#fff" opacity="0.4"/>
+  <!-- 球的影子 -->
+  <ellipse cx="32" cy="52" rx="14" ry="4" fill="#1e1e2e" opacity="0.3"/>
+</svg>

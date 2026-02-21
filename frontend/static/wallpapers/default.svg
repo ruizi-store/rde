@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0c29"/>
+      <stop offset="50%" style="stop-color:#302b63"/>
+      <stop offset="100%" style="stop-color:#24243e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#5c4d9a;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#0f0c29;stop-opacity:0"/>
+    </radialGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  
+  <!-- Glow effect -->
+  <ellipse cx="960" cy="540" rx="800" ry="500" fill="url(#glow)"/>
+  
+  <!-- Stars -->
+  <g fill="white" fill-opacity="0.6">
+    <circle cx="100" cy="80" r="1"/>
+    <circle cx="200" cy="150" r="1.5"/>
+    <circle cx="350" cy="50" r="1"/>
+    <circle cx="500" cy="120" r="2"/>
+    <circle cx="650" cy="200" r="1"/>
+    <circle cx="800" cy="80" r="1.5"/>
+    <circle cx="950" cy="150" r="1"/>
+    <circle cx="1100" cy="50" r="2"/>
+    <circle cx="1250" cy="180" r="1"/>
+    <circle cx="1400" cy="100" r="1.5"/>
+    <circle cx="1550" cy="200" r="1"/>
+    <circle cx="1700" cy="80" r="2"/>
+    <circle cx="1850" cy="150" r="1"/>
+    <circle cx="150" cy="300" r="1.5"/>
+    <circle cx="300" cy="400" r="1"/>
+    <circle cx="450" cy="350" r="2"/>
+    <circle cx="600" cy="450" r="1"/>
+    <circle cx="750" cy="380" r="1.5"/>
+    <circle cx="900" cy="300" r="1"/>
+    <circle cx="1050" cy="420" r="2"/>
+    <circle cx="1200" cy="350" r="1"/>
+    <circle cx="1350" cy="450" r="1.5"/>
+    <circle cx="1500" cy="300" r="1"/>
+    <circle cx="1650" cy="400" r="2"/>
+    <circle cx="1800" cy="350" r="1"/>
+  </g>
+  
+  <!-- Subtle grid pattern -->
+  <g stroke="rgba(255,255,255,0.03)" stroke-width="1">
+    <line x1="0" y1="200" x2="1920" y2="200"/>
+    <line x1="0" y1="400" x2="1920" y2="400"/>
+    <line x1="0" y1="600" x2="1920" y2="600"/>
+    <line x1="0" y1="800" x2="1920" y2="800"/>
+    <line x1="400" y1="0" x2="400" y2="1080"/>
+    <line x1="800" y1="0" x2="800" y2="1080"/>
+    <line x1="1200" y1="0" x2="1200" y2="1080"/>
+    <line x1="1600" y1="0" x2="1600" y2="1080"/>
+  </g>
+  
+  <!-- Brand text -->
+  <text x="960" y="540" text-anchor="middle" 
+        font-family="Inter, -apple-system, sans-serif" 
+        font-size="120" font-weight="700" 
+        fill="rgba(255,255,255,0.03)">RDE</text>
+</svg>

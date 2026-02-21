@@ -1,0 +1,29 @@
+{
+  "static": [
+    {"id": "mountain", "name": "山脉", "type": "static", "file": "static/mountain.jpg", "thumbnail": "thumbnails/static/mountain.jpg"},
+    {"id": "ocean", "name": "海洋", "type": "static", "file": "static/ocean.jpg", "thumbnail": "thumbnails/static/ocean.jpg"},
+    {"id": "aurora", "name": "极光", "type": "static", "file": "static/aurora.jpg", "thumbnail": "thumbnails/static/aurora.jpg"},
+    {"id": "milkyway", "name": "银河", "type": "static", "file": "static/milkyway.jpg", "thumbnail": "thumbnails/static/milkyway.jpg"},
+    {"id": "sunset", "name": "日落", "type": "static", "file": "static/sunset.jpg", "thumbnail": "thumbnails/static/sunset.jpg"},
+    {"id": "clouds", "name": "云海", "type": "static", "file": "static/clouds.jpg", "thumbnail": "thumbnails/static/clouds.jpg"},
+    {"id": "glacier", "name": "冰川", "type": "static", "file": "static/glacier.jpg", "thumbnail": "thumbnails/static/glacier.jpg"},
+    {"id": "citynight", "name": "城市夜景", "type": "static", "file": "static/citynight.jpg", "thumbnail": "thumbnails/static/citynight.jpg"}
+  ],
+  "webgl": [
+    {"id": "galaxy-3d", "name": "3D银河", "type": "webgl", "file": "dynamic/webgl/galaxy-3d.js", "init": "initGalaxy"},
+    {"id": "fluid-sim", "name": "流体模拟", "type": "webgl", "file": "dynamic/webgl/fluid-sim.js", "init": "initFluidSim"},
+    {"id": "cyberpunk-city", "name": "赛博城市", "type": "webgl", "file": "dynamic/webgl/cyberpunk.js", "init": "initCyberpunk"},
+    {"id": "aurora-webgl", "name": "极光动画", "type": "webgl", "file": "dynamic/webgl/aurora.js", "init": "initAurora"}
+  ],
+  "lottie": [
+    {"id": "underwater", "name": "海底世界", "type": "lottie", "file": "dynamic/lottie/underwater.js", "init": "initUnderwater"},
+    {"id": "breathing-rings", "name": "呼吸光环", "type": "lottie", "file": "dynamic/lottie/breathing-rings.js", "init": "initBreathingRings"},
+    {"id": "star-travel", "name": "星空穿梭", "type": "lottie", "file": "dynamic/lottie/star-travel.js", "init": "initStarTravel"},
+    {"id": "neon-lines", "name": "霓虹线条", "type": "lottie", "file": "dynamic/lottie/neon-lines.js", "init": "initNeonLines"},
+    {"id": "gradient-waves", "name": "波浪渐变", "type": "lottie", "file": "dynamic/lottie/gradient-waves.js", "init": "initGradientWaves"},
+    {"id": "particle-network", "name": "粒子连线", "type": "lottie", "file": "dynamic/lottie/particle-network.js", "init": "initParticleNetwork"},
+    {"id": "rainbow-rings", "name": "彩虹光圈", "type": "lottie", "file": "dynamic/lottie/rainbow-rings.js", "init": "initRainbowRings"},
+    {"id": "meteor-shower", "name": "流星雨", "type": "lottie", "file": "dynamic/lottie/meteor-shower.js", "init": "initMeteorShower"},
+    {"id": "bubbles", "name": "泡泡升腾", "type": "lottie", "file": "dynamic/lottie/bubbles.js", "init": "initBubbles"}
+  ]
+}

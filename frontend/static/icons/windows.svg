@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="win-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00ADEF"/>
+      <stop offset="100%" style="stop-color:#0078D4"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景 -->
+  <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#win-grad)"/>
+  <!-- Windows 四格 logo -->
+  <rect x="17" y="17" width="12" height="12" rx="1" fill="white"/>
+  <rect x="31" y="17" width="16" height="12" rx="1" fill="white"/>
+  <rect x="17" y="31" width="12" height="12" rx="1" fill="white"/>
+  <rect x="31" y="31" width="16" height="12" rx="1" fill="white"/>
+</svg>

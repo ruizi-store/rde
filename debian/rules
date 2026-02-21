@@ -1,0 +1,118 @@
+#!/usr/bin/make -f
+#
+# RDE Debian 打包规则
+# 使用 debhelper 标准构建流程
+#
+
+export DH_VERBOSE = 1
+
+# 从 debian/changelog 读取版本号
+VERSION := $(shell dpkg-parsechangelog -S Version | cut -d'-' -f1)
+DESTDIR := $(CURDIR)/debian/rde
+
+%:
+	dh $@
+
+# 构建前端和后端
+override_dh_auto_build:
+	@echo "构建前端 (Svelte)..."
+	cd frontend && pnpm install --frozen-lockfile && pnpm run build
+	
+	@echo "构建后端 (Go)..."
+	cd backend && CGO_ENABLED=0 go build \
+		-tags=nomsgpack \
+		-ldflags="-s -w -X 'github.com/ruizi-store/rde/backend/common.VERSION=$(VERSION)'" \
+		-o rde .
+	
+	@echo "构建套件前端..."
+	@for app_dir in apps/*/frontend; do \
+		if [ -f "$$app_dir/package.json" ]; then \
+			app_name=$$(basename $$(dirname "$$app_dir")); \
+			echo "  构建 $$app_name 前端..."; \
+			cd $(CURDIR)/$$app_dir && pnpm install && pnpm run build; \
+			cd $(CURDIR); \
+		fi; \
+	done
+	
+	@echo "构建套件后端..."
+	@for app_dir in apps/*/backend; do \
+		if [ -f "$$app_dir/go.mod" ]; then \
+			app_name=$$(basename $$(dirname "$$app_dir")); \
+			echo "  构建 $$app_name 后端..."; \
+			cd $(CURDIR)/$$app_dir && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o rde-pkg-$$app_name .; \
+			cd $(CURDIR); \
+		fi; \
+	done
+
+
+# 安装文件
+override_dh_auto_install:
+	# 创建目录结构
+	mkdir -p $(DESTDIR)/usr/bin
+	mkdir -p $(DESTDIR)/usr/lib/systemd/system
+	mkdir -p $(DESTDIR)/usr/share/rde/shell
+	mkdir -p $(DESTDIR)/etc/rde
+	mkdir -p $(DESTDIR)/var/lib/rde/www
+	mkdir -p $(DESTDIR)/var/lib/rde/db
+	mkdir -p $(DESTDIR)/var/lib/rde/conf
+	mkdir -p $(DESTDIR)/var/log/rde
+	
+	# 安装后端二进制
+	install -m 0755 backend/rde $(DESTDIR)/usr/bin/rde
+	
+	
+	# 安装前端静态文件
+	cp -r frontend/build/* $(DESTDIR)/var/lib/rde/www/
+	
+	# 安装内置套件（manifest + 图标 + 前端 + 后端）
+	mkdir -p $(DESTDIR)/usr/share/rde/apps
+	for app_dir in apps/*/; do \
+		app_name=$$(basename "$$app_dir"); \
+		mkdir -p $(DESTDIR)/usr/share/rde/apps/$$app_name; \
+		cp -f $$app_dir/manifest.json $(DESTDIR)/usr/share/rde/apps/$$app_name/ 2>/dev/null || true; \
+		cp -f $$app_dir/icon.svg $(DESTDIR)/usr/share/rde/apps/$$app_name/ 2>/dev/null || true; \
+		if [ -d "$$app_dir/frontend/dist" ]; then \
+			mkdir -p $(DESTDIR)/usr/share/rde/apps/$$app_name/frontend/dist; \
+			cp -r $$app_dir/frontend/dist/* $(DESTDIR)/usr/share/rde/apps/$$app_name/frontend/dist/; \
+		fi; \
+		if [ -d "$$app_dir/backend" ]; then \
+			for bin in $$app_dir/backend/rde-pkg-*; do \
+				if [ -f "$$bin" ] && [ -x "$$bin" ]; then \
+					mkdir -p $(DESTDIR)/usr/share/rde/apps/$$app_name/backend; \
+					install -m 0755 $$bin $(DESTDIR)/usr/share/rde/apps/$$app_name/backend/; \
+				fi; \
+			done; \
+		fi; \
+	done
+	
+	# 安装 systemd 服务文件
+	install -m 0644 debian/rde.service $(DESTDIR)/usr/lib/systemd/system/
+	
+	# 安装配置文件
+	install -m 0644 backend/conf/conf.conf.sample $(DESTDIR)/etc/rde/rde.conf.sample
+	
+	# 安装 shell 脚本
+	-cp -r backend/build/sysroot/usr/share/rde/shell/* $(DESTDIR)/usr/share/rde/shell/ 2>/dev/null || true
+	test -f $(DESTDIR)/usr/share/rde/shell/helper.sh || \
+		install -m 0755 debian/helper.sh $(DESTDIR)/usr/share/rde/shell/helper.sh
+	
+	# 安装辅助工具 (注意: 使用 /usr/bin 而非 /usr/local/bin 以符合 Debian 策略)
+	-install -m 0755 backend/build/sysroot/usr/local/bin/rde-console $(DESTDIR)/usr/bin/ 2>/dev/null || true
+	-install -m 0644 backend/build/sysroot/lib/systemd/system/rde-console.service $(DESTDIR)/usr/lib/systemd/system/ 2>/dev/null || true
+	-install -m 0755 backend/build/sysroot/usr/local/bin/rde-firstboot $(DESTDIR)/usr/bin/ 2>/dev/null || true
+	-install -m 0644 backend/build/sysroot/lib/systemd/system/rde-firstboot.service $(DESTDIR)/usr/lib/systemd/system/ 2>/dev/null || true
+	-install -m 0755 backend/build/sysroot/usr/local/bin/rde-lock-root $(DESTDIR)/usr/bin/ 2>/dev/null || true
+
+# 跳过测试
+override_dh_auto_test:
+
+# 清理构建产物
+override_dh_auto_clean:
+	rm -rf frontend/build frontend/.svelte-kit
+	rm -f backend/rde
+	# 清理 debhelper 缓存，确保每次都是全新构建
+	rm -rf debian/rde debian/.debhelper
+
+# 不压缩静态资源 (已经压缩过了)
+override_dh_compress:
+	dh_compress -X.js -X.css -X.html -X.json -X.svg

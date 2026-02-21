@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="download-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10B981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景 -->
+  <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#download-grad)"/>
+  <!-- 下载箭头 -->
+  <path d="M32 16 L32 38" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <path d="M22 30 L32 40 L42 30" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- 底部托盘 -->
+  <path d="M18 44 L18 48 Q18 50 20 50 L44 50 Q46 50 46 48 L46 44" stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <!-- 进度条背景 -->
+  <rect x="20" y="46" width="24" height="2" rx="1" fill="white" fill-opacity="0.4"/>
+  <!-- 进度条 -->
+  <rect x="20" y="46" width="16" height="2" rx="1" fill="white"/>
+</svg>

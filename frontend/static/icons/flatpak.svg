@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="fp-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90D9"/>
+      <stop offset="50%" style="stop-color:#3B6CB5"/>
+      <stop offset="100%" style="stop-color:#2C4E91"/>
+    </linearGradient>
+    <linearGradient id="fp-gem1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#63D5F7"/>
+      <stop offset="100%" style="stop-color:#48B8E0"/>
+    </linearGradient>
+    <linearGradient id="fp-gem2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F9DC5C"/>
+      <stop offset="100%" style="stop-color:#F0A830"/>
+    </linearGradient>
+    <linearGradient id="fp-gem3" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#EF6F6C"/>
+      <stop offset="100%" style="stop-color:#D94B47"/>
+    </linearGradient>
+    <linearGradient id="fp-gem4" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#56E39F"/>
+      <stop offset="100%" style="stop-color:#3CC47C"/>
+    </linearGradient>
+  </defs>
+  <!-- 圆角方形背景 -->
+  <rect x="6" y="6" width="52" height="52" rx="12" fill="url(#fp-bg)"/>
+  <!-- 光泽 -->
+  <rect x="6" y="6" width="52" height="26" rx="12" fill="white" fill-opacity="0.08"/>
+  <!-- Flatpak 钻石 logo - 四个彩色三角形拼成的菱形 -->
+  <!-- 上: 青色 -->
+  <polygon points="32,12 20,30 32,30" fill="url(#fp-gem1)"/>
+  <!-- 右: 黄色 -->
+  <polygon points="32,12 44,30 32,30" fill="url(#fp-gem2)"/>
+  <!-- 左下: 红色 -->
+  <polygon points="20,30 32,48 32,30" fill="url(#fp-gem3)"/>
+  <!-- 右下: 绿色 -->
+  <polygon points="44,30 32,48 32,30" fill="url(#fp-gem4)"/>
+  <!-- 中心高光 -->
+  <polygon points="32,18 26,30 32,30" fill="white" fill-opacity="0.2"/>
+  <!-- 边缘阴影 -->
+  <polygon points="32,42 26,30 32,30" fill="black" fill-opacity="0.08"/>
+  <polygon points="32,42 38,30 32,30" fill="black" fill-opacity="0.05"/>
+</svg>

@@ -1,0 +1,56 @@
+# Backend build outputs
+backend/rde
+backend/rde-backend
+backend/ruizios-backend
+backend/backend
+backend/ruizios
+backend/ruizios-server
+
+# Frontend build outputs
+frontend/build/
+frontend/node_modules/
+frontend/.svelte-kit/
+
+# 构建输出目录
+outputs/
+dist/
+*.deb
+*.buildinfo
+*.changes
+
+# Editor and IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# PID 文件
+.pids/
+
+# 临时文件
+*.tar.gz
+*.tar.xz
+
+# SDK
+sdk/cli/node_modules/
+
+# Python
+*.pyc
+__pycache__/
+
+# Debian 构建临时文件
+debian/.debhelper/
+debian/rde/
+debian/tmp/
+debian/*.substvars
+debian/*.debhelper
+debian/*.debhelper.log
+debian/files
+debian/debhelper-build-stamp

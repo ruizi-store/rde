@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      // 在页面渲染前同步设置主题和壁纸，避免闪烁
+      (function () {
+        try {
+          // 设置主题
+          const saved = localStorage.getItem("theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          let isDark = false;
+
+          if (saved === "dark") isDark = true;
+          else if (saved === "light") isDark = false;
+          else isDark = prefersDark; // auto
+
+          document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+          document.documentElement.classList.add(isDark ? "dark" : "light");
+
+          // 设置强调色
+          const accent = localStorage.getItem("accentColor");
+          if (accent) {
+            document.documentElement.style.setProperty("--color-primary", accent);
+          }
+
+          // 读取壁纸设置并直接设置到 body 背景
+          const wallpaperData = localStorage.getItem("rde_wallpaper");
+          let wallpaperUrl = ""; // 默认为空（lottie 壁纸由 JS 渲染）
+          const validTypes = ["static", "webgl", "lottie", "custom"];
+
+          if (wallpaperData) {
+            const wp = JSON.parse(wallpaperData);
+            // 检查类型是否有效（废弃的 video 类型等），无效则清除
+            if (wp.type && !validTypes.includes(wp.type)) {
+              localStorage.removeItem("rde_wallpaper");
+            } else if (wp.type === "custom" && wp.customUrl) {
+              wallpaperUrl = wp.customUrl;
+            } else if (wp.currentId && wp.type === "static") {
+              wallpaperUrl = "/wallpapers/static/" + wp.currentId + ".jpg";
+            }
+            // lottie/webgl 类型无法用静态图片预览，保持纯色背景
+          }
+
+          // 存储到全局变量供 Svelte 组件读取
+          window.__INITIAL_WALLPAPER__ = wallpaperUrl;
+
+          // 仅静态/自定义壁纸设置图片背景，动态壁纸保持纯色
+          if (wallpaperUrl) {
+            document.documentElement.style.setProperty(
+              "--initial-wallpaper-url",
+              "url(" + wallpaperUrl + ")",
+            );
+          }
+        } catch (e) {
+          window.__INITIAL_WALLPAPER__ = "";
+        }
+      })();
+    </script>
+    <style>
+      /* 初始壁纸背景，在 Svelte hydration 前显示 */
+      body {
+        background: var(--initial-wallpaper-url, none) center/cover
+          no-repeat fixed #0a1628;
+      }
+    </style>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

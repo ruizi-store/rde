@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="gear1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f38ba8"/>
+      <stop offset="100%" style="stop-color:#fab387"/>
+    </linearGradient>
+    <linearGradient id="gear2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#89b4fa"/>
+      <stop offset="100%" style="stop-color:#74c7ec"/>
+    </linearGradient>
+    <linearGradient id="gear3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a6e3a1"/>
+      <stop offset="100%" style="stop-color:#94e2d5"/>
+    </linearGradient>
+  </defs>
+  <!-- 大齿轮 -->
+  <g transform="translate(20, 20)">
+    <circle cx="12" cy="12" r="10" fill="url(#gear1)" opacity="0.9"/>
+    <circle cx="12" cy="12" r="4" fill="#1e1e2e"/>
+    <!-- 齿 -->
+    <rect x="10" y="-2" width="4" height="6" fill="url(#gear1)" rx="1"/>
+    <rect x="10" y="20" width="4" height="6" fill="url(#gear1)" rx="1"/>
+    <rect x="-2" y="10" width="6" height="4" fill="url(#gear1)" rx="1"/>
+    <rect x="20" y="10" width="6" height="4" fill="url(#gear1)" rx="1"/>
+    <!-- 对角齿 -->
+    <rect x="20" y="0" width="4" height="6" fill="url(#gear1)" rx="1" transform="rotate(45 12 12)"/>
+    <rect x="0" y="20" width="4" height="6" fill="url(#gear1)" rx="1" transform="rotate(45 12 12)"/>
+    <rect x="0" y="0" width="4" height="6" fill="url(#gear1)" rx="1" transform="rotate(-45 12 12)"/>
+    <rect x="20" y="20" width="4" height="6" fill="url(#gear1)" rx="1" transform="rotate(-45 12 12)"/>
+  </g>
+  <!-- 中齿轮 -->
+  <g transform="translate(36, 36)">
+    <circle cx="10" cy="10" r="8" fill="url(#gear2)" opacity="0.9"/>
+    <circle cx="10" cy="10" r="3" fill="#1e1e2e"/>
+    <rect x="8" y="-1" width="4" height="5" fill="url(#gear2)" rx="1"/>
+    <rect x="8" y="16" width="4" height="5" fill="url(#gear2)" rx="1"/>
+    <rect x="-1" y="8" width="5" height="4" fill="url(#gear2)" rx="1"/>
+    <rect x="16" y="8" width="5" height="4" fill="url(#gear2)" rx="1"/>
+  </g>
+  <!-- 小齿轮 -->
+  <g transform="translate(8, 38)">
+    <circle cx="8" cy="8" r="6" fill="url(#gear3)" opacity="0.9"/>
+    <circle cx="8" cy="8" r="2.5" fill="#1e1e2e"/>
+    <rect x="6" y="0" width="4" height="4" fill="url(#gear3)" rx="1"/>
+    <rect x="6" y="12" width="4" height="4" fill="url(#gear3)" rx="1"/>
+    <rect x="0" y="6" width="4" height="4" fill="url(#gear3)" rx="1"/>
+    <rect x="12" y="6" width="4" height="4" fill="url(#gear3)" rx="1"/>
+  </g>
+</svg>

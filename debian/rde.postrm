@@ -1,0 +1,18 @@
+#!/bin/bash
+set -e
+
+# 重新加载 systemd
+systemctl daemon-reload
+
+# 如果是完全清除，删除配置和数据
+if [ "$1" = "purge" ]; then
+    echo "Removing configuration and data..."
+    rm -rf /etc/rde
+    rm -rf /var/lib/rde
+    rm -rf /var/log/rde
+    rm -rf /var/run/rde
+fi
+
+#DEBHELPER#
+
+exit 0

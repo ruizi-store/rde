@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="term-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#37474F"/>
+      <stop offset="100%" style="stop-color:#263238"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="48" height="48" rx="6" fill="url(#term-grad)"/>
+  <!-- Terminal window bar -->
+  <rect x="8" y="8" width="48" height="10" rx="6" ry="6" fill="#455A64"/>
+  <circle cx="16" cy="13" r="2" fill="#EF5350"/>
+  <circle cx="23" cy="13" r="2" fill="#FFCA28"/>
+  <circle cx="30" cy="13" r="2" fill="#66BB6A"/>
+  <!-- Terminal content -->
+  <text x="14" y="30" font-family="monospace" font-size="10" fill="#4CAF50">$</text>
+  <rect x="22" y="24" width="30" height="2" rx="1" fill="#81C784"/>
+  <text x="14" y="42" font-family="monospace" font-size="10" fill="#4CAF50">$</text>
+  <rect x="22" y="36" width="20" height="2" rx="1" fill="#A5D6A7"/>
+  <!-- Cursor -->
+  <rect x="22" y="46" width="8" height="3" fill="#4CAF50">
+    <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+  </rect>
+</svg>

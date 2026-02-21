@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="sync-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06B6D4"/>
+      <stop offset="100%" style="stop-color:#0E7490"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景 -->
+  <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#sync-grad)"/>
+  <!-- 左侧设备 -->
+  <rect x="14" y="22" width="14" height="20" rx="2" fill="white"/>
+  <rect x="16" y="24" width="10" height="14" rx="1" fill="#0E7490"/>
+  <circle cx="21" cy="40" r="1" fill="#0E7490"/>
+  <!-- 右侧设备 -->
+  <rect x="36" y="22" width="14" height="20" rx="2" fill="white"/>
+  <rect x="38" y="24" width="10" height="14" rx="1" fill="#0E7490"/>
+  <circle cx="43" cy="40" r="1" fill="#0E7490"/>
+  <!-- 同步箭头 —— 上方从左到右 -->
+  <path d="M29 26 L35 26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <path d="M33 24 L35 26 L33 28" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- 同步箭头 —— 下方从右到左 -->
+  <path d="M35 34 L29 34" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <path d="M31 32 L29 34 L31 36" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

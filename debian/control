@@ -1,0 +1,37 @@
+Source: rde
+Section: admin
+Priority: optional
+Maintainer: liduanjun <duanjunzi@gmail.com>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.21), nodejs (>= 18), npm
+Standards-Version: 4.6.0
+Homepage: https://github.com/ruizi-store/rde
+Vcs-Git: https://github.com/ruizi-store/rde.git
+
+Package: rde
+Architecture: amd64
+Depends: ${misc:Depends},
+         systemd,
+         aria2,
+         docker.io,
+         docker-compose-v2 | docker-compose,
+         samba,
+         samba-common-bin,
+         smartmontools,
+         ffmpeg,
+         syncthing,
+         git,
+         flatpak
+Description: RDE (Ruizi Desktop Environment) - Web-based Desktop for Linux Servers
+ RDE is an open-source web desktop environment that turns Linux servers
+ into feature-rich cloud desktops with a Windows-like browser experience.
+ .
+ Features:
+  - File Manager: upload, download, preview, share with TUS resumable uploads
+  - Docker Apps: visual container/image management, one-click deploy
+  - Download Manager: aria2-based HTTP/BT/magnet download management
+  - Samba Sharing: LAN file sharing service
+  - File Sync: Syncthing multi-device sync
+  - System Monitor: real-time CPU, memory, disk, network dashboard
+  - Backup & Restore: local, WebDAV, S3, SFTP backup targets
+  - Web Terminal: full-featured terminal in the browser
+  - Plugin System: extend with premium features via plugins

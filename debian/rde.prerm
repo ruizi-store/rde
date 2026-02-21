@@ -1,0 +1,15 @@
+#!/bin/bash
+set -e
+
+APP_NAME="rde"
+
+# 如果是卸载，停止并禁用服务
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    echo "Stopping ${APP_NAME} service..."
+    systemctl stop "${APP_NAME}.service" 2>/dev/null || true
+    systemctl disable "${APP_NAME}.service" 2>/dev/null || true
+fi
+
+#DEBHELPER#
+
+exit 0

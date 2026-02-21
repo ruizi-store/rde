@@ -1,0 +1,33 @@
+[app]
+PAGE_SIZE = 10
+RuntimeRootPath = runtime/
+LogPath = /var/log/rde/
+LogSaveName = log
+LogFileExt = log
+DateStrFormat = 20060102
+DateTimeFormat = 2006-01-02 15:04:05
+TimeFormat = 15:04:05
+DateFormat = 2006-01-02
+DBPath     = /var/lib/rde
+ShellPath  = /usr/share/rde/shell
+UserDataPath = /var/lib/rde/conf
+
+[server]
+# 服务端口 (默认 3080，可在 Setup 向导中更改)
+HttpPort = 3080
+# 监听地址 (0.0.0.0 监听所有接口，127.0.0.1 仅本地)
+HttpHost = 0.0.0.0
+RunMode = release
+# ServerApi = https://your-cloud-server.example.com/api
+# Handshake = your-cloud-server.example.com
+Token = 
+USBAutoMount =
+
+[auth]
+# JWT 密钥 (安装时自动生成，请勿手动修改)
+JWTSecret = 
+
+[system]
+
+[common]
+RuntimePath=/var/run/rde

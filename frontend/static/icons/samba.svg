@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="samba-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6"/>
+      <stop offset="100%" style="stop-color:#2563EB"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景 -->
+  <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#samba-grad)"/>
+  <!-- 文件夹主体 -->
+  <path d="M16 22 L16 46 Q16 48 18 48 L46 48 Q48 48 48 46 L48 26 Q48 24 46 24 L30 24 L26 20 L18 20 Q16 20 16 22 Z" fill="white"/>
+  <!-- 文件夹标签 -->
+  <path d="M16 22 L26 22 L30 26 L16 26 Z" fill="#dbeafe"/>
+  <!-- 网络共享图标 -->
+  <circle cx="32" cy="38" r="3" fill="#3B82F6"/>
+  <circle cx="24" cy="42" r="2" fill="#3B82F6"/>
+  <circle cx="40" cy="42" r="2" fill="#3B82F6"/>
+  <line x1="32" y1="38" x2="24" y2="42" stroke="#3B82F6" stroke-width="1.5"/>
+  <line x1="32" y1="38" x2="40" y2="42" stroke="#3B82F6" stroke-width="1.5"/>
+  <!-- SMB 标识 -->
+  <text x="32" y="34" text-anchor="middle" font-size="5" font-weight="bold" fill="#3B82F6" font-family="sans-serif">SMB</text>
+</svg>

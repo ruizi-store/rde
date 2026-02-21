@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="android-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3DDC84"/>
+      <stop offset="100%" style="stop-color:#2FA866"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景 -->
+  <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#android-grad)"/>
+  <!-- 头部 -->
+  <path d="M22 30 Q22 20 32 18 Q42 20 42 30 Z" fill="white"/>
+  <!-- 眼睛 -->
+  <circle cx="27" cy="25" r="2" fill="#2FA866"/>
+  <circle cx="37" cy="25" r="2" fill="#2FA866"/>
+  <!-- 触角 -->
+  <line x1="25" y1="18" x2="22" y2="13" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <line x1="39" y1="18" x2="42" y2="13" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <!-- 身体 -->
+  <rect x="22" y="31" width="20" height="14" rx="3" fill="white"/>
+  <!-- 手臂 -->
+  <rect x="17" y="32" width="4" height="10" rx="2" fill="white"/>
+  <rect x="43" y="32" width="4" height="10" rx="2" fill="white"/>
+  <!-- 腿 -->
+  <rect x="26" y="45" width="4" height="7" rx="2" fill="white"/>
+  <rect x="34" y="45" width="4" height="7" rx="2" fill="white"/>
+</svg>

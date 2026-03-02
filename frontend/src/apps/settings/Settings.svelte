@@ -8,6 +8,7 @@
   import { wallpaper, type WallpaperItem, type WallpaperType } from "$desktop/stores/wallpaper.svelte";
   import { toast } from "$shared/stores/toast.svelte";
   import { apps } from "$desktop/stores/apps.svelte";
+  import { desktop } from "$desktop/stores/desktop.svelte";
   import { remoteAccessStore } from "$desktop/stores/remote-access.svelte";
   import {
     notificationBubbleStore,
@@ -681,6 +682,16 @@
         await loadRemoteAccessSettings();
         // 同步更新全局 store，以便桌面图标、开始菜单、右键菜单立即更新
         await remoteAccessStore.load();
+
+        // 启用终端时，自动在桌面添加终端图标；禁用时移除
+        if (pendingSecurityAction.type === "terminal") {
+          if (pendingSecurityAction.enabled) {
+            desktop.addIcon({ name: $t("terminal.tabTitle") || "终端", icon: "/icons/terminal.svg", appId: "terminal", x: 0, y: 0 });
+          } else {
+            desktop.removeIconByAppId("terminal");
+          }
+        }
+
         const actionName = pendingSecurityAction.type === "ssh" ? $t("settingsPage.security.sshService") : $t("settingsPage.security.webTerminal");
         const statusText = pendingSecurityAction.enabled ? $t("settingsPage.notification.enabled") : $t("settingsPage.notification.disabled");
         toast.success(`${actionName}${statusText}`);

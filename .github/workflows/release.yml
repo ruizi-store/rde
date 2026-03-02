@@ -11,6 +11,9 @@ permissions:
 jobs:
   build-deb:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,21 +35,46 @@ jobs:
         run: cd frontend && pnpm install --frozen-lockfile
 
       - name: Install Debian build tools
-        run: sudo apt-get update && sudo apt-get install -y dpkg-dev debhelper
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev debhelper
+          # arm64 交叉编译需要 dpkg 支持目标架构
+          if [ "${{ matrix.arch }}" != "amd64" ]; then
+            sudo dpkg --add-architecture ${{ matrix.arch }}
+          fi
 
       - name: Update changelog version from tag
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          sed -i "1s/([^)]*)/($VERSION-1)/" debian/changelog
+          sed -i "1s/([^)]*)/($VERSION)/" debian/changelog
 
       - name: Build DEB package
-        run: dpkg-buildpackage -us -uc -b -d
+        run: dpkg-buildpackage -us -uc -b -d -a${{ matrix.arch }}
 
       - name: Collect artifacts
         run: |
           mkdir -p outputs
           mv ../rde_*.deb outputs/ 2>/dev/null || true
           ls -lh outputs/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rde-${{ matrix.arch }}
+          path: outputs/rde_*.deb
+
+  release:
+    needs: build-deb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: outputs
+          merge-multiple: true
 
       - name: Generate release notes
         id: notes
@@ -61,8 +89,7 @@ jobs:
           ## Install
 
           ```bash
-          sudo dpkg -i rde_*.deb
-          sudo apt-get install -f
+          sudo apt-get install ./rde_*.deb
           ```
           EOF
 

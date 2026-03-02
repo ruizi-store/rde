@@ -6,6 +6,7 @@
   import {
     flatpakService,
     type FlatpakApp,
+    type ActiveInstall,
   } from "./service";
 
   // Props
@@ -68,6 +69,16 @@
     } finally {
       loading = false;
     }
+    // 检查是否有正在安装的应用，自动重连进度
+    try {
+      const actives = await flatpakService.getActiveInstalls();
+      const active = actives.find((a: ActiveInstall) => a.status === "installing");
+      if (active) {
+        reconnectToInstall(active.app_id, active.app_name);
+      }
+    } catch (e: any) {
+      // ignore
+    }
   });
 
   // 搜索变化自动触发
@@ -105,9 +116,9 @@
 
     abortInstall = flatpakService.installAppStream(
       id,
+      app.name,
       (line) => {
         progressLogs = [...progressLogs, line];
-        // 自动滚动到底部
         requestAnimationFrame(() => {
           if (logContainer) {
             logContainer.scrollTop = logContainer.scrollHeight;
@@ -122,9 +133,7 @@
         if (success) {
           progressStatus = "success";
           showToast(`${app.name} 安装完成`, "success");
-          // 刷新应用列表
           onInstalled?.();
-          // 更新推荐列表中的 installed 状态
           recommendedApps = recommendedApps.map((a) =>
             a.app_id === id ? { ...a, installed: true } : a
           );
@@ -135,6 +144,48 @@
           progressStatus = "error";
           progressError = error || "未知错误";
           showToast(`安装失败: ${error}`, "error");
+        }
+      }
+    );
+  }
+
+  /** 重连到正在进行的安装任务 */
+  function reconnectToInstall(appId: string, appName: string) {
+    installing = new Set([...installing, appId]);
+    progressApp = appName;
+    progressLogs = [];
+    progressStatus = "installing";
+    progressError = "";
+    showProgress = true;
+
+    abortInstall = flatpakService.watchInstallProgress(
+      appId,
+      (line) => {
+        progressLogs = [...progressLogs, line];
+        requestAnimationFrame(() => {
+          if (logContainer) {
+            logContainer.scrollTop = logContainer.scrollHeight;
+          }
+        });
+      },
+      (success, error) => {
+        const newSet = new Set(installing);
+        newSet.delete(appId);
+        installing = newSet;
+
+        if (success) {
+          progressStatus = "success";
+          showToast(`${appName} 安装完成`, "success");
+          onInstalled?.();
+          recommendedApps = recommendedApps.map((a) =>
+            a.app_id === appId ? { ...a, installed: true } : a
+          );
+          searchResults = searchResults.map((a) =>
+            a.app_id === appId ? { ...a, installed: true } : a
+          );
+        } else {
+          progressStatus = "error";
+          progressError = error || "未知错误";
         }
       }
     );
@@ -189,8 +240,12 @@
         {#each displayApps as app}
           <div class="store-app-card">
             <div class="store-app-icon">
-              {#if app.installed && app.icon}
-                <img src={flatpakService.getIconUrl(app.app_id)} alt={app.name} />
+              {#if app.installed}
+                <img src={flatpakService.getIconUrl(app.app_id)} alt={app.name} onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} />
+                <span style="display:none"><Icon icon="mdi:package-variant" width={36} /></span>
+              {:else if app.icon && app.icon.startsWith('http')}
+                <img src={app.icon} alt={app.name} onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} />
+                <span style="display:none"><Icon icon="mdi:package-variant" width={36} /></span>
               {:else}
                 <Icon icon="mdi:package-variant" width={36} />
               {/if}
@@ -200,9 +255,9 @@
               <div class="store-app-desc">
                 {app.description || app.app_id}
               </div>
-              {#if app.version}
-                <div class="store-app-meta">v{app.version}</div>
-              {/if}
+              <div class="store-app-meta">
+                {app.app_id}{#if app.version} · v{app.version}{/if}
+              </div>
             </div>
             <div class="store-app-action">
               {#if app.installed}
@@ -289,8 +344,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: var(--bg-tertiary, rgba(255, 255, 255, 0.05));
-    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 8px 14px;
     flex: 1;
@@ -301,9 +356,13 @@
     border: none;
     background: none;
     outline: none;
-    color: var(--text-primary, #e0e0e0);
+    color: var(--text-primary);
     width: 100%;
     font-size: 13px;
+  }
+
+  .search-box input::placeholder {
+    color: var(--text-muted);
   }
 
   /* Category Bar */
@@ -320,10 +379,10 @@
     align-items: center;
     gap: 4px;
     padding: 5px 12px;
-    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border: 1px solid var(--border-color);
     border-radius: 16px;
     background: none;
-    color: var(--text-secondary, #999);
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 12px;
     white-space: nowrap;
@@ -331,12 +390,13 @@
   }
 
   .cat-btn:hover {
-    background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .cat-btn.active {
-    background: var(--color-primary, #6c63ff);
-    border-color: var(--color-primary, #6c63ff);
+    background: var(--color-primary);
+    border-color: var(--color-primary);
     color: #fff;
   }
 
@@ -354,7 +414,7 @@
     justify-content: center;
     height: 100%;
     gap: 12px;
-    color: var(--text-secondary, #999);
+    color: var(--text-muted);
   }
 
   .app-list {
@@ -369,28 +429,31 @@
     gap: 12px;
     padding: 10px 14px;
     border-radius: 8px;
-    background: var(--bg-tertiary, rgba(255, 255, 255, 0.03));
-    transition: background 0.15s;
+    background: var(--bg-card);
+    border: 1px solid transparent;
+    transition: all 0.15s;
   }
 
   .store-app-card:hover {
-    background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+    background: var(--bg-hover);
+    border-color: var(--border-color);
   }
 
   .store-app-icon {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    color: var(--text-muted);
   }
 
   .store-app-icon img {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    border-radius: 6px;
+    border-radius: 8px;
   }
 
   .store-app-info {
@@ -400,20 +463,24 @@
 
   .store-app-name {
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
+    color: var(--text-primary);
   }
 
   .store-app-desc {
     font-size: 12px;
-    color: var(--text-secondary, #999);
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    margin-top: 1px;
   }
 
   .store-app-meta {
     font-size: 11px;
-    color: var(--text-tertiary, #666);
+    color: var(--text-muted);
+    margin-top: 2px;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
   }
 
   .store-app-action {
@@ -432,14 +499,15 @@
   }
 
   .progress-modal {
-    background: var(--bg-secondary, #16213e);
-    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    background: var(--bg-window);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     width: 540px;
     max-height: 400px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 
   .progress-header {
@@ -447,9 +515,10 @@
     align-items: center;
     gap: 8px;
     padding: 14px 16px;
-    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-bottom: 1px solid var(--border-color);
     font-size: 14px;
     font-weight: 500;
+    color: var(--text-primary);
   }
 
   .progress-logs {
@@ -460,12 +529,13 @@
     font-size: 11px;
     line-height: 1.6;
     max-height: 250px;
+    background: var(--bg-secondary);
   }
 
   .log-line {
     white-space: pre-wrap;
     word-break: break-all;
-    color: var(--text-secondary, #aaa);
+    color: var(--text-secondary);
   }
 
   .log-line.error {
@@ -476,6 +546,6 @@
     display: flex;
     justify-content: flex-end;
     padding: 10px 14px;
-    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-top: 1px solid var(--border-color);
   }
 </style>

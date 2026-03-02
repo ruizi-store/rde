@@ -4,7 +4,7 @@
   <a href="https://github.com/ruizi-store/rde"><img src="frontend/static/favicon.svg" alt="RDE" width="120" /></a>
 </p>
 <p align="center"><b>云桌面，让 Linux 服务器触手可及</b></p>
-<p align="center"><i>Remote Desktop Environment — A Web-based Desktop for Linux Servers</i></p>
+<p align="center"><i>Ruizi Desktop Environment — A Web-based Desktop for Linux Servers</i></p>
 <p align="center">
   <a href="https://www.gnu.org/licenses/gpl-3.0.html"><img src="https://img.shields.io/github/license/ruizi-store/rde?color=%231890FF" alt="License: GPL v3"></a>
   <a href="https://github.com/ruizi-store/rde/releases"><img src="https://img.shields.io/github/v/release/ruizi-store/rde" alt="GitHub release"></a>

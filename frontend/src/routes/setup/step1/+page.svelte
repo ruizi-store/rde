@@ -137,9 +137,6 @@
   </form>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => goto("/setup/restore")}>
-      ☁️ {$t("setup.cloudRestore.restoreFromCloud")}
-    </Button>
     <Button variant="primary" onclick={handleSubmit} {loading}>
       {#if loading}
         {$t("setup.saving")}

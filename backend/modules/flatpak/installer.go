@@ -17,8 +17,8 @@ import (
 
 // distroInfo 系统发行版信息
 type distroInfo struct {
-	ID            string // debian, ubuntu, fedora, opensuse-leap, alpine, ol (oracle)
-	VersionID     string // 12, 24.04, 40, 15, 3.20 等
+	ID              string // debian, ubuntu, fedora, opensuse-leap, alpine, ol (oracle)
+	VersionID       string // 12, 24.04, 40, 15, 3.20 等
 	VersionCodename string // bookworm, noble 等（仅 Debian/Ubuntu）
 }
 
@@ -78,6 +78,10 @@ func (inst *Installer) NeedsUpdate() bool {
 		return true
 	}
 	installed := inst.GetInstalledVersion()
+	// dpkg 版本格式为 "1.4.0-1"（含 Debian revision），只比较上游版本部分
+	if idx := strings.Index(installed, "-"); idx > 0 {
+		installed = installed[:idx]
+	}
 	return installed != kasmVNCVersion
 }
 
@@ -251,11 +255,12 @@ func (inst *Installer) GetDownloadURL() (string, string, error) {
 	base := "https://github.com/kasmtech/KasmVNC/releases/download"
 	directURL := fmt.Sprintf("%s/v%s/%s", base, kasmVNCVersion, filename)
 
-	// 检测是否使用国内镜像加速
+	// 回退到公共 ghproxy 加速（i18n 区域检测）
 	ghProxy := i18n.GetMirrorField("github", "url")
 	if ghProxy != "" && ghProxy != "https://github.com" {
 		return fmt.Sprintf("%s/%s", ghProxy, directURL), pkgType, nil
 	}
+
 	return directURL, pkgType, nil
 }
 
@@ -315,34 +320,46 @@ func (inst *Installer) Install(onProgress func(line string)) error {
 	onProgress("正在安装...")
 	switch pkgType {
 	case "deb":
-		// 先安装依赖
-		cmd := exec.Command("apt-get", "install", "-y", "-f", tmpPath)
-		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			// 回退到 dpkg + apt-get fix
-			onProgress("使用 dpkg 安装...")
-			dpkgCmd := exec.Command("dpkg", "-i", tmpPath)
-			dpkgOut, dpkgErr := dpkgCmd.CombinedOutput()
-			if dpkgErr != nil {
-				onProgress(fmt.Sprintf("dpkg 输出: %s", string(dpkgOut)))
-				// 尝试修复依赖
-				fixCmd := exec.Command("apt-get", "install", "-y", "-f")
-				fixCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-				fixOut, fixErr := fixCmd.CombinedOutput()
-				if fixErr != nil {
-					return fmt.Errorf("install KasmVNC deb: %s\n%s", string(dpkgOut), string(fixOut))
-				}
-				onProgress("依赖修复完成")
+		// 先更新 apt 缓存，避免依赖解析失败
+		onProgress("更新 apt 缓存...")
+		updateCmd := exec.Command("apt-get", "update", "-q")
+		updateCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+		if out, err := updateCmd.CombinedOutput(); err != nil {
+			onProgress(fmt.Sprintf("⚠ apt-get update 失败（继续尝试安装）: %s", strings.TrimSpace(string(out))))
+		}
+
+		// 先修复可能存在的待配置包（如 pulseaudio conffile 问题）
+		fixPending := exec.Command("dpkg", "--configure", "--force-confold", "-a")
+		fixPending.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+		fixPending.Run() // 忽略错误
+
+		// 使用 apt 安装本地 deb，自动解决依赖
+		// --force-confold: 保留当前配置文件，避免 conffile 提示在非交互模式下卡住
+		onProgress("使用 apt 安装...")
+		dpkgForceOpt := `-o=Dpkg::Options::=--force-confold`
+		if err := inst.runStreamedCmd(onProgress,
+			[]string{"DEBIAN_FRONTEND=noninteractive"},
+			"apt-get", "install", "-y", "--no-install-recommends", dpkgForceOpt, tmpPath,
+		); err != nil {
+			// apt 安装失败，回退到 dpkg + apt-get -f install
+			onProgress(fmt.Sprintf("⚠ apt 安装失败: %v", err))
+			onProgress("回退到 dpkg 安装...")
+			if err2 := inst.runStreamedCmd(onProgress,
+				[]string{"DEBIAN_FRONTEND=noninteractive"},
+				"dpkg", "--force-confold", "-i", tmpPath,
+			); err2 != nil {
+				onProgress(fmt.Sprintf("dpkg 安装报错（尝试修复依赖）: %v", err2))
 			}
-		} else {
-			// 将安装输出中有用的信息传给前端
-			for _, line := range strings.Split(string(out), "\n") {
-				line = strings.TrimSpace(line)
-				if line != "" && (strings.Contains(line, "kasmvnc") || strings.Contains(line, "Setting up") || strings.Contains(line, "installed")) {
-					onProgress(line)
-				}
+			// 修复依赖
+			onProgress("修复依赖...")
+			if err3 := inst.runStreamedCmd(onProgress,
+				[]string{"DEBIAN_FRONTEND=noninteractive"},
+				"apt-get", "install", "-y", "-f", dpkgForceOpt,
+			); err3 != nil {
+				onProgress(fmt.Sprintf("✗ 依赖修复失败: %v", err3))
+				return fmt.Errorf("install KasmVNC deb failed, see output above")
 			}
+			onProgress("依赖修复完成")
 		}
 
 	case "rpm":
@@ -369,6 +386,30 @@ func (inst *Installer) Install(onProgress func(line string)) error {
 	onProgress(fmt.Sprintf("KasmVNC v%s 安装完成", kasmVNCVersion))
 	inst.logger.Info("KasmVNC installed", zap.String("version", kasmVNCVersion))
 	return nil
+}
+
+// runStreamedCmd 流式执行命令，实时输出到 onProgress
+func (inst *Installer) runStreamedCmd(onProgress func(string), extraEnv []string, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	if len(extraEnv) > 0 {
+		cmd.Env = append(os.Environ(), extraEnv...)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("pipe: %w", err)
+	}
+	cmd.Stderr = cmd.Stdout
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start %s: %w", name, err)
+	}
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			onProgress(line)
+		}
+	}
+	return cmd.Wait()
 }
 
 // GetBinaryPath 获取 kasmvncserver / Xkasmvnc 可执行文件路径
@@ -448,24 +489,32 @@ func (inst *Installer) CheckSystemDeps() *SetupStatus {
 			status.PulseAudioRunning = true
 		} else if exec.Command("systemctl", "is-active", "--quiet", "pulseaudio-system.service").Run() == nil {
 			status.PulseAudioRunning = true
+		} else if out, err := exec.Command("pactl", "info").CombinedOutput(); err == nil && strings.Contains(string(out), "Server Name") {
+			status.PulseAudioRunning = true
 		}
 	}
 
 	// 虚拟声卡
 	if status.PulseAudioRunning {
+		// 先用默认连接试
 		out, err := exec.Command("pactl", "list", "sinks", "short").Output()
+		if err != nil {
+			// 用 unix socket 试
+			cmd := exec.Command("pactl", "list", "sinks", "short")
+			cmd.Env = append(os.Environ(), "PULSE_SERVER=unix:/run/pulse/native")
+			out, err = cmd.Output()
+		}
 		if err == nil && strings.Contains(string(out), "virtual_speaker") {
 			status.VirtualSinkReady = true
 		}
 	}
 
+	// Ready 条件：核心组件必须就绪，音频是可选的
 	status.Ready = status.KasmVNCInstalled &&
 		status.FlatpakInstalled &&
 		status.FlatpakRemoteOK &&
 		status.OpenboxInstalled &&
-		status.PulseAudioInstalled &&
-		status.PulseAudioRunning &&
-		status.VirtualSinkReady
+		status.PulseAudioInstalled
 
 	return status
 }

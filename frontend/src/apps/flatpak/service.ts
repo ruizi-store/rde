@@ -67,6 +67,15 @@ export interface SSEEvent {
   message: string;
 }
 
+/** 正在安装的应用 */
+export interface ActiveInstall {
+  app_id: string;
+  app_name: string;
+  started_at: string;
+  status: "installing" | "success" | "error";
+  error?: string;
+}
+
 // ==================== SSE 流式请求辅助 ====================
 
 function streamRequest(
@@ -190,7 +199,23 @@ class FlatpakService {
 
   /** 获取 VNC iframe URL */
   getVNCUrl(): string {
-    return "/api/v1/flatpak/vnc/vnc.html?autoconnect=true&resize=remote&path=api/v1/flatpak/vnc/websockify";
+    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : "";
+    const cacheBust = Date.now();
+    const base = `/api/v1/flatpak/vnc/vnc.html?autoconnect=true&resize=remote&path=api/v1/flatpak/vnc/websockify&_t=${cacheBust}`;
+    return token ? `${base}&token=${encodeURIComponent(token)}` : base;
+  }
+
+  // ========== Clipboard ==========
+
+  /** 设置桌面剪贴板内容 */
+  async setClipboard(text: string): Promise<void> {
+    await api.post("/flatpak/desktop/clipboard", { text });
+  }
+
+  /** 获取桌面剪贴板内容 */
+  async getClipboard(): Promise<string> {
+    const res = await api.get<{ text: string }>("/flatpak/desktop/clipboard");
+    return res.text;
   }
 
   // ========== Apps ==========
@@ -219,6 +244,7 @@ class FlatpakService {
   /** 流式安装应用 */
   installAppStream(
     appId: string,
+    appName: string,
     onProgress: (line: string) => void,
     onComplete: (success: boolean, error?: string) => void
   ): () => void {
@@ -226,8 +252,27 @@ class FlatpakService {
       "/api/v1/flatpak/apps/install-stream",
       {
         method: "POST",
-        body: JSON.stringify({ app_id: appId }),
+        body: JSON.stringify({ app_id: appId, app_name: appName }),
       },
+      onProgress,
+      onComplete
+    );
+  }
+
+  /** 获取当前正在安装的应用列表 */
+  async getActiveInstalls(): Promise<ActiveInstall[]> {
+    return api.get<ActiveInstall[]>("/flatpak/apps/installing");
+  }
+
+  /** 重连安装进度（SSE） */
+  watchInstallProgress(
+    appId: string,
+    onProgress: (line: string) => void,
+    onComplete: (success: boolean, error?: string) => void
+  ): () => void {
+    return streamRequest(
+      `/api/v1/flatpak/apps/install-progress/${encodeURIComponent(appId)}`,
+      { method: "GET" },
       onProgress,
       onComplete
     );

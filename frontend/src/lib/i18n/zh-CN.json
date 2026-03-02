@@ -108,7 +108,7 @@
   "setup": {
     "welcome": "欢迎使用 RDE",
     "selectLanguage": "请选择您的语言",
-    "selectRegion": "请选择您的区域",
+    "selectRegion": "选择区域",
     "detectedRegion": "检测到您可能位于: {region}",
     "regionCN": "中国大陆",
     "regionIntl": "国际",
@@ -169,26 +169,6 @@
     "prevStep": "上一步",
     "completing": "正在完成...",
     "startUsingRDE": "开始使用 RDE",
-    "cloudRestore": {
-      "title": "从云端恢复",
-      "description": "登录您的 RDE 账号，恢复之前的备份数据",
-      "restoreFromCloud": "从云端恢复",
-      "email": "邮箱",
-      "verifyCode": "验证码",
-      "sendCode": "发送验证码",
-      "invalidEmail": "请输入有效的邮箱地址",
-      "inputEmailAndCode": "请输入邮箱和验证码",
-      "login": "登录",
-      "noBackups": "暂无可用备份",
-      "selectBackup": "选择要恢复的备份：",
-      "backupPassword": "备份密码",
-      "backupPasswordHint": "输入备份时设置的加密密码",
-      "inputPassword": "请选择备份并输入密码",
-      "startRestore": "开始恢复",
-      "restoreComplete": "恢复成功！",
-      "restoreCompleteHint": "您的数据已恢复，请继续完成剩余设置步骤",
-      "continueSetup": "继续设置"
-    },
     "configSummary": "配置摘要",
     "whatYouCanDo": "接下来您可以",
     "setupDone": "设置完成！",
@@ -274,7 +254,6 @@
     "completeSetup": "完成设置",
     "softwareSources": "软件源设置",
     "softwareSourcesDesc": "配置软件包下载源，选择合适的镜像可以加快下载速度",
-    "selectRegion": "选择区域",
     "selectRegionDesc": "根据您所在的位置选择区域，系统会自动使用该区域的软件源",
     "mirrorSettings": "软件源配置",
     "mirrorSettingsDesc": "您也可以单独配置每个软件源，或保持“自动”跟随区域设置",
@@ -385,8 +364,7 @@
       "samba": "文件共享",
       "retrogame": "复古游戏",
       "docker": "Docker 应用",
-      "notification": "通知",
-      "membership": "会员中心"
+      "notification": "通知"
     }
   },
   "errors": {
@@ -439,7 +417,15 @@
       "uninstallFailed": "卸载失败: {error}"
     },
     "calendar": {
-      "weekdays": ["一", "二", "三", "四", "五", "六", "日"],
+      "weekdays": [
+        "一",
+        "二",
+        "三",
+        "四",
+        "五",
+        "六",
+        "日"
+      ],
       "today": "今天",
       "holiday": "休",
       "workday": "班",
@@ -1477,7 +1463,6 @@
       "installPackage": "安装软件包",
       "installFlatpak": "安装 Flatpak",
       "runAppImage": "运行 AppImage",
-      "runWithWine": "用 Wine 运行",
       "openTerminalHere": "从此处打开终端",
       "download": "下载",
       "copy": "复制",
@@ -1526,13 +1511,10 @@
       "installDeb": "安装 Deb 软件包",
       "installFlatpak": "安装 Flatpak 应用",
       "runAppImage": "运行 AppImage",
-      "runWindows": "运行 Windows 程序",
-      "runWine": "运行 (Wine)",
       "install": "安装",
       "debDesc": "将通过 apt 安装此 .deb 软件包，自动解决依赖关系。",
       "flatpakDesc": "将通过 Flatpak 安装此应用。",
       "appImageDesc": "将通过 Xpra 远程桌面运行此 AppImage 应用。",
-      "exeDesc": "将通过 Wine 运行此 Windows 可执行文件。",
       "launchSuccess": "启动成功！",
       "installComplete": "安装完成！",
       "close": "关闭",
@@ -1653,6 +1635,7 @@
     "required": "必填",
     "defaultValue": "默认:",
     "installed": "已安装",
+    "incompatibleArch": "不兼容架构",
     "tabs": {
       "store": "应用商店",
       "myapps": "已安装应用",
@@ -2147,63 +2130,5 @@
     "connectionFailedMsg": "连接失败: {message}",
     "createSSHSessionFailed": "创建SSH会话失败",
     "createTerminalSessionFailed": "创建终端会话失败"
-  },
-  "membership": {
-    "title": "会员中心",
-    "unbound": "未绑定",
-    "bindHint": "绑定邮箱开通会员服务",
-    "bindEmail": "绑定邮箱",
-    "enterEmail": "请输入邮箱地址",
-    "enterCode": "请输入验证码",
-    "getCode": "获取验证码",
-    "verifyAndBind": "验证并绑定",
-    "unbind": "解绑",
-    "unbindTitle": "解绑邮箱",
-    "unbindConfirm": "解绑后将失去会员权益，确认解绑吗？",
-    "confirmUnbind": "确认解绑",
-    "cancel": "取消",
-    "retry": "重试",
-    "loading": "加载中...",
-    "expiresAt": "到期时间",
-    "expiringNotice": "您的会员将在 {days} 天后到期，请及时续期",
-    "expiredNotice": "您的会员已到期，请输入激活码续期",
-    "trafficTitle": "本月流量使用",
-    "dockerAccel": "Docker Hub 加速",
-    "githubAccel": "GitHub 加速",
-    "plansTitle": "会员计划",
-    "recommended": "推荐",
-    "currentPlan": "当前计划",
-    "free": "免费",
-    "subscribe": "立即订阅",
-    "bindFirst": "先绑定邮箱",
-    "activateTitle": "激活码",
-    "activateHint": "输入激活码开通或续期会员。激活码可在闲鱼、淘宝等平台购买。",
-    "activate": "激活",
-    "activateSuccess": "激活成功！会员已生效。",
-    "useActivateCode": "使用激活码",
-    "plans": {
-      "free": {
-        "name": "免费版",
-        "price": "¥0"
-      },
-      "basic": {
-        "name": "基础会员",
-        "price": "¥9.9/月"
-      },
-      "premium": {
-        "name": "高级会员",
-        "price": "¥19.9/月"
-      }
-    },
-    "errors": {
-      "invalidEmail": "请输入有效的邮箱地址",
-      "invalidCode": "请输入正确的验证码",
-      "loadFailed": "获取会员状态失败",
-      "codeFailed": "验证码发送失败",
-      "verifyFailed": "验证失败",
-      "unbindFailed": "解绑失败",
-      "invalidKey": "请输入完整的32位激活码",
-      "activateFailed": "激活失败，请检查激活码是否正确"
-    }
   }
 }

@@ -1,3 +1,9 @@
+rde (0.2.0) unstable; urgency=medium
+
+  * fix: flatpak 应用若干bug
+
+ -- liduanjun <duanjun@nfschina.com>  Mon, 02 Mar 2026 10:40:20 +0800
+
 rde (0.1.0-1) unstable; urgency=medium
 
   * Initial open source release v0.1.0

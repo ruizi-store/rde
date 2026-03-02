@@ -11,7 +11,12 @@
   import MusicSettings from "./MusicSettings.svelte";
   import LyricsPanel from "./LyricsPanel.svelte";
 
-  let { windowId }: { windowId: string } = $props();
+  interface Props {
+    windowId: string;
+    filePath?: string;  // 从文件管理器传入的文件路径
+  }
+
+  let { windowId, filePath }: Props = $props();
 
   // 视图状态
   let showSetup = $state(false);
@@ -54,6 +59,23 @@
   });
 
   onMount(async () => {
+    // 如果传入了文件路径，直接播放
+    if (filePath) {
+      const pathParts = filePath.split("/");
+      const fileName = pathParts.pop() || "";
+      const dirPath = pathParts.join("/") || "/";
+
+      currentPath = dirPath;
+      await loadDirectory(dirPath);
+
+      const file = files.find(f => f.path === filePath);
+      if (file) {
+        playFile(file);
+      }
+      initialized = true;
+      return;
+    }
+
     // 检查是否需要显示设置向导
     if (!musicSettings.settings.setupComplete) {
       showSetup = true;

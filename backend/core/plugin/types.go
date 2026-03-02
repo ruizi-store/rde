@@ -7,7 +7,7 @@ import "time"
 // Manifest 描述插件的能力和元数据
 // 每个插件目录下必须包含一个 manifest.json 文件
 type Manifest struct {
-	// ID 插件唯一标识符，如 "premium", "my-plugin"
+	// ID 插件唯一标识符，如 "my-plugin", "custom-theme"
 	ID string `json:"id"`
 
 	// Name 插件显示名称

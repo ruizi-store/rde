@@ -1,6 +1,6 @@
 # RDE Makefile
 
-.PHONY: help dev stop deb setup
+.PHONY: help dev stop deb deb-arm64 deb-all setup
 
 .DEFAULT_GOAL := help
 
@@ -13,7 +13,7 @@ RESET := \033[0m
 
 # 版本号
 VERSION := $(shell head -1 debian/changelog 2>/dev/null | grep -oP '\(\K[^)-]+' || echo "0.4.16")
-ARCH := amd64
+ARCH ?= amd64
 PACKAGE_NAME := rde
 
 # 目录
@@ -48,7 +48,9 @@ help:
 	@echo ""
 	@echo "  make dev     - 启动开发环境 (前端 5175 + 后端 3080)"
 	@echo "  make stop    - 停止开发服务器"
-	@echo "  make deb     - 构建 DEB 安装包"
+	@echo "  make deb     - 构建 DEB 安装包 (默认 amd64)"
+	@echo "  make deb-arm64 - 构建 ARM64 DEB 安装包"
+	@echo "  make deb-all - 构建 amd64 + arm64 DEB 安装包"
 	@echo "  make setup   - 安装开发环境 (Go + Node + pnpm)"
 	@echo ""
 	@echo "$(YELLOW)版本: $(VERSION)$(RESET)"
@@ -98,14 +100,21 @@ stop:
 #==============================================================================
 
 deb:
-	@echo "$(CYAN)构建 DEB 包 (版本 $(VERSION))...$(RESET)"
+	@echo "$(CYAN)构建 DEB 包 (版本 $(VERSION), 架构 $(ARCH))...$(RESET)"
 	@mkdir -p $(OUTPUT_DIR)
-	dpkg-buildpackage -us -uc -b -d
+	dpkg-buildpackage -us -uc -b -d -a$(ARCH)
 	@mv ../$(PACKAGE_NAME)_*.deb $(OUTPUT_DIR)/ 2>/dev/null || true
 	@mv ../$(PACKAGE_NAME)_*.buildinfo $(OUTPUT_DIR)/ 2>/dev/null || true
 	@mv ../$(PACKAGE_NAME)_*.changes $(OUTPUT_DIR)/ 2>/dev/null || true
 	@echo "$(GREEN)✓ DEB 包已生成$(RESET)"
 	@ls -lh $(OUTPUT_DIR)/$(PACKAGE_NAME)_*.deb
+
+deb-arm64:
+	@$(MAKE) deb ARCH=arm64
+
+deb-all:
+	@$(MAKE) deb ARCH=amd64
+	@$(MAKE) deb ARCH=arm64
 
 #==============================================================================
 # 环境安装
@@ -116,7 +125,8 @@ setup:
 	@# Go
 	@if ! command -v go >/dev/null 2>&1; then \
 		echo "$(GREEN)安装 Go $(GO_VERSION)...$(RESET)"; \
-		curl -Lo /tmp/go.tar.gz https://go.dev/dl/go$(GO_VERSION).linux-amd64.tar.gz; \
+		HOST_ARCH=$$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/'); \
+		curl -Lo /tmp/go.tar.gz https://go.dev/dl/go$(GO_VERSION).linux-$$HOST_ARCH.tar.gz; \
 		sudo rm -rf /usr/local/go; \
 		sudo tar -C /usr/local -xzf /tmp/go.tar.gz; \
 		rm /tmp/go.tar.gz; \
@@ -126,7 +136,8 @@ setup:
 	@# Node.js
 	@if ! command -v node >/dev/null 2>&1 || [ "$$(node -v | sed 's/^v//')" != "$(NODE_VERSION)" ]; then \
 		echo "$(GREEN)安装 Node.js $(NODE_VERSION)...$(RESET)"; \
-		curl -Lo /tmp/node.tar.xz https://nodejs.org/dist/v$(NODE_VERSION)/node-v$(NODE_VERSION)-linux-x64.tar.xz; \
+		HOST_ARCH=$$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/'); \
+		curl -Lo /tmp/node.tar.xz https://nodejs.org/dist/v$(NODE_VERSION)/node-v$(NODE_VERSION)-linux-$$HOST_ARCH.tar.xz; \
 		sudo rm -rf /usr/local/node; \
 		sudo mkdir -p /usr/local/node; \
 		sudo tar -C /usr/local/node --strip-components=1 -xJf /tmp/node.tar.xz; \

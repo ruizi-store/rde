@@ -429,7 +429,8 @@
       <span>{window.title}</span>
     </div>
 
-    <div class="window-controls">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="window-controls" onmousedown={(e) => e.stopPropagation()}>
       {#if isXpraWindow}
         <button
           class="control xpra-toolbar"

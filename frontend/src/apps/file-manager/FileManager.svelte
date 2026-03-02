@@ -744,6 +744,12 @@
         return;
       }
 
+      // 音频文件使用音乐播放器打开
+      if (category === "audio") {
+        await windowManager.open("music", { filePath: file.path });
+        return;
+      }
+
       if (category !== "other") {
         previewFile = file;
         showPreviewModal = true;

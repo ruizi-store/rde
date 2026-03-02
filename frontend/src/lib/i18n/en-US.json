@@ -169,26 +169,6 @@
     "prevStep": "Previous",
     "completing": "Completing...",
     "startUsingRDE": "Start Using RDE",
-    "cloudRestore": {
-      "title": "Restore from Cloud",
-      "description": "Sign in to your RDE account and restore previous backup data",
-      "restoreFromCloud": "Restore from Cloud",
-      "email": "Email",
-      "verifyCode": "Verification Code",
-      "sendCode": "Send Code",
-      "invalidEmail": "Please enter a valid email address",
-      "inputEmailAndCode": "Please enter email and verification code",
-      "login": "Sign In",
-      "noBackups": "No backups available",
-      "selectBackup": "Select a backup to restore:",
-      "backupPassword": "Backup Password",
-      "backupPasswordHint": "Enter the encryption password set during backup",
-      "inputPassword": "Please select a backup and enter password",
-      "startRestore": "Start Restore",
-      "restoreComplete": "Restore Complete!",
-      "restoreCompleteHint": "Your data has been restored. Please continue with the remaining setup steps.",
-      "continueSetup": "Continue Setup"
-    },
     "configSummary": "Configuration Summary",
     "whatYouCanDo": "What you can do next",
     "setupDone": "Setup Complete!",
@@ -274,7 +254,6 @@
     "completeSetup": "Complete Setup",
     "softwareSources": "Software Sources",
     "softwareSourcesDesc": "Configure package download sources, choose appropriate mirrors for faster download speed",
-    "selectRegion": "Select Region",
     "selectRegionDesc": "Select your region, the system will automatically use software sources for that region",
     "mirrorSettings": "Mirror Settings",
     "mirrorSettingsDesc": "You can also configure each mirror individually, or keep 'Auto' to follow region settings",
@@ -385,8 +364,7 @@
       "samba": "File Sharing",
       "retrogame": "Retro Games",
       "docker": "Docker Apps",
-      "notification": "Notifications",
-      "membership": "Membership"
+      "notification": "Notifications"
     }
   },
   "errors": {
@@ -439,7 +417,15 @@
       "uninstallFailed": "Uninstall failed: {error}"
     },
     "calendar": {
-      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      "weekdays": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+      ],
       "today": "Today",
       "holiday": "Off",
       "workday": "Work",
@@ -1478,7 +1464,6 @@
       "installPackage": "Install Package",
       "installFlatpak": "Install Flatpak",
       "runAppImage": "Run AppImage",
-      "runWithWine": "Run with Wine",
       "openTerminalHere": "Open Terminal Here",
       "download": "Download",
       "copy": "Copy",
@@ -1527,13 +1512,10 @@
       "installDeb": "Install Deb Package",
       "installFlatpak": "Install Flatpak App",
       "runAppImage": "Run AppImage",
-      "runWindows": "Run Windows Program",
-      "runWine": "Run (Wine)",
       "install": "Install",
       "debDesc": "This .deb package will be installed via apt with automatic dependency resolution.",
       "flatpakDesc": "This app will be installed via Flatpak.",
       "appImageDesc": "This AppImage will be run via Xpra remote desktop.",
-      "exeDesc": "This Windows executable will be run via Wine.",
       "launchSuccess": "Launch successful!",
       "installComplete": "Installation complete!",
       "close": "Close",
@@ -1654,6 +1636,7 @@
     "required": "Required",
     "defaultValue": "Default:",
     "installed": "Installed",
+    "incompatibleArch": "Incompatible Arch",
     "tabs": {
       "store": "App Store",
       "myapps": "Installed Apps",
@@ -2148,63 +2131,5 @@
     "connectionFailedMsg": "Connection failed: {message}",
     "createSSHSessionFailed": "Failed to create SSH session",
     "createTerminalSessionFailed": "Failed to create terminal session"
-  },
-  "membership": {
-    "title": "Membership",
-    "unbound": "Not Bound",
-    "bindHint": "Bind your email to activate membership",
-    "bindEmail": "Bind Email",
-    "enterEmail": "Enter email address",
-    "enterCode": "Enter verification code",
-    "getCode": "Get Code",
-    "verifyAndBind": "Verify & Bind",
-    "unbind": "Unbind",
-    "unbindTitle": "Unbind Email",
-    "unbindConfirm": "You will lose membership benefits after unbinding. Continue?",
-    "confirmUnbind": "Confirm Unbind",
-    "cancel": "Cancel",
-    "retry": "Retry",
-    "loading": "Loading...",
-    "expiresAt": "Expires",
-    "expiringNotice": "Your membership expires in {days} days, please renew soon",
-    "expiredNotice": "Your membership has expired, enter an activation code to renew",
-    "trafficTitle": "Monthly Traffic Usage",
-    "dockerAccel": "Docker Hub Acceleration",
-    "githubAccel": "GitHub Acceleration",
-    "plansTitle": "Membership Plans",
-    "recommended": "Recommended",
-    "currentPlan": "Current Plan",
-    "free": "Free",
-    "subscribe": "Subscribe Now",
-    "bindFirst": "Bind email first",
-    "activateTitle": "Activation Code",
-    "activateHint": "Enter an activation code to start or extend your membership.",
-    "activate": "Activate",
-    "activateSuccess": "Activated successfully! Membership is now active.",
-    "useActivateCode": "Use Activation Code",
-    "plans": {
-      "free": {
-        "name": "Free",
-        "price": "$0"
-      },
-      "basic": {
-        "name": "Basic",
-        "price": "$1.49/mo"
-      },
-      "premium": {
-        "name": "Premium",
-        "price": "$2.99/mo"
-      }
-    },
-    "errors": {
-      "invalidEmail": "Please enter a valid email address",
-      "invalidCode": "Please enter a valid verification code",
-      "loadFailed": "Failed to load membership status",
-      "codeFailed": "Failed to send verification code",
-      "verifyFailed": "Verification failed",
-      "unbindFailed": "Failed to unbind",
-      "invalidKey": "Please enter a complete 32-character activation code",
-      "activateFailed": "Activation failed, please check your code"
-    }
   }
 }

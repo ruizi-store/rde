@@ -1042,8 +1042,19 @@ func (s *Service) configureDockerMirror(mirrorURL string) error {
 		}
 	}
 
-	// 设置 registry-mirrors
-	daemonConfig["registry-mirrors"] = []string{mirrorURL}
+	// 设置 registry-mirrors（合并而非覆盖，避免与其他镜像源冲突）
+	existingMirrors := []string{}
+	if existing, ok := daemonConfig["registry-mirrors"]; ok {
+		if arr, ok := existing.([]interface{}); ok {
+			for _, v := range arr {
+				if s, ok := v.(string); ok && s != mirrorURL {
+					existingMirrors = append(existingMirrors, s)
+				}
+			}
+		}
+	}
+	// 新镜像放在最前面（优先使用）
+	daemonConfig["registry-mirrors"] = append([]string{mirrorURL}, existingMirrors...)
 
 	// 写回配置
 	newData, err := json.MarshalIndent(daemonConfig, "", "  ")

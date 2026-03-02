@@ -49,3 +49,11 @@ func (m *Module) Stop() error {
 func (m *Module) RegisterRoutes(group *gin.RouterGroup) {
 	m.handler.RegisterRoutes(group)
 }
+
+// GetInstaller 获取安装管理器实例（供其他模块注入加速提供者）
+func (m *Module) GetInstaller() *Installer {
+	if m.service != nil {
+		return m.service.installer
+	}
+	return nil
+}

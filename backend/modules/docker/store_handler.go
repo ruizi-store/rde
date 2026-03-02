@@ -3,6 +3,8 @@ package docker
 
 import (
 	"net/http"
+	"runtime"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -53,9 +55,25 @@ func (h *StoreHandler) ListApps(c *gin.Context) {
 
 	apps := h.catalog.GetApps(category, search)
 
+	// 将 Go 架构名映射为 Docker 架构名（amd64→amd64, arm64→arm64）
+	goArch := runtime.GOARCH
+	dockerArch := goArch // Go 和 Docker 对 amd64/arm64 的命名一致
+	if goArch == "arm" {
+		dockerArch = "arm/v7"
+	}
+
 	// 返回精简列表（不含 compose 和 form 详情）
 	list := make([]gin.H, 0, len(apps))
 	for _, app := range apps {
+		// 判断是否兼容当前架构
+		compatible := len(app.Architectures) == 0 // 无声明则视为兼容
+		for _, a := range app.Architectures {
+			if strings.EqualFold(a, dockerArch) {
+				compatible = true
+				break
+			}
+		}
+
 		list = append(list, gin.H{
 			"id":            app.ID,
 			"name":          app.Name,
@@ -69,6 +87,7 @@ func (h *StoreHandler) ListApps(c *gin.Context) {
 			"author":        app.Author,
 			"tags":          app.Tags,
 			"architectures": app.Architectures,
+			"compatible":    compatible,
 		})
 	}
 

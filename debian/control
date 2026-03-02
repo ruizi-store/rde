@@ -8,7 +8,7 @@ Homepage: https://github.com/ruizi-store/rde
 Vcs-Git: https://github.com/ruizi-store/rde.git
 
 Package: rde
-Architecture: amd64
+Architecture: any
 Depends: ${misc:Depends},
          systemd,
          aria2,

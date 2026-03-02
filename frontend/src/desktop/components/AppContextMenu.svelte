@@ -105,8 +105,7 @@
 
     // 卸载（仅第三方应用）
     if (
-      app.source === "docker_store" ||
-      app.source === "windows_store"
+      app.source === "docker_store"
     ) {
       items.push({ separator: true, label: "" });
       items.push({

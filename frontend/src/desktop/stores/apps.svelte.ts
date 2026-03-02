@@ -433,8 +433,7 @@ class AppsStore {
 
     // 只能卸载第三方应用
     if (
-      app.source !== "docker_store" &&
-      app.source !== "windows_store"
+      app.source !== "docker_store"
     ) {
       return false;
     }

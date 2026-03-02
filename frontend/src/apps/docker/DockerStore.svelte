@@ -73,6 +73,7 @@
   }
 
   function handleAppClick(app: StoreAppItem) {
+    if (app.compatible === false) return;
     onSelectApp?.(app.id);
   }
 
@@ -143,7 +144,7 @@
     {:else}
       <div class="app-grid">
         {#each apps as app (app.id)}
-          <button class="app-card" onclick={() => handleAppClick(app)}>
+          <button class="app-card" class:incompatible={app.compatible === false} onclick={() => handleAppClick(app)}>
             <img
               src={dockerStoreService.getIconUrl(app.icon)}
               alt={app.name}
@@ -155,6 +156,9 @@
                 {app.title || app.name}
                 {#if installedAppIds.has(app.id)}
                   <span class="installed-badge">{$t("docker.installed")}</span>
+                {/if}
+                {#if app.compatible === false}
+                  <span class="incompatible-badge">{$t("docker.incompatibleArch")}</span>
                 {/if}
               </div>
               <div class="app-desc">{app.description}</div>
@@ -376,6 +380,23 @@
     font-weight: 500;
     margin-left: 6px;
     vertical-align: middle;
+  }
+
+  .incompatible-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--color-warning, #e67e22);
+    color: white;
+    font-size: 10px;
+    font-weight: 500;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  .app-card.incompatible {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .app-tag {

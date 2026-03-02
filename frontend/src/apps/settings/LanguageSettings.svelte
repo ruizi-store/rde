@@ -11,6 +11,13 @@
   } from "$lib/i18n/api";
   import { toast } from "$shared/stores/toast.svelte";
 
+  // Props: 控制显示哪些部分
+  interface Props {
+    showLanguage?: boolean;
+    showMirror?: boolean;
+  }
+  let { showLanguage = true, showMirror = true }: Props = $props();
+
   // 状态
   let loading = $state(true);
   let saving = $state(false);
@@ -181,6 +188,7 @@
 {:else}
   <div class="language-settings">
     <!-- 语言设置 -->
+    {#if showLanguage}
     <div class="setting-section">
       <div class="section-header">
         <Icon icon="mdi:translate" width="20" />
@@ -198,9 +206,10 @@
         />
       </div>
     </div>
+    {/if}
 
     <!-- 软件源设置 - 和 setup step3 统一风格 -->
-    {#if isChineseUser}
+    {#if showMirror && isChineseUser}
       <div class="mirror-card" class:mirror-card--enabled={mirrorEnabled}>
         <!-- 卡片头部：开关行 -->
         <div class="mirror-card-header">
@@ -295,7 +304,7 @@
           {/if}
         </div>
       </div>
-    {:else}
+    {:else if showMirror}
       <!-- 非中文用户：显示简单的软件源列表 -->
       <div class="setting-section mirrors-section">
         <div class="section-header">

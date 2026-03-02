@@ -7,9 +7,7 @@
 export type AppSource =
   | "system" // 系统核心应用（文件管理、设置、终端）
   | "module" // 内置模块应用（Docker、备份、存储管理等）
-  | "docker_store" // Docker 商店安装
-  | "windows_store" // Windows 商店安装
-  | "package"; // 套件商店安装
+  | "docker_store"; // Docker 商店安装
 
 /**
  * 应用状态
@@ -22,7 +20,7 @@ export type AppState =
 /**
  * 应用类型
  */
-export type AppType = "builtin" | "docker" | "native" | "windows" | "internal";
+export type AppType = "builtin" | "docker" | "native" | "internal";
 
 /**
  * 开始菜单分类
@@ -34,9 +32,7 @@ export type StartMenuCategory =
   | "network" // 网络工具
   | "tools" // 实用工具
   | "other" // 其他
-  | "docker_apps" // Docker 应用
-  | "windows_apps" // Windows 应用
-  | "packages"; // 套件应用
+  | "docker_apps"; // Docker 应用
 
 /**
  * 开始菜单位置
@@ -150,13 +146,6 @@ export const CATEGORY_INFO: Record<StartMenuCategory, CategoryInfo> = {
   tools: { id: "tools", name: "实用工具", icon: "mdi:tools", order: 5 },
   other: { id: "other", name: "其他", icon: "mdi:apps", order: 6 },
   docker_apps: { id: "docker_apps", name: "Docker 应用", icon: "mdi:docker", order: 10 },
-  windows_apps: {
-    id: "windows_apps",
-    name: "Windows 应用",
-    icon: "mdi:microsoft-windows",
-    order: 12,
-  },
-  packages: { id: "packages", name: "套件应用", icon: "mdi:package-variant-closed", order: 9 },
 };
 
 /**
@@ -170,10 +159,6 @@ export function getDefaultCategory(source: AppSource): StartMenuCategory {
       return "other";
     case "docker_store":
       return "docker_apps";
-    case "windows_store":
-      return "windows_apps";
-    case "package":
-      return "packages";
     default:
       return "other";
   }
@@ -184,8 +169,6 @@ export function getDefaultCategory(source: AppSource): StartMenuCategory {
  */
 export function isUninstallable(app: InstalledApp): boolean {
   return (
-    app.source === "docker_store" ||
-    app.source === "windows_store" ||
-    app.source === "package"
+    app.source === "docker_store"
   );
 }

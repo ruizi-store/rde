@@ -2,6 +2,7 @@
 package flatpak
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"os"
@@ -23,13 +24,14 @@ type Desktop struct {
 	installer *Installer
 
 	mu          sync.RWMutex
-	cmd         *exec.Cmd       // Xkasmvnc 进程
-	openboxCmd  *exec.Cmd       // openbox 进程
+	cmd         *exec.Cmd // Xkasmvnc 进程
+	openboxCmd  *exec.Cmd // openbox 进程
 	pid         int
 	startedAt   time.Time
 	running     bool
 	runningApps map[string]*RunningApp // app_id -> RunningApp
 	appCmds     map[string]*exec.Cmd   // app_id -> 进程
+	outputBuf   *bytes.Buffer          // Xkasmvnc 输出缓冲
 }
 
 // NewDesktop 创建桌面管理器
@@ -56,6 +58,13 @@ func (d *Desktop) GetConfig() DesktopConfig {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.config
+}
+
+// IsRunning 检查桌面是否正在运行
+func (d *Desktop) IsRunning() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.running
 }
 
 // Start 启动 KasmVNC 桌面实例
@@ -98,20 +107,23 @@ func (d *Desktop) startLocked() error {
 		"-rfbport", strconv.Itoa(wsPort + 100), // rfb = ws + 100
 		"-AlwaysShared",
 		"-SecurityTypes", "None",
+		"-DisableBasicAuth",
+		"-httpd", "/usr/share/kasmvnc/www",
 		"-interface", "127.0.0.1",
+		"-publicIP", "127.0.0.1", // 跳过 STUN 查询，避免启动超时
 		"-BlacklistTimeout", "0",
 		"-FreeKeyMappings",
 		"-SendCutText",
 		"-AcceptCutText",
-		"-MaxCutText", "10485760",
 	}
 
 	cmd := exec.Command(binary, args...)
 	cmd.Env = d.buildEnv()
 
-	// 捕获输出用于调试
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// 捕获输出用于调试和错误诊断
+	var outputBuf bytes.Buffer
+	cmd.Stdout = &outputBuf
+	cmd.Stderr = &outputBuf
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start Xkasmvnc: %w", err)
@@ -120,15 +132,36 @@ func (d *Desktop) startLocked() error {
 	d.cmd = cmd
 	d.pid = cmd.Process.Pid
 	d.startedAt = time.Now()
+	d.outputBuf = &outputBuf
 
-	// 等待端口就绪
-	if !d.waitForPort(wsPort, 15*time.Second) {
+	// 监控进程退出（用于提前检测崩溃）
+	processDone := make(chan error, 1)
+	go func() {
+		processDone <- cmd.Wait()
+	}()
+
+	// 等待端口就绪（同时检测进程提前退出）
+	if err := d.waitForPortOrExit(wsPort, 30*time.Second, processDone); err != nil {
+		// 收集已产生的输出用于诊断
+		output := strings.TrimSpace(outputBuf.String())
+		d.logger.Error("KasmVNC failed to start",
+			zap.Error(err),
+			zap.String("output", output),
+		)
 		cmd.Process.Kill()
-		cmd.Wait()
+		// 等一下让 processDone goroutine 退出
+		select {
+		case <-processDone:
+		case <-time.After(2 * time.Second):
+		}
 		d.cmd = nil
 		d.pid = 0
 		d.running = false
-		return fmt.Errorf("KasmVNC port %d not ready after timeout", wsPort)
+		d.outputBuf = nil
+		if output != "" {
+			return fmt.Errorf("%w\nKasmVNC output:\n%s", err, output)
+		}
+		return err
 	}
 
 	d.running = true
@@ -142,7 +175,7 @@ func (d *Desktop) startLocked() error {
 	go d.startOpenbox(display)
 
 	// 监控进程退出
-	go d.watchProcess()
+	go d.watchProcess(processDone)
 
 	return nil
 }
@@ -183,16 +216,13 @@ func (d *Desktop) stopLocked() {
 	// 停止 KasmVNC
 	if d.cmd != nil && d.cmd.Process != nil {
 		d.cmd.Process.Kill()
-		// 在释放锁的情况下 Wait，避免与 watchProcess 竞争
-		cmd := d.cmd
 		d.cmd = nil
 		d.pid = 0
-		d.mu.Unlock()
-		cmd.Wait()
-		d.mu.Lock()
+		d.outputBuf = nil
 	} else {
 		d.cmd = nil
 		d.pid = 0
+		d.outputBuf = nil
 	}
 
 	d.logger.Info("KasmVNC desktop stopped")
@@ -232,8 +262,8 @@ func (d *Desktop) GetStatus() *DesktopStatus {
 	return status
 }
 
-// LaunchApp 在桌面中启动 Flatpak 应用
-func (d *Desktop) LaunchApp(appID, name string, args []string) error {
+// LaunchApp 在桌面中启动 Flatpak 应用（以指定用户身份）
+func (d *Desktop) LaunchApp(appID, name string, args []string, username string, uid int) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -247,21 +277,54 @@ func (d *Desktop) LaunchApp(appID, name string, args []string) error {
 	}
 
 	display := d.config.Display
+	runtimeDir := fmt.Sprintf("/run/user/%d", uid)
 
-	// flatpak run APP_ID [ARGS...]
-	cmdArgs := []string{"run", appID}
-	if len(args) > 0 {
-		cmdArgs = append(cmdArgs, args...)
+	// 确保 XDG_RUNTIME_DIR 存在
+	os.MkdirAll(runtimeDir, 0700)
+	os.Chown(runtimeDir, uid, uid)
+
+	// KasmVNC 无 GPU 硬件加速，为 Electron 应用准备配置
+	d.ensureElectronConfig(appID, username, uid)
+
+	// 清理可能残留的 FUSE 挂载（上次 document-portal 未正常退出留下的）
+	docMountPath := filepath.Join(runtimeDir, "doc")
+	exec.Command("fusermount3", "-u", docMountPath).Run()
+	os.RemoveAll(docMountPath)
+
+	// 构建 flatpak run 命令参数
+	flatpakArgs := []string{"run"}
+
+	// 对 Electron 应用：绕过 zypak 直接运行 electron 二进制，
+	// 并添加 --no-sandbox --disable-gpu 以兼容 KasmVNC 无 GPU 环境
+	if ecfg, ok := electronAppOverrides[appID]; ok {
+		flatpakArgs = append(flatpakArgs, "--command="+ecfg.command)
+		flatpakArgs = append(flatpakArgs, appID)
+		flatpakArgs = append(flatpakArgs, ecfg.flags...)
+	} else {
+		flatpakArgs = append(flatpakArgs, appID)
 	}
 
-	cmd := exec.Command("flatpak", cmdArgs...)
-	cmd.Env = append(d.buildEnv(),
-		fmt.Sprintf("DISPLAY=:%d", display),
-		"PULSE_SERVER=unix:/run/pulse/native",
-	)
+	if len(args) > 0 {
+		flatpakArgs = append(flatpakArgs, args...)
+	}
 
-	d.logger.Info("launching flatpak app",
+	// 使用 su -l 以目标用户身份运行（完整 login 环境: HOME, XDG_DATA_DIRS 等）
+	// dbus-run-session 会自动启动临时 dbus-daemon 并设置 DBUS_SESSION_BUS_ADDRESS
+	// 解决 Electron 等应用需要 D-Bus session bus 的问题
+	flatpakCmd := fmt.Sprintf("DISPLAY=:%d XDG_RUNTIME_DIR=%s PULSE_SERVER=unix:/run/pulse/native dbus-run-session -- flatpak %s",
+		display, runtimeDir, strings.Join(flatpakArgs, " "))
+
+	cmd := exec.Command("su", "-l", username, "-s", "/bin/bash", "-c", flatpakCmd)
+
+	// 捕获输出用于诊断应用启动失败
+	var appOutput bytes.Buffer
+	cmd.Stdout = &appOutput
+	cmd.Stderr = &appOutput
+
+	d.logger.Info("launching flatpak app as user",
 		zap.String("app_id", appID),
+		zap.String("username", username),
+		zap.Int("uid", uid),
 		zap.Int("display", display),
 	)
 
@@ -284,7 +347,18 @@ func (d *Desktop) LaunchApp(appID, name string, args []string) error {
 		delete(d.appCmds, appID)
 		delete(d.runningApps, appID)
 		d.mu.Unlock()
-		d.logger.Info("flatpak app exited", zap.String("app_id", appID))
+		output := strings.TrimSpace(appOutput.String())
+		if output != "" {
+			// 只记录最后 2000 字符避免日志过大
+			if len(output) > 2000 {
+				output = output[len(output)-2000:]
+			}
+			d.logger.Info("flatpak app exited",
+				zap.String("app_id", appID),
+				zap.String("output", output))
+		} else {
+			d.logger.Info("flatpak app exited", zap.String("app_id", appID))
+		}
 	}()
 
 	return nil
@@ -303,6 +377,67 @@ func (d *Desktop) GetRunningApps() []*RunningApp {
 }
 
 // ===== 内部方法 =====
+
+// electronAppOverrides KasmVNC 环境下 Electron 应用的命令覆盖配置
+// 绕过 zypak wrapper（在无 GPU 环境下会导致 int3 trap 崩溃），
+// 直接运行 electron 二进制并使用 --no-sandbox --disable-gpu
+var electronAppOverrides = map[string]struct {
+	command string   // flatpak --command= 覆盖（直接运行 electron 二进制）
+	flags   []string // Electron/Chromium 命令行标志
+}{
+	"com.visualstudio.code": {
+		command: "/app/extra/vscode/code",
+		flags:   []string{"--no-sandbox", "--disable-gpu", "--disable-gpu-compositing"},
+	},
+}
+
+// electronAppConfigs Electron 应用的配置文件（禁用 GPU 硬件加速）
+var electronAppConfigs = map[string]struct {
+	subDir   string
+	filename string
+	content  string
+}{
+	"com.visualstudio.code": {
+		subDir:   "config/Code",
+		filename: "argv.json",
+		content:  `{"enable-proposed-api":[],"disable-hardware-acceleration":true}`,
+	},
+}
+
+// ensureElectronConfig 为 Electron 应用创建 argv.json 禁用硬件加速（KasmVNC 无 GPU）
+func (d *Desktop) ensureElectronConfig(appID, username string, uid int) {
+	cfg, ok := electronAppConfigs[appID]
+	if !ok {
+		return
+	}
+
+	homeDir := fmt.Sprintf("/home/%s", username)
+	configDir := filepath.Join(homeDir, ".var/app", appID, cfg.subDir)
+	configFile := filepath.Join(configDir, cfg.filename)
+
+	// 已存在则跳过
+	if _, err := os.Stat(configFile); err == nil {
+		return
+	}
+
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		d.logger.Warn("failed to create electron config dir", zap.String("dir", configDir), zap.Error(err))
+		return
+	}
+
+	if err := os.WriteFile(configFile, []byte(cfg.content), 0644); err != nil {
+		d.logger.Warn("failed to write electron config", zap.String("file", configFile), zap.Error(err))
+		return
+	}
+
+	// 修正所有权
+	os.Chown(configDir, uid, uid)
+	os.Chown(configFile, uid, uid)
+	d.logger.Info("created electron config for KasmVNC",
+		zap.String("app_id", appID),
+		zap.String("file", configFile),
+	)
+}
 
 // buildEnv 构建环境变量
 func (d *Desktop) buildEnv() []string {
@@ -345,14 +480,10 @@ func (d *Desktop) startOpenbox(display int) {
 	cmd.Wait()
 }
 
-// ensureOpenboxConfig 确保 openbox 配置文件存在
+// ensureOpenboxConfig 确保 openbox 配置文件存在并保持最新
 func (d *Desktop) ensureOpenboxConfig() {
 	os.MkdirAll(d.dataDir, 0755)
 	configFile := filepath.Join(d.dataDir, "openbox-rc.xml")
-
-	if _, err := os.Stat(configFile); err == nil {
-		return // 已存在
-	}
 
 	// 写入默认配置
 	config := `<?xml version="1.0" encoding="UTF-8"?>
@@ -419,44 +550,58 @@ func (d *Desktop) ensureOpenboxConfig() {
       <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
     </context>
   </mouse>
+  <applications>
+    <!-- KasmVNC 环境: 所有窗口默认最大化且去掉标题栏 -->
+    <application class="*">
+      <maximized>yes</maximized>
+      <decor>no</decor>
+    </application>
+  </applications>
 </openbox_config>
 `
 	os.WriteFile(configFile, []byte(config), 0644)
 }
 
-// waitForPort 等待端口就绪
-func (d *Desktop) waitForPort(port int, timeout time.Duration) bool {
+// waitForPortOrExit 等待端口就绪，同时检测进程是否提前退出
+func (d *Desktop) waitForPortOrExit(port int, timeout time.Duration, processDone <-chan error) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
+		// 检测进程是否已退出
+		select {
+		case exitErr := <-processDone:
+			if exitErr != nil {
+				return fmt.Errorf("KasmVNC process exited: %w", exitErr)
+			}
+			return fmt.Errorf("KasmVNC process exited unexpectedly with code 0")
+		default:
+		}
+
+		// 尝试连接端口
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 100*time.Millisecond)
 		if err == nil {
 			conn.Close()
-			return true
+			return nil
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
-	return false
+	return fmt.Errorf("KasmVNC port %d not ready after %v timeout", port, timeout)
 }
 
 // watchProcess 监控 KasmVNC 进程退出
-func (d *Desktop) watchProcess() {
-	d.mu.RLock()
-	cmd := d.cmd
-	d.mu.RUnlock()
-
-	if cmd == nil {
-		return
-	}
-	cmd.Wait()
+func (d *Desktop) watchProcess(processDone <-chan error) {
+	exitErr := <-processDone
 
 	d.mu.Lock()
-	// 只有当 cmd 仍然是我们监控的那个时才更新状态
-	// （Stop 可能已经替换了 d.cmd）
-	if d.cmd == cmd {
+	defer d.mu.Unlock()
+
+	if d.running {
 		d.running = false
 		d.pid = 0
 		d.cmd = nil
-		d.logger.Warn("KasmVNC process exited unexpectedly")
+		if exitErr != nil {
+			d.logger.Warn("KasmVNC process exited unexpectedly", zap.Error(exitErr))
+		} else {
+			d.logger.Warn("KasmVNC process exited unexpectedly with code 0")
+		}
 	}
-	d.mu.Unlock()
 }

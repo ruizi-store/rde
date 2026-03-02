@@ -26,6 +26,7 @@ export interface StoreAppItem {
   author?: string;
   tags: string[];
   architectures: string[];
+  compatible?: boolean;
 }
 
 /** 商店应用详情（含完整 compose 和 form） */

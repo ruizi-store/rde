@@ -75,7 +75,8 @@ type RunRequest struct {
 
 // InstallRequest 安装请求
 type InstallRequest struct {
-	AppID string `json:"app_id" binding:"required"`
+	AppID   string `json:"app_id" binding:"required"`
+	AppName string `json:"app_name"`
 }
 
 // RecommendedApp 推荐应用
@@ -93,6 +94,15 @@ type RunningApp struct {
 	Name      string    `json:"name"`
 	PID       int       `json:"pid"`
 	StartedAt time.Time `json:"started_at"`
+}
+
+// ActiveInstall 正在进行的安装任务
+type ActiveInstall struct {
+	AppID     string    `json:"app_id"`
+	AppName   string    `json:"app_name"`
+	StartedAt time.Time `json:"started_at"`
+	Status    string    `json:"status"` // installing, success, error
+	Error     string    `json:"error,omitempty"`
 }
 
 // kasmVNCVersion 期望的 KasmVNC 版本

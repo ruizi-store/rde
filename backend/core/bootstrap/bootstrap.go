@@ -27,7 +27,6 @@ import (
 	"github.com/ruizi-store/rde/backend/modules/files"
 	"github.com/ruizi-store/rde/backend/modules/flatpak"
 	"github.com/ruizi-store/rde/backend/modules/notification"
-	"github.com/ruizi-store/rde/backend/modules/packages"
 	"github.com/ruizi-store/rde/backend/modules/photos"
 	"github.com/ruizi-store/rde/backend/modules/retrogame"
 	"github.com/ruizi-store/rde/backend/modules/samba"
@@ -39,7 +38,6 @@ import (
 	"github.com/ruizi-store/rde/backend/modules/terminal"
 	"github.com/ruizi-store/rde/backend/modules/users"
 	"github.com/ruizi-store/rde/backend/modules/video"
-	"github.com/ruizi-store/rde/backend/modules/windows"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -70,8 +68,6 @@ type App struct {
 	Sync         *sync.Module
 	Download     *download.Module
 	Flatpak      *flatpak.Module
-	Windows      *windows.Module
-	Packages     *packages.Module
 	Retrogame    *retrogame.Module
 	Photos       *photos.Module
 	Video        *video.Module
@@ -298,8 +294,6 @@ func (app *App) registerModules() error {
 	app.Sync = sync.New()
 	app.Download = download.New()
 	app.Flatpak = flatpak.New()
-	app.Windows = windows.New()
-	app.Packages = packages.New(app.Registry)
 	app.Retrogame = retrogame.New()
 	app.Photos = photos.New()
 	app.Video = video.New()
@@ -320,8 +314,6 @@ func (app *App) registerModules() error {
 		app.Sync,
 		app.Download,
 		app.Flatpak,
-		app.Windows,
-		app.Packages,
 		app.Retrogame,
 		app.Photos,
 		app.Video,
@@ -387,10 +379,16 @@ func (app *App) Start() error {
 				return true
 			}
 
+			// Flatpak VNC 代理使用 cookie 认证，不跳过中间件
+			// 首次加载 vnc.html?token=XXX 时由 handler 将 token 写入 cookie，
+			// 后续 JS/CSS/WebSocket 请求自动携带 cookie 通过认证
+
 			// GET 请求的某些路径（静态资源等）
 			if method == "GET" {
 				// WebSocket 升级请求（无法设置 Authorization header）
-				if strings.EqualFold(c.GetHeader("Upgrade"), "websocket") {
+				// 排除 VNC 路径：VNC WebSocket 使用 cookie 认证
+				if strings.EqualFold(c.GetHeader("Upgrade"), "websocket") &&
+					!strings.HasPrefix(path, "/api/v1/flatpak/vnc/") {
 					return true
 				}
 				// 系统基本信息
@@ -410,6 +408,10 @@ func (app *App) Start() error {
 				}
 				// 套件后端 API 代理（iframe 内请求不带 Authorization）
 				if strings.HasPrefix(path, "/api/v1/pkg-api/") {
+					return true
+				}
+				// Flatpak 应用图标（img src 不带 Authorization header）
+				if strings.HasPrefix(path, "/api/v1/flatpak/icons/") {
 					return true
 				}
 				// 照片缩略图/预览图/原图（img src 不带 Authorization header）

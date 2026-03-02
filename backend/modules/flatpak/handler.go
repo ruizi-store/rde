@@ -38,6 +38,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		fp.POST("/desktop/restart", h.RestartDesktop)
 		fp.GET("/desktop/config", h.GetDesktopConfig)
 		fp.PUT("/desktop/config", h.UpdateDesktopConfig)
+		fp.POST("/desktop/clipboard", h.SetClipboard)
+		fp.GET("/desktop/clipboard", h.GetClipboard)
 
 		// 应用管理
 		fp.GET("/apps", h.GetInstalledApps)
@@ -45,6 +47,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		fp.GET("/apps/recommended", h.GetRecommendedApps)
 		fp.GET("/apps/categories", h.GetRecommendedCategories)
 		fp.POST("/apps/install-stream", h.InstallAppStream)
+		fp.GET("/apps/installing", h.GetActiveInstalls)
+		fp.GET("/apps/install-progress/:appid", h.WatchInstallProgress)
 		fp.POST("/apps/uninstall", h.UninstallApp)
 		fp.POST("/apps/run", h.RunApp)
 
@@ -58,6 +62,16 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 // ==================== Setup Handlers ====================
 
+// getUsername 从认证上下文提取用户名
+func (h *Handler) getUsername(c *gin.Context) (string, bool) {
+	username, exists := c.Get("username")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return "", false
+	}
+	return username.(string), true
+}
+
 // GetSetupStatus 获取环境检测状态
 func (h *Handler) GetSetupStatus(c *gin.Context) {
 	status := h.service.GetSetupStatus()
@@ -66,6 +80,11 @@ func (h *Handler) GetSetupStatus(c *gin.Context) {
 
 // RunSetupStream SSE 流式执行环境安装
 func (h *Handler) RunSetupStream(c *gin.Context) {
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
+
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
@@ -81,7 +100,7 @@ func (h *Handler) RunSetupStream(c *gin.Context) {
 
 	done := make(chan error, 1)
 
-	h.service.RunSetup(
+	h.service.RunSetup(username,
 		func(line string) {
 			sendEvent(c.Writer, flusher, "progress", line)
 		},
@@ -102,13 +121,21 @@ func (h *Handler) RunSetupStream(c *gin.Context) {
 
 // GetDesktopStatus 获取桌面状态
 func (h *Handler) GetDesktopStatus(c *gin.Context) {
-	status := h.service.GetDesktopStatus()
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
+	status := h.service.GetDesktopStatus(username)
 	c.JSON(http.StatusOK, status)
 }
 
 // StartDesktop 启动桌面
 func (h *Handler) StartDesktop(c *gin.Context) {
-	if err := h.service.StartDesktop(); err != nil {
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
+	if err := h.service.StartDesktop(username); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -117,13 +144,21 @@ func (h *Handler) StartDesktop(c *gin.Context) {
 
 // StopDesktop 停止桌面
 func (h *Handler) StopDesktop(c *gin.Context) {
-	h.service.StopDesktop()
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
+	h.service.StopDesktop(username)
 	c.JSON(http.StatusOK, gin.H{"message": "stopped"})
 }
 
 // RestartDesktop 重启桌面
 func (h *Handler) RestartDesktop(c *gin.Context) {
-	if err := h.service.RestartDesktop(); err != nil {
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
+	if err := h.service.RestartDesktop(username); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -132,19 +167,61 @@ func (h *Handler) RestartDesktop(c *gin.Context) {
 
 // GetDesktopConfig 获取桌面配置
 func (h *Handler) GetDesktopConfig(c *gin.Context) {
-	config := h.service.GetDesktopConfig()
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
+	config := h.service.GetDesktopConfig(username)
 	c.JSON(http.StatusOK, config)
 }
 
 // UpdateDesktopConfig 更新桌面配置
 func (h *Handler) UpdateDesktopConfig(c *gin.Context) {
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
 	var config DesktopConfig
 	if err := c.ShouldBindJSON(&config); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	h.service.UpdateDesktopConfig(config)
+	h.service.UpdateDesktopConfig(username, config)
 	c.JSON(http.StatusOK, gin.H{"message": "updated"})
+}
+
+// SetClipboard 设置桌面剪贴板
+func (h *Handler) SetClipboard(c *gin.Context) {
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
+	var req struct {
+		Text string `json:"text"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.service.SetClipboard(username, req.Text); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "ok"})
+}
+
+// GetClipboard 获取桌面剪贴板
+func (h *Handler) GetClipboard(c *gin.Context) {
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
+	text, err := h.service.GetClipboard(username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"text": text})
 }
 
 // ==================== App Handlers ====================
@@ -198,11 +275,16 @@ func (h *Handler) InstallAppStream(c *gin.Context) {
 		return
 	}
 
+	appName := req.AppName
+	if appName == "" {
+		appName = req.AppID
+	}
+
 	sendEvent(c.Writer, flusher, "start", req.AppID)
 
 	done := make(chan error, 1)
 
-	h.service.InstallApp(req.AppID,
+	h.service.InstallApp(req.AppID, appName,
 		func(line string) {
 			sendEvent(c.Writer, flusher, "progress", line)
 		},
@@ -216,6 +298,66 @@ func (h *Handler) InstallAppStream(c *gin.Context) {
 		sendEvent(c.Writer, flusher, "error", err.Error())
 	} else {
 		sendEvent(c.Writer, flusher, "complete", req.AppID)
+	}
+}
+
+// GetActiveInstalls 获取当前正在安装的应用列表
+func (h *Handler) GetActiveInstalls(c *gin.Context) {
+	installs := h.service.GetActiveInstalls()
+	if installs == nil {
+		installs = []ActiveInstall{}
+	}
+	c.JSON(http.StatusOK, installs)
+}
+
+// WatchInstallProgress SSE 重连安装进度
+func (h *Handler) WatchInstallProgress(c *gin.Context) {
+	appID := c.Param("appid")
+
+	logs, ch, status, errMsg, exists := h.service.WatchInstallProgress(appID)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no active install for " + appID})
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming not supported"})
+		return
+	}
+
+	// 发送历史日志
+	for _, line := range logs {
+		sendEvent(c.Writer, flusher, "progress", line)
+	}
+
+	// 如果已经完成，直接发送结果
+	if status != "installing" {
+		if status == "error" {
+			sendEvent(c.Writer, flusher, "error", errMsg)
+		} else {
+			sendEvent(c.Writer, flusher, "complete", appID)
+		}
+		return
+	}
+
+	// 实时接收新日志
+	defer h.service.UnsubscribeInstall(appID, ch)
+	for line := range ch {
+		sendEvent(c.Writer, flusher, "progress", line)
+	}
+
+	// 通道关闭后查询最终状态
+	_, _, finalStatus, finalErr, _ := h.service.WatchInstallProgress(appID)
+	if finalStatus == "error" {
+		sendEvent(c.Writer, flusher, "error", finalErr)
+	} else {
+		sendEvent(c.Writer, flusher, "complete", appID)
 	}
 }
 
@@ -242,7 +384,13 @@ func (h *Handler) RunApp(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.RunApp(req.AppID, req.Args); err != nil {
+	// 从认证上下文获取当前登录用户名
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
+
+	if err := h.service.RunApp(req.AppID, req.Args, username); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -289,13 +437,18 @@ var vncWSUpgrader = websocket.Upgrader{
 
 // ProxyVNC 反向代理 KasmVNC HTTP 和 WebSocket 请求
 func (h *Handler) ProxyVNC(c *gin.Context) {
+	username, ok := h.getUsername(c)
+	if !ok {
+		return
+	}
+
 	path := c.Param("path")
 	if path == "" {
 		path = "/"
 	}
 
-	// 获取桌面状态
-	status := h.service.GetDesktopStatus()
+	// 获取用户的桌面状态
+	status := h.service.GetDesktopStatus(username)
 	if !status.Running {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "desktop not running"})
 		return
@@ -309,6 +462,11 @@ func (h *Handler) ProxyVNC(c *gin.Context) {
 		return
 	}
 
+	// 将 token 写入 cookie，这样 KasmVNC JS 客户端打开 WebSocket 时会自动携带
+	if token := c.Query("token"); token != "" {
+		c.SetCookie("token", token, 86400, "/api/v1/flatpak/vnc/", "", false, false)
+	}
+
 	// 普通 HTTP 反向代理
 	target, _ := url.Parse(targetURL)
 	proxy := httputil.NewSingleHostReverseProxy(target)
@@ -319,6 +477,9 @@ func (h *Handler) ProxyVNC(c *gin.Context) {
 		req.URL.Path = path
 		req.URL.RawQuery = c.Request.URL.RawQuery
 		req.Host = target.Host
+		// 删除 Referer/Origin，KasmVNC 会根据这些头返回 401
+		req.Header.Del("Referer")
+		req.Header.Del("Origin")
 	}
 
 	// KasmVNC web client 不缓存，允许 iframe 嵌入
@@ -328,6 +489,8 @@ func (h *Handler) ProxyVNC(c *gin.Context) {
 		resp.Header.Set("Expires", "0")
 		resp.Header.Del("Content-Security-Policy")
 		resp.Header.Del("X-Frame-Options")
+		// 防止 KasmVNC 返回的 WWW-Authenticate 头触发浏览器原生 Basic Auth 弹窗
+		resp.Header.Del("WWW-Authenticate")
 		return nil
 	}
 
@@ -352,7 +515,10 @@ func (h *Handler) proxyVNCWebSocket(c *gin.Context, port int, path string) {
 	dialer := websocket.Dialer{
 		Subprotocols: []string{"binary"},
 	}
-	backendConn, _, err := dialer.Dial(backendURL, nil)
+	// KasmVNC 要求 WebSocket 请求必须携带 Origin 头，否则返回 404
+	wsHeaders := http.Header{}
+	wsHeaders.Set("Origin", fmt.Sprintf("http://127.0.0.1:%d", port))
+	backendConn, _, err := dialer.Dial(backendURL, wsHeaders)
 	if err != nil {
 		frontendConn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "backend connection failed"))

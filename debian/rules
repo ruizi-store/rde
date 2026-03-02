@@ -10,6 +10,13 @@ export DH_VERBOSE = 1
 VERSION := $(shell dpkg-parsechangelog -S Version | cut -d'-' -f1)
 DESTDIR := $(CURDIR)/debian/rde
 
+# 多架构支持: 从 dpkg-architecture 获取目标架构
+DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH 2>/dev/null || echo amd64)
+GOARCH_MAP_amd64 := amd64
+GOARCH_MAP_arm64 := arm64
+GOARCH_MAP_armhf := arm
+GOARCH := $(or $(GOARCH_MAP_$(DEB_HOST_ARCH)),$(DEB_HOST_ARCH))
+
 %:
 	dh $@
 
@@ -18,8 +25,8 @@ override_dh_auto_build:
 	@echo "构建前端 (Svelte)..."
 	cd frontend && pnpm install --frozen-lockfile && pnpm run build
 	
-	@echo "构建后端 (Go)..."
-	cd backend && CGO_ENABLED=0 go build \
+	@echo "构建后端 (Go) [GOARCH=$(GOARCH)]..."
+	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build \
 		-tags=nomsgpack \
 		-ldflags="-s -w -X 'github.com/ruizi-store/rde/backend/common.VERSION=$(VERSION)'" \
 		-o rde .
@@ -39,7 +46,7 @@ override_dh_auto_build:
 		if [ -f "$$app_dir/go.mod" ]; then \
 			app_name=$$(basename $$(dirname "$$app_dir")); \
 			echo "  构建 $$app_name 后端..."; \
-			cd $(CURDIR)/$$app_dir && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o rde-pkg-$$app_name .; \
+			cd $(CURDIR)/$$app_dir && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o rde-pkg-$$app_name .; \
 			cd $(CURDIR); \
 		fi; \
 	done
@@ -105,6 +112,17 @@ override_dh_auto_install:
 
 # 跳过测试
 override_dh_auto_test:
+
+# Go 使用 -s -w 已 strip，跳过 dh_strip 避免需要交叉 binutils
+override_dh_strip:
+
+# 跳过 dwz 调试信息优化（Go 无 DWARF）
+override_dh_dwz:
+
+# Go 静态二进制无共享库依赖，跳过避免需要交叉 objdump
+override_dh_makeshlibs:
+
+override_dh_shlibdeps:
 
 # 清理构建产物
 override_dh_auto_clean:

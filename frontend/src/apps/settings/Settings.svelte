@@ -37,6 +37,8 @@
     type ChannelType,
   } from "$shared/services/notification";
   import LanguageSettings from "./LanguageSettings.svelte";
+  import { i18nStore, currentLanguage } from "$lib/i18n/store";
+  import { getI18nOptions, type I18nOptionsResponse } from "$lib/i18n/api";
 
   interface SettingSection {
     id: string;
@@ -46,7 +48,6 @@
 
   const sections = $derived<SettingSection[]>([
     { id: "account", name: $t("settingsPage.sidebar.account"), icon: "mdi:account-circle" },
-    { id: "language", name: $t("settingsPage.sidebar.language"), icon: "mdi:translate" },
     { id: "storage", name: $t("settingsPage.sidebar.storage"), icon: "mdi:harddisk" },
     { id: "network", name: $t("settingsPage.sidebar.network"), icon: "mdi:lan" },
     { id: "appearance", name: $t("settingsPage.sidebar.appearance"), icon: "mdi:palette" },
@@ -70,6 +71,102 @@
   let confirmPassword = $state("");
   let avatarInput = $state<HTMLInputElement | null>(null);
   let avatarUploading = $state(false);
+
+  /* 中国源加速（内联） */
+  let cnMirrorOptions = $state<I18nOptionsResponse | null>(null);
+  let cnMirrorEnabled = $state(false);
+  let cnMirrors = $state<Record<string, string>>({});
+
+  // 从 store 同步镜像状态
+  $effect(() => {
+    const storeMirrors = $i18nStore.mirrors;
+    if (storeMirrors) {
+      cnMirrors = { ...storeMirrors };
+      cnMirrorEnabled = Object.values(storeMirrors).some(v => v && v !== "follow");
+    }
+  });
+
+  // 中国源加速 — 内联逻辑
+  async function loadCnMirrorOptions() {
+    try {
+      cnMirrorOptions = await getI18nOptions();
+    } catch (e) {
+      console.error("Failed to load mirror options:", e);
+    }
+  }
+
+  function getCnMirrorServices() {
+    return (cnMirrorOptions?.services || []).filter(
+      (s) => (cnMirrorOptions?.mirrors?.cn?.[s.id]?.length ?? 0) > 0
+    );
+  }
+
+  function getCnMirrorSelectOptions(serviceId: string) {
+    const result: { value: string; label: string }[] = [
+      { value: "", label: "官方源" },
+    ];
+    const cnList = cnMirrorOptions?.mirrors?.cn?.[serviceId];
+    if (cnList) {
+      for (const m of cnList) {
+        if (m.url) result.push({ value: m.url, label: m.name });
+      }
+    }
+    return result;
+  }
+
+  function getCnMirrorValue(serviceId: string): string {
+    const v = cnMirrors[serviceId];
+    return (!v || v === "follow") ? "" : v;
+  }
+
+  function handleCnMirrorToggle(checked: boolean) {
+    cnMirrorEnabled = checked;
+    if (checked && cnMirrorOptions?.services) {
+      const newMirrors = { ...cnMirrors };
+      for (const service of cnMirrorOptions.services) {
+        if (!newMirrors[service.id] || newMirrors[service.id] === "follow") {
+          const cnList = cnMirrorOptions.mirrors?.cn?.[service.id];
+          if (cnList && cnList.length > 0 && cnList[0].url) {
+            newMirrors[service.id] = cnList[0].url;
+          }
+        }
+      }
+      cnMirrors = newMirrors;
+      saveCnMirrors(newMirrors);
+    } else if (!checked) {
+      cnMirrors = {};
+      saveCnMirrors({});
+    }
+  }
+
+  function handleCnMirrorChange(serviceId: string, value: string) {
+    if (!value) {
+      const m = { ...cnMirrors };
+      delete m[serviceId];
+      cnMirrors = m;
+    } else {
+      cnMirrors = { ...cnMirrors, [serviceId]: value };
+    }
+    saveCnMirrors(cnMirrors);
+  }
+
+  function saveCnMirrors(m: Record<string, string>) {
+    const toSave: Record<string, string> = {};
+    for (const [key, value] of Object.entries(m)) {
+      toSave[key] = value || "follow";
+    }
+    const hasAny = Object.values(toSave).some(v => v && v !== "follow");
+    i18nStore.updateSettings({
+      region: hasAny ? "cn" : "intl",
+      mirrors: toSave,
+    });
+    toast.success("镜像源设置已更新");
+  }
+
+  function getCnServiceName(name: Record<string, string>): string {
+    return name["zh-CN"] || name["en-US"] || "";
+  }
+
   // 加载当前用户信息（直接调 /users/current，不依赖 userStore）
   async function loadCurrentUser() {
     try {
@@ -375,6 +472,8 @@
     await wallpaper.loadIndex();
     // 加载当前用户信息
     await loadCurrentUser();
+    // 加载中国源选项
+    loadCnMirrorOptions();
     // 加载 2FA 状态
     twoFactorEnabled = await authService.get2FAStatus();
     // 加载远程访问设置
@@ -924,15 +1023,13 @@
             </div>
           {/if}
         </div>
-      </div>
 
-      <!-- 语言和区域设置 -->
-    {:else if activeSection === "language"}
-      <div class="section">
-        <h2>{$t("settingsPage.sidebar.language")}</h2>
-        <div class="card">
-          <LanguageSettings />
+        <!-- 语言设置 -->
+        <div class="card" style="margin-top: 16px;">
+          <h3><Icon icon="mdi:translate" width="20" style="margin-right: 4px; vertical-align: middle;" />{$t("settingsPage.sidebar.language")}</h3>
+          <LanguageSettings showLanguage={true} showMirror={false} />
         </div>
+
       </div>
 
       <!-- 存储设置 -->

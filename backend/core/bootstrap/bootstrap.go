@@ -26,6 +26,7 @@ import (
 	"github.com/ruizi-store/rde/backend/modules/download"
 	"github.com/ruizi-store/rde/backend/modules/files"
 	"github.com/ruizi-store/rde/backend/modules/flatpak"
+	"github.com/ruizi-store/rde/backend/modules/linuxlab"
 	"github.com/ruizi-store/rde/backend/modules/notification"
 	"github.com/ruizi-store/rde/backend/modules/photos"
 	"github.com/ruizi-store/rde/backend/modules/retrogame"
@@ -72,6 +73,7 @@ type App struct {
 	Photos       *photos.Module
 	Video        *video.Module
 	Backup       *backup.Module
+	LinuxLab     *linuxlab.Module
 
 	// 插件管理器
 	PluginManager *plugin.Manager
@@ -298,6 +300,7 @@ func (app *App) registerModules() error {
 	app.Photos = photos.New()
 	app.Video = video.New()
 	app.Backup = backup.New()
+	app.LinuxLab = linuxlab.New()
 
 	// 核心模块（始终加载）
 	coreModules := []module.Module{
@@ -318,6 +321,7 @@ func (app *App) registerModules() error {
 		app.Photos,
 		app.Video,
 		app.Backup,
+		app.LinuxLab,
 	}
 
 	// 注册核心模块

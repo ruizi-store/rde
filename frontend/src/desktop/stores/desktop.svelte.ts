@@ -189,6 +189,8 @@ class DesktopStore {
       { id: "20", name: "复古游戏", icon: "/icons/retrogame.svg", appId: "retrogame", x: 2, y: 1, },
       { id: "13", name: "备份管理", icon: "/icons/backup.svg", appId: "backup", x: 2, y: 2, },
       { id: "21", name: "相册", icon: "/icons/photos.svg", appId: "photos", x: 2, y: 3, },
+      // 第四列：开发工具
+      { id: "25", name: "Linux Lab", icon: "/icons/linuxlab.svg", appId: "linuxlab", x: 3, y: 0, },
     ];
   }
 

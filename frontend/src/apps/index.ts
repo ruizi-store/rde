@@ -177,6 +177,19 @@ export function registerApps() {
       source: "module",
       category: "system" as StartMenuCategory,
     },
+    {
+      id: "linuxlab",
+      name: "Linux Lab",
+      icon: "/icons/linuxlab.svg",
+      component: () => import("$apps/linuxlab/LinuxLab.svelte"),
+      defaultWidth: 1000,
+      defaultHeight: 700,
+      minWidth: 750,
+      minHeight: 500,
+      singleton: true,
+      source: "module",
+      category: "tools" as StartMenuCategory,
+    },
 
   ]);
 }

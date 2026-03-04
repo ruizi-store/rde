@@ -6,7 +6,7 @@
   import { registerApps, initApps } from "$apps";
   import { setupApi } from "$shared/services/setup";
   import { getValidToken } from "$shared/utils/auth";
-  import { reloadAllStoresForUser } from "$shared/utils/user-storage";
+  import { reloadAllStoresForUser } from "$desktop/utils/reload-stores";
   import { userStore } from "$shared/stores/user.svelte";
   import { api } from "$shared/services/api";
 

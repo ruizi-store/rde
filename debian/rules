@@ -51,23 +51,23 @@ override_dh_auto_build:
 		fi; \
 	done
 	
-	@echo "构建内置插件..."
+	@echo "构建内置插件 (CGO_ENABLED=0)..."
 	# AI 插件（前端嵌入二进制）
-	cd $(CURDIR)/plugins/ai/frontend && pnpm install --frozen-lockfile && pnpm run build
+	cd $(CURDIR)/plugins/ai/frontend && pnpm install --no-frozen-lockfile && pnpm run build
 	rm -rf $(CURDIR)/plugins/ai/backend/frontend/dist
 	mkdir -p $(CURDIR)/plugins/ai/backend/frontend
 	cp -r $(CURDIR)/plugins/ai/frontend/dist $(CURDIR)/plugins/ai/backend/frontend/dist
-	cd $(CURDIR)/plugins/ai/backend && CGO_ENABLED=1 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/ai/outputs/rde-ai ./cmd/
+	cd $(CURDIR)/plugins/ai/backend && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/ai/outputs/rde-ai ./cmd/
 	# VM 插件（前端独立文件）
-	cd $(CURDIR)/plugins/vm/frontend && pnpm install --frozen-lockfile && pnpm run build
-	cd $(CURDIR)/plugins/vm && CGO_ENABLED=1 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/vm/outputs/rde-vm ./cmd/
+	cd $(CURDIR)/plugins/vm/frontend && pnpm install --no-frozen-lockfile && pnpm run build
+	cd $(CURDIR)/plugins/vm && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/vm/outputs/rde-vm ./cmd/
 	# Android 插件（前端嵌入二进制）
-	cd $(CURDIR)/plugins/android/frontend && pnpm install --frozen-lockfile && pnpm run build
+	cd $(CURDIR)/plugins/android/frontend && pnpm install --no-frozen-lockfile && pnpm run build
 	rm -rf $(CURDIR)/plugins/android/backend/frontend_dist
 	cp -r $(CURDIR)/plugins/android/frontend/dist $(CURDIR)/plugins/android/backend/frontend_dist
-	cd $(CURDIR)/plugins/android && CGO_ENABLED=1 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/android/outputs/rde-android ./backend/cmd/
+	cd $(CURDIR)/plugins/android && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/android/outputs/rde-android ./backend/cmd/
 	# Cloud Backup 插件（无前端）
-	cd $(CURDIR)/plugins/cloud-backup && CGO_ENABLED=1 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/cloud-backup/outputs/rde-cloud-backup ./cmd/
+	cd $(CURDIR)/plugins/cloud-backup && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/cloud-backup/outputs/rde-cloud-backup ./cmd/
 	@echo "✓ 内置插件构建完成"
 
 

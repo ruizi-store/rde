@@ -191,6 +191,9 @@ class DesktopStore {
       { id: "21", name: "相册", icon: "/icons/photos.svg", appId: "photos", x: 2, y: 3, },
       // 第四列：开发工具
       { id: "25", name: "Linux Lab", icon: "/icons/linuxlab.svg", appId: "linuxlab", x: 3, y: 0, },
+      { id: "26", name: "AI 助手", icon: "/icons/ai.svg", appId: "ai", x: 3, y: 1, },
+      { id: "27", name: "虚拟机", icon: "/icons/vm.svg", appId: "vm", x: 3, y: 2, },
+      { id: "28", name: "Android", icon: "/icons/android.svg", appId: "android", x: 3, y: 3, },
     ];
   }
 
@@ -247,6 +250,9 @@ class DesktopStore {
           // 自动补充新增的桌面图标
           const newIcons: { appId: string; name: string; icon: string }[] = [
             { appId: "flatpak", name: "Flatpak 应用", icon: "/icons/flatpak.svg" },
+            { appId: "ai", name: "AI 助手", icon: "/icons/ai.svg" },
+            { appId: "vm", name: "虚拟机", icon: "/icons/vm.svg" },
+            { appId: "android", name: "Android", icon: "/icons/android.svg" },
           ];
           for (const ni of newIcons) {
             if (!this.icons.some((i) => i.appId === ni.appId)) {

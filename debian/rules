@@ -50,25 +50,6 @@ override_dh_auto_build:
 			cd $(CURDIR); \
 		fi; \
 	done
-	
-	@echo "构建内置插件 (CGO_ENABLED=0)..."
-	# AI 插件（前端嵌入二进制）
-	cd $(CURDIR)/plugins/ai/frontend && pnpm install --no-frozen-lockfile && pnpm run build
-	rm -rf $(CURDIR)/plugins/ai/backend/frontend/dist
-	mkdir -p $(CURDIR)/plugins/ai/backend/frontend
-	cp -r $(CURDIR)/plugins/ai/frontend/dist $(CURDIR)/plugins/ai/backend/frontend/dist
-	cd $(CURDIR)/plugins/ai/backend && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/ai/outputs/rde-ai ./cmd/
-	# VM 插件（前端独立文件）
-	cd $(CURDIR)/plugins/vm/frontend && pnpm install --no-frozen-lockfile && pnpm run build
-	cd $(CURDIR)/plugins/vm && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/vm/outputs/rde-vm ./cmd/
-	# Android 插件（前端嵌入二进制）
-	cd $(CURDIR)/plugins/android/frontend && pnpm install --no-frozen-lockfile && pnpm run build
-	rm -rf $(CURDIR)/plugins/android/backend/frontend_dist
-	cp -r $(CURDIR)/plugins/android/frontend/dist $(CURDIR)/plugins/android/backend/frontend_dist
-	cd $(CURDIR)/plugins/android && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/android/outputs/rde-android ./backend/cmd/
-	# Cloud Backup 插件（无前端）
-	cd $(CURDIR)/plugins/cloud-backup && CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(CURDIR)/plugins/cloud-backup/outputs/rde-cloud-backup ./cmd/
-	@echo "✓ 内置插件构建完成"
 
 
 # 安装文件
@@ -129,24 +110,9 @@ override_dh_auto_install:
 	-install -m 0644 backend/build/sysroot/lib/systemd/system/rde-firstboot.service $(DESTDIR)/usr/lib/systemd/system/ 2>/dev/null || true
 	-install -m 0755 backend/build/sysroot/usr/local/bin/rde-lock-root $(DESTDIR)/usr/bin/ 2>/dev/null || true
 	
-	# 安装内置插件到 /var/lib/rde/plugins/{id}/
-	# AI 插件
-	mkdir -p $(DESTDIR)/var/lib/rde/plugins/ai
-	install -m 0755 plugins/ai/outputs/rde-ai $(DESTDIR)/var/lib/rde/plugins/ai/
-	install -m 0644 plugins/ai/manifest.json $(DESTDIR)/var/lib/rde/plugins/ai/
-	# VM 插件（含独立前端文件）
-	mkdir -p $(DESTDIR)/var/lib/rde/plugins/vm/frontend/vm
-	install -m 0755 plugins/vm/outputs/rde-vm $(DESTDIR)/var/lib/rde/plugins/vm/
-	install -m 0644 plugins/vm/manifest.json $(DESTDIR)/var/lib/rde/plugins/vm/
-	cp -r plugins/vm/frontend/dist/* $(DESTDIR)/var/lib/rde/plugins/vm/frontend/vm/
-	# Android 插件
-	mkdir -p $(DESTDIR)/var/lib/rde/plugins/android
-	install -m 0755 plugins/android/outputs/rde-android $(DESTDIR)/var/lib/rde/plugins/android/
-	install -m 0644 plugins/android/manifest.json $(DESTDIR)/var/lib/rde/plugins/android/
-	# Cloud Backup 插件
-	mkdir -p $(DESTDIR)/var/lib/rde/plugins/cloud-backup
-	install -m 0755 plugins/cloud-backup/outputs/rde-cloud-backup $(DESTDIR)/var/lib/rde/plugins/cloud-backup/
-	install -m 0644 plugins/cloud-backup/manifest.json $(DESTDIR)/var/lib/rde/plugins/cloud-backup/
+	# 安装第三方依赖
+	mkdir -p $(DESTDIR)/usr/share/rde/thirdparty
+	-cp -r thirdparty/* $(DESTDIR)/usr/share/rde/thirdparty/ 2>/dev/null || true
 
 # 跳过测试
 override_dh_auto_test:
@@ -166,11 +132,6 @@ override_dh_shlibdeps:
 override_dh_auto_clean:
 	rm -rf frontend/build frontend/.svelte-kit
 	rm -f backend/rde
-	# 清理插件构建产物
-	rm -rf plugins/ai/outputs plugins/ai/frontend/dist plugins/ai/backend/frontend
-	rm -rf plugins/vm/outputs plugins/vm/frontend/dist
-	rm -rf plugins/android/outputs plugins/android/frontend/dist plugins/android/backend/frontend_dist
-	rm -rf plugins/cloud-backup/outputs
 	# 清理 debhelper 缓存，确保每次都是全新构建
 	rm -rf debian/rde debian/.debhelper
 

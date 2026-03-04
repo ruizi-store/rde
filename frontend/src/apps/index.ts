@@ -3,7 +3,6 @@
 
 import { apps, type ExtendedAppDefinition } from "$desktop/stores/apps.svelte";
 import type { StartMenuCategory } from "$shared/types/apps";
-import { pluginAppsService } from "$shared/services/plugin-apps";
 
 export function registerApps() {
   apps.registerAll([
@@ -190,6 +189,45 @@ export function registerApps() {
       source: "module",
       category: "tools" as StartMenuCategory,
     },
+    {
+      id: "ai",
+      name: "AI 助手",
+      icon: "/icons/ai.svg",
+      component: () => import("$apps/ai/AI.svelte"),
+      defaultWidth: 900,
+      defaultHeight: 650,
+      minWidth: 600,
+      minHeight: 400,
+      singleton: true,
+      source: "module",
+      category: "tools" as StartMenuCategory,
+    },
+    {
+      id: "android",
+      name: "Android",
+      icon: "/icons/android.svg",
+      component: () => import("$apps/android/Android.svelte"),
+      defaultWidth: 450,
+      defaultHeight: 850,
+      minWidth: 360,
+      minHeight: 640,
+      singleton: true,
+      source: "module",
+      category: "tools" as StartMenuCategory,
+    },
+    {
+      id: "vm",
+      name: "虚拟机",
+      icon: "/icons/vm.svg",
+      component: () => import("$apps/vm/VM.svelte"),
+      defaultWidth: 1000,
+      defaultHeight: 700,
+      minWidth: 800,
+      minHeight: 600,
+      singleton: true,
+      source: "module",
+      category: "system" as StartMenuCategory,
+    },
 
   ]);
 }
@@ -200,11 +238,8 @@ export async function initApps(): Promise<void> {
   // 并行加载应用配置和远程访问设置
   await Promise.all([apps.init(), remoteAccessStore.load()]);
 
-  // 并行加载外部应用和插件应用
-  await Promise.all([
-    loadExternalApps(),
-    loadPluginApps(),
-  ]);
+  // 并行加载外部应用
+  await loadExternalApps();
 }
 
 // 加载外部应用到 appsStore
@@ -265,35 +300,3 @@ async function loadDockerApps(): Promise<number> {
 
 // 导出刷新外部应用的函数（供应用安装/卸载后调用）
 export { loadExternalApps as refreshExternalApps };
-
-// 加载插件提供的前端应用
-async function loadPluginApps(): Promise<void> {
-  try {
-    const pluginApps = await pluginAppsService.getPluginApps();
-    if (pluginApps.length === 0) return;
-
-    for (const { plugin_id, app } of pluginApps) {
-      const pluginUrl = pluginAppsService.buildAppUrl(app);
-
-      // 注册为外部应用，点击后在新标签页打开独立 SPA
-      apps.registerExternalApp({
-        id: app.id,
-        name: app.name,
-        icon: app.icon,
-        type: "docker",
-        externalAppId: app.id,
-        keywords: `plugin ${plugin_id} ${app.id}`,
-        launchCallback: async () => {
-          window.open(pluginUrl, `_plugin_${app.id}`);
-        },
-      });
-    }
-
-    console.log(`[Apps] Loaded ${pluginApps.length} plugin apps`);
-  } catch (e) {
-    console.error("[Apps] Failed to load plugin apps:", e);
-  }
-}
-
-// 导出刷新插件应用的函数
-export { loadPluginApps as refreshPluginApps };

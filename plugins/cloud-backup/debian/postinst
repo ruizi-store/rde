@@ -1,4 +1,0 @@
-#!/bin/bash
-set -e
-# Signal RDE to reload plugins
-systemctl reload rde.service 2>/dev/null || true

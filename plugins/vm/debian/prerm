@@ -1,3 +1,0 @@
-#!/bin/bash
-set -e
-# RDE core manages plugin lifecycle, nothing to do here

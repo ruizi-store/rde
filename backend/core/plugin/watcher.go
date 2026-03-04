@@ -187,6 +187,14 @@ func (m *Manager) hotLoadPlugin(dir string) {
 		return
 	}
 
+	// 检查插件是否被禁用
+	if m.isDisabled(loaded.manifest.ID) {
+		m.logger.Info("Plugin hot-loaded but disabled, not starting",
+			zap.String("id", loaded.manifest.ID))
+		m.mu.Unlock()
+		return
+	}
+
 	if err := m.startPlugin(loaded); err != nil {
 		m.logger.Error("Hot-start plugin failed",
 			zap.String("id", loaded.manifest.ID),

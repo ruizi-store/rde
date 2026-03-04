@@ -1,0 +1,67 @@
+# RDE AI Plugin — 本地 AI 服务
+# 使用方法: docker compose up -d
+# Ollama 启动后自动拉取 qwen2.5:1.5b 模型（CPU 友好，~1GB 内存）
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rde-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+        reservations:
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 启动后自动拉取推荐模型
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: rde-ollama-pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["ollama", "pull", "qwen2.5:1.5b"]
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    restart: "no"
+
+  indexer:
+    image: duanjunzi/rde-indexer:latest
+    container_name: rde-indexer
+    ports:
+      - "8081:8081"
+    environment:
+      - MULTI_USER=true
+      - HOMES_DIR=/data/homes
+      - INDEX_DIR=/data/index
+      - WATCH_SUBDIRS=Pictures,Documents
+      - USER_SCAN_INTERVAL=3600
+      - CONCURRENT_WORKERS=2
+      - SCAN_INTERVAL=3600
+      - CPU_THRESHOLD=70
+      - DEVICE=cpu
+      - LOG_LEVEL=info
+    volumes:
+      - /var/lib/rde/data/home:/data/homes:ro
+      - indexer_data:/data/index
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+volumes:
+  ollama_data:
+  indexer_data:

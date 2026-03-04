@@ -1,0 +1,11 @@
+{
+    "id": "cloud-backup",
+    "name": "云备份",
+    "version": "1.0.0",
+    "description": "Cloud backup and restore",
+    "binary": "rde-cloud-backup",
+    "min_rde_version": "0.6.0",
+    "routes": [
+        "/cloud-backup/*"
+    ]
+}

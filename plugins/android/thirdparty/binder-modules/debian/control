@@ -1,0 +1,22 @@
+Source: anbox-modules
+Section: kernel
+Priority: optional
+Maintainer: Simon Fels <morphis@gravedo.de>
+Uploaders:
+ Shengjing Zhu <i@zhsj.me>,
+Build-Depends:
+ debhelper (>= 9),
+ dkms,
+Standards-Version: 4.1.4
+Homepage: https://anbox.io
+Vcs-Browser: https://github.com/anbox/anbox-modules
+Vcs-Git: https://github.com/anbox/anbox-modules.git
+
+Package: anbox-modules-dkms
+Architecture: all
+Depends:
+ ${misc:Depends},
+Description: Android kernel driver (binder) in DKMS format.
+ .
+ This package contains a out-of-tree version of the core Android
+ kernel functionality binder.

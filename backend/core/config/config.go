@@ -112,6 +112,9 @@ func setDefaults(v *viper.Viper) {
 	// AI 配置
 	v.SetDefault("ai.enabled", true)
 	v.SetDefault("ai.provider", "openai")
+
+	// 插件配置
+	v.SetDefault("plugins.disabled", []string{})
 }
 
 // Get 获取配置值
@@ -202,4 +205,16 @@ func (c *Config) Sub(key string) *viper.Viper {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.viper.Sub(key)
+}
+
+// Save 将当前配置持久化到文件
+// 如果配置文件路径尚未设定，则写入默认位置
+func (c *Config) Save() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.ConfigPath != "" {
+		return c.viper.WriteConfigAs(c.ConfigPath)
+	}
+	return c.viper.WriteConfig()
 }

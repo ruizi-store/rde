@@ -1,0 +1,12 @@
+Package: rde-ai
+Version: 1.0.0
+Section: admin
+Priority: optional
+Architecture: amd64
+Depends: systemd
+Recommends: rde
+Maintainer: RDE Team <support@ruizi.store>
+Homepage: https://ruizi.store
+Description: RDE AI Plugin - AI assistant module
+ AI chat, voice recognition, webhook and telegram gateway.
+ Runs as an independent plugin via Unix Socket protocol.

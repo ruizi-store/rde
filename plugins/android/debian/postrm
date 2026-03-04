@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+DKMS_NAME="anbox-binder"
+DKMS_VER="1"
+
+case "$1" in
+    remove|purge)
+        # 1. 移除 DKMS 模块
+        if command -v dkms &>/dev/null; then
+            dkms remove "$DKMS_NAME/$DKMS_VER" --all 2>/dev/null || true
+        fi
+        rm -rf "/usr/src/${DKMS_NAME}-${DKMS_VER}"
+
+        # 2. 清理配置文件
+        rm -f /etc/modules-load.d/anbox.conf
+        rm -f /etc/udev/rules.d/99-anbox.rules
+
+        # 3. 通知 RDE 重载
+        systemctl reload rde.service 2>/dev/null || true
+        ;;
+esac

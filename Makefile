@@ -1,6 +1,7 @@
 # RDE Makefile
 
-.PHONY: help dev stop deb deb-arm64 deb-all setup
+.PHONY: help dev stop deb deb-arm64 deb-all setup build-plugins build-plugin-ai \
+       build-plugin-vm build-plugin-android build-plugin-cloud-backup clean-plugins
 
 .DEFAULT_GOAL := help
 
@@ -21,6 +22,7 @@ ROOT_DIR := $(shell pwd)
 BACKEND_DIR := $(ROOT_DIR)/backend
 FRONTEND_DIR := $(ROOT_DIR)/frontend
 OUTPUT_DIR := $(ROOT_DIR)/outputs
+PLUGINS_DIR := $(ROOT_DIR)/plugins
 
 # PID 文件
 PID_DIR := $(ROOT_DIR)/.pids
@@ -48,9 +50,11 @@ help:
 	@echo ""
 	@echo "  make dev     - 启动开发环境 (前端 5175 + 后端 3080)"
 	@echo "  make stop    - 停止开发服务器"
-	@echo "  make deb     - 构建 DEB 安装包 (默认 amd64)"
+	@echo "  make deb     - 构建 DEB 安装包 (默认 amd64, 含插件)"
 	@echo "  make deb-arm64 - 构建 ARM64 DEB 安装包"
 	@echo "  make deb-all - 构建 amd64 + arm64 DEB 安装包"
+	@echo "  make build-plugins   - 仅构建全部内置插件"
+	@echo "  make clean-plugins   - 清理插件构建产物"
 	@echo "  make setup   - 安装开发环境 (Go + Node + pnpm)"
 	@echo ""
 	@echo "$(YELLOW)版本: $(VERSION)$(RESET)"
@@ -115,6 +119,39 @@ deb-arm64:
 deb-all:
 	@$(MAKE) deb ARCH=amd64
 	@$(MAKE) deb ARCH=arm64
+
+#==============================================================================
+# 内置插件构建
+#==============================================================================
+
+build-plugin-ai: ## 构建 AI 插件
+	@echo "$(GREEN)构建插件: AI...$(RESET)"
+	@$(MAKE) -C $(PLUGINS_DIR)/ai build
+	@echo "$(GREEN)✓ AI 插件已构建$(RESET)"
+
+build-plugin-vm: ## 构建 VM 插件
+	@echo "$(GREEN)构建插件: VM...$(RESET)"
+	@$(MAKE) -C $(PLUGINS_DIR)/vm build build-frontend
+	@echo "$(GREEN)✓ VM 插件已构建$(RESET)"
+
+build-plugin-android: ## 构建 Android 插件
+	@echo "$(GREEN)构建插件: Android...$(RESET)"
+	@$(MAKE) -C $(PLUGINS_DIR)/android build
+	@echo "$(GREEN)✓ Android 插件已构建$(RESET)"
+
+build-plugin-cloud-backup: ## 构建云备份插件
+	@echo "$(GREEN)构建插件: Cloud Backup...$(RESET)"
+	@$(MAKE) -C $(PLUGINS_DIR)/cloud-backup build
+	@echo "$(GREEN)✓ Cloud Backup 插件已构建$(RESET)"
+
+build-plugins: build-plugin-ai build-plugin-vm build-plugin-android build-plugin-cloud-backup ## 构建全部内置插件
+	@echo "$(GREEN)✓ 全部插件构建完成$(RESET)"
+
+clean-plugins: ## 清理插件构建产物
+	@for p in ai vm android cloud-backup; do \
+		$(MAKE) -C $(PLUGINS_DIR)/$$p clean 2>/dev/null || true; \
+	done
+	@echo "$(GREEN)✓ 插件构建产物已清理$(RESET)"
 
 #==============================================================================
 # 环境安装

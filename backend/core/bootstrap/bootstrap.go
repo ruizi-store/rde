@@ -245,7 +245,7 @@ func New(opts *Options) (*App, error) {
 	if bd := cfg.GetString("base_dir"); bd != "" {
 		baseDir = bd
 	}
-	app.PluginManager = plugin.NewManager(pluginDir, socketDir, opts.DataDir, baseDir, opts.Debug, logger)
+	app.PluginManager = plugin.NewManager(pluginDir, socketDir, opts.DataDir, baseDir, opts.Debug, logger, cfg)
 
 	// 10. 注册所有内置模块
 	if err := app.registerModules(); err != nil {
@@ -498,6 +498,26 @@ func (app *App) registerCoreRoutes() {
 		c.JSON(200, gin.H{
 			"data": app.PluginManager.GetPluginApps(),
 		})
+	})
+
+	// 启用插件
+	app.Router.POST("/api/v1/plugins/:id/enable", func(c *gin.Context) {
+		id := c.Param("id")
+		if err := app.PluginManager.EnablePlugin(id); err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"message": "plugin enabled", "id": id})
+	})
+
+	// 禁用插件
+	app.Router.POST("/api/v1/plugins/:id/disable", func(c *gin.Context) {
+		id := c.Param("id")
+		if err := app.PluginManager.DisablePlugin(id); err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"message": "plugin disabled", "id": id})
 	})
 }
 

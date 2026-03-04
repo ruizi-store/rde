@@ -1,0 +1,29 @@
+{
+    "id": "ai",
+    "name": "AI 助手",
+    "version": "1.0.0",
+    "description": "AI assistant - chat, gateway, voice, alerts",
+    "binary": "rde-ai",
+    "min_rde_version": "0.6.0",
+    "routes": [
+        "/ai/*"
+    ],
+    "apps": [
+        {
+            "id": "ai",
+            "name": "AI 助手",
+            "icon": "/icons/ai-assistant.svg",
+            "frontend_route": "/app/ai/",
+            "category": "tools",
+            "default_width": 900,
+            "default_height": 650,
+            "min_width": 600,
+            "min_height": 450,
+            "singleton": true,
+            "permissions": [
+                "files:read",
+                "system:read"
+            ]
+        }
+    ]
+}

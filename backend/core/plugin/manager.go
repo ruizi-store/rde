@@ -31,6 +31,13 @@ type pluginInstance struct {
 	startedAt  *time.Time
 }
 
+// DisabledChecker 用于查询和修改插件禁用列表
+type DisabledChecker interface {
+	GetStringSlice(key string) []string
+	Set(key string, value interface{})
+	Save() error
+}
+
 // Manager 插件管理器
 // 负责发现、启动、停止插件，以及路由代理
 type Manager struct {
@@ -43,10 +50,11 @@ type Manager struct {
 	logger    *zap.Logger
 	plugins   map[string]*pluginInstance
 	stopCh    chan struct{}
+	config    DisabledChecker // 配置（用于查询 plugins.disabled）
 }
 
 // NewManager 创建插件管理器
-func NewManager(pluginDir, socketDir, dataDir, baseDir string, debug bool, logger *zap.Logger) *Manager {
+func NewManager(pluginDir, socketDir, dataDir, baseDir string, debug bool, logger *zap.Logger, config DisabledChecker) *Manager {
 	return &Manager{
 		pluginDir: pluginDir,
 		socketDir: socketDir,
@@ -56,6 +64,7 @@ func NewManager(pluginDir, socketDir, dataDir, baseDir string, debug bool, logge
 		logger:    logger.Named("plugin"),
 		plugins:   make(map[string]*pluginInstance),
 		stopCh:    make(chan struct{}),
+		config:    config,
 	}
 }
 
@@ -177,12 +186,29 @@ func (m *Manager) createProxy(id, socketPath string) *httputil.ReverseProxy {
 	}
 }
 
+// isDisabled 检查插件是否被禁用
+func (m *Manager) isDisabled(id string) bool {
+	if m.config == nil {
+		return false
+	}
+	for _, d := range m.config.GetStringSlice("plugins.disabled") {
+		if d == id {
+			return true
+		}
+	}
+	return false
+}
+
 // StartAll 启动所有已发现的插件
 func (m *Manager) StartAll() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	for id, p := range m.plugins {
+		if m.isDisabled(id) {
+			m.logger.Info("Skipping disabled plugin", zap.String("id", id))
+			continue
+		}
 		if err := m.startPlugin(p); err != nil {
 			m.logger.Error("Failed to start plugin",
 				zap.String("id", id),
@@ -356,6 +382,12 @@ func (m *Manager) scheduleRestart(p *pluginInstance) {
 	case <-m.stopCh:
 		return // 管理器正在关闭
 	case <-time.After(5 * time.Second):
+	}
+
+	// 检查插件是否已被禁用
+	if m.isDisabled(p.manifest.ID) {
+		m.logger.Info("Skipping restart: plugin is disabled", zap.String("id", p.manifest.ID))
+		return
 	}
 
 	m.mu.Lock()
@@ -642,6 +674,7 @@ func (m *Manager) GetPlugins() []Info {
 		infos = append(infos, Info{
 			Manifest:  p.manifest,
 			State:     p.state,
+			Disabled:  m.isDisabled(p.manifest.ID),
 			Socket:    p.socketPath,
 			PID:       pid,
 			Error:     p.errMsg,
@@ -704,4 +737,77 @@ func (m *Manager) Stop() {
 	}
 
 	m.logger.Info("All plugins stopped")
+}
+
+// EnablePlugin 启用插件：从 disabled 列表中移除并启动插件进程
+func (m *Manager) EnablePlugin(id string) error {
+	// 更新配置：从 disabled 列表中移除
+	if m.config != nil {
+		disabled := m.config.GetStringSlice("plugins.disabled")
+		var updated []string
+		for _, d := range disabled {
+			if d != id {
+				updated = append(updated, d)
+			}
+		}
+		m.config.Set("plugins.disabled", updated)
+		if err := m.config.Save(); err != nil {
+			m.logger.Warn("Failed to save config after enabling plugin",
+				zap.String("id", id), zap.Error(err))
+		}
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p, ok := m.plugins[id]
+	if !ok {
+		return fmt.Errorf("plugin %s not found", id)
+	}
+
+	if p.state == StateRunning {
+		return nil // 已在运行
+	}
+
+	m.logger.Info("Enabling plugin", zap.String("id", id))
+	if err := m.startPlugin(p); err != nil {
+		p.state = StateError
+		p.errMsg = err.Error()
+		return fmt.Errorf("failed to start plugin: %w", err)
+	}
+	return nil
+}
+
+// DisablePlugin 禁用插件：停止插件进程并加入 disabled 列表
+func (m *Manager) DisablePlugin(id string) error {
+	m.mu.Lock()
+	p, ok := m.plugins[id]
+	if !ok {
+		m.mu.Unlock()
+		return fmt.Errorf("plugin %s not found", id)
+	}
+
+	// 停止插件进程
+	m.stopPluginLocked(id)
+	p.state = StateStopped
+	p.errMsg = ""
+	m.mu.Unlock()
+
+	// 更新配置：加入 disabled 列表
+	if m.config != nil {
+		disabled := m.config.GetStringSlice("plugins.disabled")
+		for _, d := range disabled {
+			if d == id {
+				return nil // 已在列表中
+			}
+		}
+		m.config.Set("plugins.disabled", append(disabled, id))
+		if err := m.config.Save(); err != nil {
+			m.logger.Warn("Failed to save config after disabling plugin",
+				zap.String("id", id), zap.Error(err))
+		}
+	}
+
+	m.logger.Info("Plugin disabled", zap.String("id", id))
+	return nil
 }

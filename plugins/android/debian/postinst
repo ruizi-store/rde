@@ -1,0 +1,53 @@
+#!/bin/bash
+set -e
+
+PLUGIN_DIR="/var/lib/rde/plugins/android"
+BINDER_DIR="$PLUGIN_DIR/binder-modules"
+DKMS_NAME="anbox-binder"
+DKMS_VER="1"
+
+case "$1" in
+    configure)
+        # 1. 安装 binder DKMS 模块
+        if [ -d "$BINDER_DIR/binder" ]; then
+            # 清理旧版本
+            if dkms status "$DKMS_NAME/$DKMS_VER" 2>/dev/null | grep -q "$DKMS_NAME"; then
+                dkms remove "$DKMS_NAME/$DKMS_VER" --all 2>/dev/null || true
+            fi
+            rm -rf "/usr/src/${DKMS_NAME}-${DKMS_VER}"
+
+            # 复制源码到 DKMS 目录
+            cp -rT "$BINDER_DIR/binder" "/usr/src/${DKMS_NAME}-${DKMS_VER}"
+
+            # DKMS 构建安装
+            if dkms install "$DKMS_NAME/$DKMS_VER"; then
+                echo "rde-android: binder_linux DKMS module installed"
+            else
+                echo "rde-android: WARNING - DKMS install failed (missing kernel headers?)" >&2
+                echo "rde-android: Install linux-headers and run: sudo dkms install $DKMS_NAME/$DKMS_VER" >&2
+            fi
+        fi
+
+        # 2. 配置开机自动加载 binder_linux
+        if [ -f "$BINDER_DIR/anbox.conf" ]; then
+            cp "$BINDER_DIR/anbox.conf" /etc/modules-load.d/anbox.conf
+        fi
+        if [ -f /etc/modules-load.d/anbox.conf ]; then
+            if ! grep -q "^binder_linux$" /etc/modules-load.d/anbox.conf; then
+                echo "binder_linux" >> /etc/modules-load.d/anbox.conf
+            fi
+        fi
+
+        # 3. 安装 udev 规则
+        if [ -f "$BINDER_DIR/99-anbox.rules" ]; then
+            cp "$BINDER_DIR/99-anbox.rules" /etc/udev/rules.d/
+            udevadm control --reload-rules 2>/dev/null || true
+        fi
+
+        # 4. 立即加载模块
+        modprobe binder_linux 2>/dev/null || true
+
+        # 5. 通知 RDE 重载插件
+        systemctl reload rde.service 2>/dev/null || true
+        ;;
+esac

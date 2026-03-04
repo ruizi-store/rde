@@ -34,4 +34,10 @@ Description: RDE (Ruizi Desktop Environment) - Web-based Desktop for Linux Serve
   - System Monitor: real-time CPU, memory, disk, network dashboard
   - Backup & Restore: local, WebDAV, S3, SFTP backup targets
   - Web Terminal: full-featured terminal in the browser
-  - Plugin System: extend with premium features via plugins
+  - Plugin System: extend with custom plugins via Unix Socket protocol
+ .
+ Built-in Plugins:
+  - AI Assistant: AI chat, voice, webhook and telegram gateway
+  - VM Manager: QEMU/KVM virtual machine management with VNC console
+  - Android: ADB screen casting and device control
+  - Cloud Backup: cloud-based backup and restore

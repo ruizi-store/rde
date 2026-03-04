@@ -1,0 +1,10 @@
+# Go
+go/vendor/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+*.swp
+*~

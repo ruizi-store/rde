@@ -1,5 +1,0 @@
-outputs/
-frontend/dist/
-frontend/node_modules/
-backend/frontend_dist/
-*.db

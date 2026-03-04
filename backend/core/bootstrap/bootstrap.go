@@ -18,10 +18,12 @@ import (
 	"github.com/ruizi-store/rde/backend/core/event"
 	"github.com/ruizi-store/rde/backend/core/i18n"
 	"github.com/ruizi-store/rde/backend/core/module"
-	"github.com/ruizi-store/rde/backend/core/plugin"
 
 	// 导入核心模块
+	"github.com/ruizi-store/rde/backend/modules/ai"
+	"github.com/ruizi-store/rde/backend/modules/android"
 	"github.com/ruizi-store/rde/backend/modules/backup"
+	"github.com/ruizi-store/rde/backend/modules/cloudbackup"
 	"github.com/ruizi-store/rde/backend/modules/docker"
 	"github.com/ruizi-store/rde/backend/modules/download"
 	"github.com/ruizi-store/rde/backend/modules/files"
@@ -39,6 +41,7 @@ import (
 	"github.com/ruizi-store/rde/backend/modules/terminal"
 	"github.com/ruizi-store/rde/backend/modules/users"
 	"github.com/ruizi-store/rde/backend/modules/video"
+	"github.com/ruizi-store/rde/backend/modules/vm"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -75,8 +78,11 @@ type App struct {
 	Backup       *backup.Module
 	LinuxLab     *linuxlab.Module
 
-	// 插件管理器
-	PluginManager *plugin.Manager
+	// 新增模块（原插件）
+	AI          *ai.Module
+	Android     *android.Module
+	CloudBackup *cloudbackup.Module
+	VM          *vm.Module
 }
 
 // Options 启动选项
@@ -238,16 +244,7 @@ func New(opts *Options) (*App, error) {
 		TokenManager: tokenManager,
 	}
 
-	// 9. 初始化插件管理器
-	pluginDir := filepath.Join(opts.DataDir, "plugins")
-	socketDir := filepath.Join("/var/run/rde", "plugins")
-	baseDir := "/opt/rde"
-	if bd := cfg.GetString("base_dir"); bd != "" {
-		baseDir = bd
-	}
-	app.PluginManager = plugin.NewManager(pluginDir, socketDir, opts.DataDir, baseDir, opts.Debug, logger, cfg)
-
-	// 10. 注册所有内置模块
+	// 9. 注册所有内置模块
 	if err := app.registerModules(); err != nil {
 		return nil, err
 	}
@@ -302,6 +299,12 @@ func (app *App) registerModules() error {
 	app.Backup = backup.New()
 	app.LinuxLab = linuxlab.New()
 
+	// 新增模块（原插件）
+	app.AI = ai.New()
+	app.Android = android.New()
+	app.CloudBackup = cloudbackup.New()
+	app.VM = vm.New()
+
 	// 核心模块（始终加载）
 	coreModules := []module.Module{
 		app.Setup,
@@ -322,6 +325,11 @@ func (app *App) registerModules() error {
 		app.Video,
 		app.Backup,
 		app.LinuxLab,
+		// 新增模块（原插件）
+		app.AI,
+		app.Android,
+		app.CloudBackup,
+		app.VM,
 	}
 
 	// 注册核心模块
@@ -441,20 +449,7 @@ func (app *App) Start() error {
 	// 注册模块路由
 	app.Registry.RegisterRoutes(apiV1)
 
-	// 2.5 发现并启动外部插件，启动目录监听
-	if err := app.PluginManager.Discover(); err != nil {
-		app.Logger.Warn("Plugin discovery failed", zap.Error(err))
-	}
-	app.PluginManager.StartAll()
-	app.PluginManager.StartWatching()
-
-	// 3. 注册插件前端路由 (/app/*)
-	// 这些路由需要认证，代理到各插件的前端服务
-	appGroup := app.Router.Group("/app")
-	appGroup.Use(authMiddleware)
-	appGroup.Use(app.PluginManager.FrontendMiddleware())
-
-	// 4. 注册核心路由
+	// 3. 注册核心路由
 	app.registerCoreRoutes()
 
 	// 4. 注册静态文件服务（前端 SPA）
@@ -475,7 +470,6 @@ func (app *App) registerCoreRoutes() {
 		c.JSON(200, gin.H{
 			"status":  "ok",
 			"modules": app.Registry.GetAll(),
-			"plugins": app.PluginManager.GetPlugins(),
 		})
 	})
 
@@ -484,40 +478,6 @@ func (app *App) registerCoreRoutes() {
 		c.JSON(200, gin.H{
 			"data": app.Registry.GetAll(),
 		})
-	})
-
-	// 插件信息
-	app.Router.GET("/api/v1/plugins", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"data": app.PluginManager.GetPlugins(),
-		})
-	})
-
-	// 插件提供的前端应用列表
-	app.Router.GET("/api/v1/plugin-apps", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"data": app.PluginManager.GetPluginApps(),
-		})
-	})
-
-	// 启用插件
-	app.Router.POST("/api/v1/plugins/:id/enable", func(c *gin.Context) {
-		id := c.Param("id")
-		if err := app.PluginManager.EnablePlugin(id); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(200, gin.H{"message": "plugin enabled", "id": id})
-	})
-
-	// 禁用插件
-	app.Router.POST("/api/v1/plugins/:id/disable", func(c *gin.Context) {
-		id := c.Param("id")
-		if err := app.PluginManager.DisablePlugin(id); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(200, gin.H{"message": "plugin disabled", "id": id})
 	})
 }
 
@@ -549,17 +509,8 @@ func (app *App) registerStaticFiles() {
 	app.Router.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
 
-		// 插件 API 路由 (/api/v1/xxx) - 代理到插件
-		if strings.HasPrefix(path, "/api/v1/") {
-			if app.PluginManager.HandleAPIRequest(c) {
-				return
-			}
-			c.JSON(404, gin.H{"error": "not found"})
-			return
-		}
-
-		// 其他 API 请求返回 404
-		if len(path) >= 4 && path[:4] == "/api" {
+		// API 请求返回 404
+		if strings.HasPrefix(path, "/api/") {
 			c.JSON(404, gin.H{"error": "not found"})
 			return
 		}
@@ -604,9 +555,6 @@ func (app *App) registerStaticFiles() {
 // Stop 停止应用
 func (app *App) Stop() error {
 	app.Logger.Info("Stopping RDE application")
-
-	// 停止所有插件
-	app.PluginManager.Stop()
 
 	// 停止所有内置模块
 	if err := app.Registry.Stop(); err != nil {

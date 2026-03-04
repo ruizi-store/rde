@@ -1,6 +1,0 @@
-rde-android (1.0.0-1) unstable; urgency=medium
-
-  * Initial release
-  * ADB connection and Scrcpy screen mirroring support
-
- -- RDE Team <support@ruizi.store>  Mon, 24 Feb 2026 00:00:00 +0800

@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"go.uber.org/zap"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
@@ -85,9 +85,9 @@ type Plugin struct {
 // New 创建插件实例
 func New(name, version string) *Plugin {
 	return &Plugin{
-		name:         name,
-		version:      version,
-		frontendDirs: make(map[string]string),
+		name:          name,
+		version:       version,
+		frontendDirs:  make(map[string]string),
 		frontendFSMap: make(map[string]fs.FS),
 	}
 }

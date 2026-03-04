@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/glebarez/sqlite"
 	"go.uber.org/zap"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -46,12 +46,12 @@ func TestCreateTask(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	task, err := service.CreateTask(&CreateTaskRequest{
-		Name:        "Test Backup",
-		Type:        BackupTypeFull,
-		Sources:     []string{"/tmp"},
-		TargetType:  TargetTypeLocal,
+		Name:         "Test Backup",
+		Type:         BackupTypeFull,
+		Sources:      []string{"/tmp"},
+		TargetType:   TargetTypeLocal,
 		TargetConfig: `{"path":"` + tempDir + `/backups"}`,
-		Compression: true,
+		Compression:  true,
 	})
 
 	if err != nil {
@@ -78,10 +78,10 @@ func TestListTasks(t *testing.T) {
 	// 创建几个任务
 	for i := 0; i < 3; i++ {
 		service.CreateTask(&CreateTaskRequest{
-			Name:        "Task " + string(rune('A'+i)),
-			Type:        BackupTypeFull,
-			Sources:     []string{"/tmp"},
-			TargetType:  TargetTypeLocal,
+			Name:         "Task " + string(rune('A'+i)),
+			Type:         BackupTypeFull,
+			Sources:      []string{"/tmp"},
+			TargetType:   TargetTypeLocal,
 			TargetConfig: `{"path":"` + tempDir + `"}`,
 		})
 	}

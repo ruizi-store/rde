@@ -1,0 +1,4 @@
+outputs/
+frontend/dist/
+frontend/node_modules/
+*.db

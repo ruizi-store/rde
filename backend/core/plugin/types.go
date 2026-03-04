@@ -32,9 +32,6 @@ type Manifest struct {
 	// PublicRoutes 不需要认证的路由前缀
 	PublicRoutes []string `json:"public_routes,omitempty"`
 
-	// RequiresLicense 是否需要许可证
-	RequiresLicense bool `json:"requires_license,omitempty"`
-
 	// Apps 插件提供的前端应用列表
 	// 每个应用将在桌面环境中显示为独立的可启动应用
 	// 前端资源由插件进程自行服务（通过路由代理）
@@ -93,6 +90,7 @@ const (
 type Info struct {
 	Manifest  Manifest   `json:"manifest"`
 	State     State      `json:"state"`
+	Disabled  bool       `json:"disabled"`
 	Socket    string     `json:"socket"`
 	PID       int        `json:"pid,omitempty"`
 	Error     string     `json:"error,omitempty"`

@@ -1,0 +1,13 @@
+Package: rde-android
+Version: 1.0.0
+Section: admin
+Priority: optional
+Architecture: amd64
+Depends: systemd, dkms
+Recommends: rde, android-tools-adb
+Maintainer: RDE Team <support@ruizi.store>
+Homepage: https://ruizi.store
+Description: RDE Android Plugin - Android device management
+ ADB connection, Scrcpy screen mirroring and control.
+ Runs as an independent plugin via Unix Socket protocol.
+ Includes binder kernel module (DKMS) for Android container support.

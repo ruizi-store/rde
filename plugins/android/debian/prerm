@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    remove|purge)
+        # 卸载内核模块
+        rmmod binder_linux 2>/dev/null || true
+        ;;
+esac

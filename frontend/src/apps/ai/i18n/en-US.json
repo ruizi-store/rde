@@ -120,6 +120,20 @@
     "aiProviders": "AI Providers",
     "aiSettings": "AI Settings",
     "aiAssistant": "AI Assistant",
+    "searchConversations": "Search conversations...",
+    "noSearchResults": "No matching conversations",
+    "copy": "Copy",
+    "copied": "Copied",
+    "regenerate": "Regenerate",
+    "clearMessages": "Clear messages",
+    "exportConversation": "Export conversation",
+    "editMessage": "Edit message",
+    "export": {
+      "exportedAt": "Exported at",
+      "model": "Model",
+      "userLabel": "User",
+      "assistantLabel": "AI Assistant"
+    },
     "skills": {
       "systemMonitor": "System Monitor",
       "systemInfo": "System Info",

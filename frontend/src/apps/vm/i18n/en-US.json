@@ -89,6 +89,9 @@
       "snapshotReverted": "Reverted to snapshot",
       "snapshotDeleted": "Snapshot deleted",
       "isoDeleteNotImplemented": "ISO deletion not implemented yet",
+      "isoDeleted": "ISO deleted",
+      "isoUploaded": "ISO \"{name}\" uploaded",
+      "editSaved": "VM settings saved",
       "cloneSuccess": "Virtual machine cloned successfully",
       "enterFilePath": "Please enter file path",
       "autoStartEnabled": "Auto-start enabled",
@@ -135,6 +138,7 @@
       "snapshot": "Snapshot",
       "autoStartOn": "Auto-start: On",
       "autoStartOff": "Auto-start: Off",
+      "edit": "Edit",
       "delete": "Delete",
       "sshTerminal": "SSH Terminal",
       "resourceMonitor": "Resource Monitor",
@@ -149,7 +153,8 @@
       "importVM": "Import Virtual Machine",
       "exportVM": "Export VM - {name}",
       "sshConnection": "SSH Connection - {name}",
-      "resourceMonitor": "Resource Monitor - {name}"
+      "resourceMonitor": "Resource Monitor - {name}",
+      "editVM": "Edit VM - {name}"
     },
     "form": {
       "snapshotName": "Snapshot Name",
@@ -179,7 +184,9 @@
       "restore": "Restore"
     },
     "iso": {
-      "noISOFiles": "No ISO files"
+      "noISOFiles": "No ISO files",
+      "uploadISO": "Upload ISO",
+      "uploading": "Uploading..."
     },
     "clone": {
       "willClone": "Will clone virtual machine"
@@ -222,7 +229,8 @@
       "deleteVM": "Are you sure you want to delete VM \"{name}\"? Disk data will be erased.",
       "deleteBatch": "Are you sure you want to delete {n} selected VMs? This cannot be undone.",
       "restoreBackup": "Are you sure you want to restore from backup \"{name}\"? This will create a new VM.",
-      "deleteBackup": "Are you sure you want to delete backup \"{name}\"? This cannot be undone."
+      "deleteBackup": "Are you sure you want to delete backup \"{name}\"? This cannot be undone.",
+      "deleteISO": "Are you sure you want to delete ISO \"{name}\"?"
     },
     "backup": {
       "title": "Backup Management - {name}",

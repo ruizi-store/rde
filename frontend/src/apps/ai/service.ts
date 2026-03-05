@@ -341,6 +341,10 @@ class AIService {
     await api.delete(`/ai/conversations/${id}`);
   }
 
+  async clearMessages(id: string): Promise<void> {
+    await api.delete(`/ai/conversations/${id}/messages`);
+  }
+
   // ---- Chat (Non-Streaming) ----
 
   async chat(req: ChatRequest): Promise<ChatResponse> {

@@ -394,6 +394,22 @@ func (s *Service) DeleteConversation(id string) error {
 	return nil
 }
 
+// ClearMessages 清空对话中的所有消息（保留对话本身）
+func (s *Service) ClearMessages(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	c, ok := s.conversations[id]
+	if !ok {
+		return fmt.Errorf("conversation not found: %s", id)
+	}
+
+	c.Messages = make([]Message, 0)
+	c.UpdatedAt = time.Now()
+	s.saveConversationsSync()
+	return nil
+}
+
 // AddMessage 添加消息到对话
 func (s *Service) AddMessage(convID string, msg Message) error {
 	s.mu.Lock()

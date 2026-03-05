@@ -57,6 +57,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		ai.GET("/conversations/:id", h.GetConversation)
 		ai.PUT("/conversations/:id", h.UpdateConversation)
 		ai.DELETE("/conversations/:id", h.DeleteConversation)
+		ai.DELETE("/conversations/:id/messages", h.ClearMessages)
 		ai.POST("/conversations/:id/messages/save", h.SaveMessages)
 
 		// 配置/状态
@@ -383,6 +384,16 @@ func (h *Handler) DeleteConversation(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "conversation deleted"})
+}
+
+// ClearMessages 清空对话消息（保留对话本身）
+func (h *Handler) ClearMessages(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.service.ClearMessages(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "messages cleared"})
 }
 
 // SaveMessages 批量保存消息

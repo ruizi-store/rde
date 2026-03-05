@@ -281,6 +281,43 @@ func TestService_AddMessage(t *testing.T) {
 	assert.Equal(t, "Hello AI!", conv.Messages[0].Content)
 }
 
+// ----- ClearMessages 测试 -----
+
+func TestService_ClearMessages(t *testing.T) {
+	svc := setupTestService(t)
+
+	// 创建对话并添加消息
+	created, err := svc.CreateConversation(CreateConversationRequest{Title: "To Clear"})
+	require.NoError(t, err)
+
+	for _, content := range []string{"msg1", "msg2", "msg3"} {
+		require.NoError(t, svc.AddMessage(created.ID, Message{Role: "user", Content: content}))
+	}
+	svc.FlushSave()
+
+	// 确认有 3 条消息
+	conv, err := svc.GetConversation(created.ID)
+	require.NoError(t, err)
+	require.Len(t, conv.Messages, 3)
+
+	// 清空消息
+	err = svc.ClearMessages(created.ID)
+	require.NoError(t, err)
+	svc.FlushSave()
+
+	// 对话仍存在但消息为空
+	conv, err = svc.GetConversation(created.ID)
+	require.NoError(t, err)
+	assert.Empty(t, conv.Messages)
+	assert.Equal(t, "To Clear", conv.Title)
+}
+
+func TestService_ClearMessages_NotFound(t *testing.T) {
+	svc := setupTestService(t)
+	err := svc.ClearMessages("nonexistent")
+	assert.Error(t, err)
+}
+
 // ----- 持久化测试 -----
 
 func TestService_ProvidersPersistence(t *testing.T) {

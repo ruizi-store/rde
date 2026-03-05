@@ -103,6 +103,10 @@
   // Copy to clipboard feedback
   let copiedMsgId = $state<string | null>(null);
 
+  // Edit user message
+  let editingMsgIdx = $state<number | null>(null);
+  let editingContent = $state("");
+
   // Voice
   let isRecording = $state(false);
   let mediaRecorder: MediaRecorder | null = null;
@@ -445,10 +449,129 @@
         const errMsg: ChatMessage = {
           id: generateUUID(),
           role: "assistant",
-          content: `⚠️ 错误: ${e.message}`,
+          content: `⚠️ ${$t("common.error")}: ${e.message}`,
           timestamp: new Date().toISOString(),
         };
         chatMessages = [...chatMessages, errMsg];
+        streamingContent = "";
+      }
+    } finally {
+      isStreaming = false;
+      abortController = null;
+      scrollToBottom();
+    }
+  }
+
+  // ==================== Clear & Export ====================
+
+  async function clearConversation() {
+    if (!currentConversation || isStreaming) return;
+    try {
+      await aiService.clearMessages(currentConversation.id);
+      chatMessages = [];
+    } catch (e: any) {
+      error = e.message;
+    }
+  }
+
+  function exportConversation() {
+    if (!currentConversation || chatMessages.length === 0) return;
+    const lines: string[] = [
+      `# ${currentConversation.title}`,
+      "",
+      `> ${$t("ai.export.exportedAt")}: ${new Date().toLocaleString()}`,
+      `> ${$t("ai.export.model")}: ${selectedModel || "—"}`,
+      "",
+      "---",
+      "",
+    ];
+    for (const msg of chatMessages) {
+      if (msg.role === "user") {
+        lines.push(`**${$t("ai.export.userLabel")}** (${formatTime(msg.timestamp)})`);
+        lines.push("");
+        lines.push(msg.content);
+      } else if (msg.role === "assistant") {
+        lines.push(`**${$t("ai.export.assistantLabel")}** (${formatTime(msg.timestamp)})`);
+        lines.push("");
+        lines.push(msg.content);
+      }
+      lines.push("");
+      lines.push("---");
+      lines.push("");
+    }
+    const md = lines.join("\n");
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${currentConversation.title.replace(/[^\w\u4e00-\u9fa5]/g, "_")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ==================== Edit User Message ====================
+
+  function startEditMessage(idx: number) {
+    editingMsgIdx = idx;
+    editingContent = chatMessages[idx].content;
+  }
+
+  async function confirmEditMessage() {
+    const idx = editingMsgIdx;
+    const text = editingContent.trim();
+    editingMsgIdx = null;
+    editingContent = "";
+    if (idx === null || !text || isStreaming || !selectedProviderId || !selectedModel) return;
+
+    // Truncate history up to (and including) the edited user message
+    const truncated = chatMessages.slice(0, idx);
+    const updatedUser: ChatMessage = {
+      id: generateUUID(),
+      role: "user",
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
+    chatMessages = [...truncated, updatedUser];
+    scrollToBottom();
+
+    // Stream response based on updated history
+    isStreaming = true;
+    streamingContent = "";
+    abortController = new AbortController();
+    const reqMessages = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+    try {
+      const stream = aiService.streamChat(
+        {
+          provider_id: selectedProviderId,
+          model: selectedModel,
+          messages: reqMessages,
+          conversation_id: currentConversation?.id,
+        },
+        abortController.signal,
+      );
+      for await (const chunk of stream) {
+        if (chunk.error) throw new Error(chunk.error);
+        if (chunk.delta) {
+          streamingContent += chunk.delta;
+          scrollToBottom();
+        }
+        if (chunk.finish_reason) break;
+      }
+      chatMessages = [...chatMessages, {
+        id: generateUUID(),
+        role: "assistant",
+        content: streamingContent,
+        timestamp: new Date().toISOString(),
+      }];
+      streamingContent = "";
+    } catch (e: any) {
+      if (e.name !== "AbortError") {
+        chatMessages = [...chatMessages, {
+          id: generateUUID(),
+          role: "assistant",
+          content: `⚠️ ${$t("common.error")}: ${e.message}`,
+          timestamp: new Date().toISOString(),
+        }];
         streamingContent = "";
       }
     } finally {
@@ -536,7 +659,7 @@
         const errMsg: ChatMessage = {
           id: generateUUID(),
           role: "assistant",
-          content: `⚠️ 错误: ${e.message}`,
+          content: `⚠️ ${$t("common.error")}: ${e.message}`,
           timestamp: new Date().toISOString(),
         };
         chatMessages = [...chatMessages, errMsg];
@@ -705,9 +828,13 @@
       {/if}
 
       {#if currentConversation}
-        <span class="text-xs text-[var(--text-tertiary)] ml-auto truncate">{currentConversation.title}</span>
+        <span class="text-xs text-[var(--text-tertiary)] ml-auto truncate max-w-[8rem]">{currentConversation.title}</span>
       {/if}
       <div class="ml-auto flex gap-1">
+        {#if currentConversation && chatMessages.length > 0}
+          <span title={$t("ai.exportConversation")}><Button size="sm" variant="ghost" onclick={exportConversation}>⤓</Button></span>
+          <span title={$t("ai.clearMessages")}><Button size="sm" variant="ghost" onclick={clearConversation} disabled={isStreaming}>🗑</Button></span>
+        {/if}
         <span title={$t("ai.skillsPanel")}><Button size="sm" variant="ghost" onclick={() => (showSkills = !showSkills)}>🛠️</Button></span>
         <span title={$t("ai.setupWizard")}><Button size="sm" variant="ghost" onclick={() => (showSetupWizard = true)}>📋</Button></span>
       </div>
@@ -744,7 +871,37 @@
                 : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--border-primary)]'}"
             >
               {#if msg.role === 'user'}
-                <div class="whitespace-pre-wrap break-words">{msg.content}</div>
+                {#if editingMsgIdx === idx}
+                  <!-- Inline edit mode -->
+                  <textarea
+                    class="w-full resize-none text-sm bg-blue-700 text-white border border-blue-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                    rows="3"
+                    bind:value={editingContent}
+                    onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEditMessage(); } if (e.key === 'Escape') { editingMsgIdx = null; } }}
+                  ></textarea>
+                  <div class="flex gap-1 mt-1">
+                    <button
+                      class="text-xs px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white transition-colors"
+                      onclick={confirmEditMessage}
+                      disabled={!editingContent.trim()}
+                    >{$t("common.confirm")}</button>
+                    <button
+                      class="text-xs px-2 py-0.5 rounded hover:bg-white/20 text-blue-200 transition-colors"
+                      onclick={() => { editingMsgIdx = null; }}
+                    >{$t("common.cancel")}</button>
+                  </div>
+                {:else}
+                  <div class="group relative">
+                    <div class="whitespace-pre-wrap break-words">{msg.content}</div>
+                    {#if !isStreaming}
+                      <button
+                        class="absolute -left-6 top-0 opacity-0 group-hover:opacity-100 text-xs p-0.5 rounded text-blue-200 hover:text-white transition-opacity"
+                        onclick={() => startEditMessage(idx)}
+                        title={$t("ai.editMessage")}
+                      >✎</button>
+                    {/if}
+                  </div>
+                {/if}
               {:else}
                 <div class="markdown-body break-words" use:markdownAction>{@html renderMarkdown(msg.content)}</div>
                 <div class="flex items-center gap-1 mt-1">

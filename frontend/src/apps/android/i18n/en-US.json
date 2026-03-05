@@ -122,6 +122,11 @@
     "successInstalled": "Successfully installed {n} apps",
     "installComplete": "Install complete: {success} succeeded, {fail} failed",
     "installed": "Installed: {name}",
-    "installFailed2": "Install failed: {error}"
+    "installFailed2": "Install failed: {error}",
+    "apkNeedSetup": "Android emulator environment is not configured. Please complete setup first.",
+    "apkStartingEmulator": "Starting Android emulator...",
+    "apkEmulatorStartFailed": "Failed to start Android emulator. Please start it manually and try again.",
+    "apkInstallingFile": "Installing {name}...",
+    "apkInstallFailed": "APK installation failed: {error}"
   }
 }

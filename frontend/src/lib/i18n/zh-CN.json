@@ -1505,7 +1505,11 @@
       "parsing": "正在解析 APK...",
       "installToVm": "将安装此 APK 到 Android 虚拟机，安装完成后可从桌面启动。",
       "installing": "安装中...",
-      "install": "安装"
+      "install": "安装",
+      "emulatorNotInstalled": "Android 模拟器尚未安装，请先打开 Android 应用完成环境配置。",
+      "emulatorStartFailed": "Android 模拟器启动失败，请打开 Android 应用手动启动。",
+      "emulatorNotReady": "Android 模拟器环境未就绪，请先打开 Android 应用检查环境状态。",
+      "installFailed": "APK 安装失败：{error}"
     },
     "fileInstall": {
       "installDeb": "安装 Deb 软件包",

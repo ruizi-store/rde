@@ -750,6 +750,13 @@
         return;
       }
 
+      // APK 文件：打开安卓模拟器安装
+      const ext = file.extension?.toLowerCase() || getExtension(file.name);
+      if (ext === "apk") {
+        openApkInAndroid(file);
+        return;
+      }
+
       if (category !== "other") {
         previewFile = file;
         showPreviewModal = true;
@@ -763,6 +770,14 @@
         showNotification("info", $t("fileManager.notification.previewNotSupported"));
       }
     }
+  }
+
+  /* 打开安卓模拟器安装 APK */
+  async function openApkInAndroid(file: FileInfo) {
+    // 1. 先打开安卓模拟器窗口
+    await windowManager.open("android");
+    // 2. 通过自定义事件通知 Android 组件安装并启动 APK
+    window.dispatchEvent(new CustomEvent("rde:install-apk", { detail: { path: file.path, name: file.name } }));
   }
 
   /* 加载文件内容 */
@@ -1484,7 +1499,6 @@
       showRenameModal ||
       showMoveToModal ||
       showDeleteConfirm ||
-      showApkInstallModal ||
       showElevateModal ||
       target.tagName === "INPUT" ||
       target.tagName === "TEXTAREA" ||
@@ -2153,6 +2167,17 @@
           >
             <Icon icon="mdi:download" />
             <span>{$t("fileManager.contextMenu.download")}</span>
+          </button>
+        {/if}
+        {#if !contextMenu.file.is_dir && (contextMenu.file.extension?.toLowerCase() || getExtension(contextMenu.file.name)) === "apk"}
+          <button
+            onclick={() => {
+              openApkInAndroid(contextMenu!.file!);
+              closeContextMenu();
+            }}
+          >
+            <Icon icon="mdi:android" />
+            <span>{$t("fileManager.apk.install")}</span>
           </button>
         {/if}
         <hr />
@@ -3641,60 +3666,6 @@
       p {
         margin: 4px 0;
       }
-    }
-  }
-
-  /* APK 安装弹窗 */
-  .apk-install-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 20px;
-    gap: 12px;
-
-    :global(.android-icon) {
-      color: #3ddc84;
-    }
-
-    .apk-icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 12px;
-      object-fit: contain;
-    }
-
-    .apk-name {
-      font-size: 16px;
-      font-weight: 500;
-      color: var(--text-primary, #333);
-      word-break: break-all;
-      text-align: center;
-    }
-
-    .apk-package {
-      font-size: 12px;
-      color: var(--text-tertiary, #999);
-      font-family: monospace;
-    }
-
-    .apk-meta {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
-
-      .meta-item {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 13px;
-        color: var(--text-secondary, #666);
-      }
-    }
-
-    .apk-size {
-      font-size: 14px;
-      color: var(--text-secondary, #666);
     }
   }
 

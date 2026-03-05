@@ -1506,7 +1506,11 @@
       "parsing": "Parsing APK...",
       "installToVm": "This APK will be installed to Android VM. You can launch it from desktop after installation.",
       "installing": "Installing...",
-      "install": "Install"
+      "install": "Install",
+      "emulatorNotInstalled": "Android emulator is not installed. Please open the Android app to set up the environment first.",
+      "emulatorStartFailed": "Failed to start Android emulator. Please open the Android app to start it manually.",
+      "emulatorNotReady": "Android emulator environment is not ready. Please open the Android app to check the status.",
+      "installFailed": "APK installation failed: {error}"
     },
     "fileInstall": {
       "installDeb": "Install Deb Package",

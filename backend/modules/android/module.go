@@ -62,7 +62,7 @@ func (m *Module) Init(ctx *module.Context) error {
 	// Android Docker 镜像地址
 	androidImage := ctx.Config.GetString("android.docker_image")
 	if androidImage == "" {
-		androidImage = "redroid/redroid:16.0.0-latest"
+		androidImage = "redroid/redroid:14.0.0-latest"
 	}
 
 	// binder-modules 路径改为 thirdparty/android/binder-modules

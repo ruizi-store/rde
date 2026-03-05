@@ -62,6 +62,12 @@ func (s *Service) initADBClient() error {
 		return nil
 	}
 
+	// 确保 ADB server 正在运行
+	if err := EnsureADBServer(); err != nil {
+		s.logger.Warn("Failed to start ADB server", zap.Error(err))
+		return fmt.Errorf("adb not available: %w", err)
+	}
+
 	client, err := adb.NewClient()
 	if err != nil {
 		s.logger.Warn("Failed to create ADB client", zap.Error(err))
@@ -1124,6 +1130,26 @@ func CheckBinderModuleLoaded() bool {
 		return false
 	}
 	return strings.Contains(string(output), "binder_linux")
+}
+
+// CheckADBInstalled 检查 ADB 是否已安装
+func CheckADBInstalled() bool {
+	_, err := exec.LookPath("adb")
+	return err == nil
+}
+
+// EnsureADBServer 确保 ADB server 正在运行，如果未运行则自动启动
+func EnsureADBServer() error {
+	if !CheckADBInstalled() {
+		return fmt.Errorf("adb is not installed, please install android-tools-adb")
+	}
+
+	// 尝试启动 ADB server（如果已运行则不会重复启动）
+	cmd := exec.Command("adb", "start-server")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to start adb server: %w", err)
+	}
+	return nil
 }
 
 // CheckDockerInstalled 检查 Docker 是否已安装

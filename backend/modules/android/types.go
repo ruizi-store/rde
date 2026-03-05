@@ -200,6 +200,7 @@ const (
 	StepInstallHeaders    InstallStep = "install_headers"
 	StepInstallBinder     InstallStep = "install_binder"
 	StepLoadBinder        InstallStep = "load_binder"
+	StepInstallADB        InstallStep = "install_adb"
 	StepInstallDocker     InstallStep = "install_docker"
 	StepPullImage         InstallStep = "pull_image"
 	StepStartContainer    InstallStep = "start_container"
@@ -235,6 +236,7 @@ type EnvironmentStatus struct {
 	HeadersInstalled       bool          `json:"headers_installed"`
 	BinderInstalled        bool          `json:"binder_installed"`
 	BinderLoaded           bool          `json:"binder_loaded"`
+	ADBInstalled           bool          `json:"adb_installed"`
 	DockerInstalled        bool          `json:"docker_installed"`
 	ImageExists            bool          `json:"image_exists"`
 	ContainerRunning       bool          `json:"container_running"`

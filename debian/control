@@ -20,7 +20,11 @@ Depends: ${misc:Depends},
          ffmpeg,
          syncthing,
          git,
-         flatpak
+         flatpak,
+         dkms,
+         android-tools-adb,
+         qemu-system-x86,
+         qemu-utils
 Description: RDE (Ruizi Desktop Environment) - Web-based Desktop for Linux Servers
  RDE is an open-source web desktop environment that turns Linux servers
  into feature-rich cloud desktops with a Windows-like browser experience.

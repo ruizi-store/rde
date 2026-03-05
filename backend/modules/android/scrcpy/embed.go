@@ -6,7 +6,7 @@ import (
 )
 
 // scrcpy-server.jar 会被嵌入到二进制中
-// 需要从 https://github.com/Genymobile/scrcpy/releases 下载 v3.1 版本
+// 需要从 https://github.com/Genymobile/scrcpy/releases 下载 v3.3.4 版本
 //
 //go:embed assets/scrcpy-server.jar
 var serverJar []byte

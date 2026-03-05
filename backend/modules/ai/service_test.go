@@ -2,8 +2,10 @@
 package ai
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -279,6 +281,43 @@ func TestService_AddMessage(t *testing.T) {
 	assert.Equal(t, "Hello AI!", conv.Messages[0].Content)
 }
 
+// ----- ClearMessages 测试 -----
+
+func TestService_ClearMessages(t *testing.T) {
+	svc := setupTestService(t)
+
+	// 创建对话并添加消息
+	created, err := svc.CreateConversation(CreateConversationRequest{Title: "To Clear"})
+	require.NoError(t, err)
+
+	for _, content := range []string{"msg1", "msg2", "msg3"} {
+		require.NoError(t, svc.AddMessage(created.ID, Message{Role: "user", Content: content}))
+	}
+	svc.FlushSave()
+
+	// 确认有 3 条消息
+	conv, err := svc.GetConversation(created.ID)
+	require.NoError(t, err)
+	require.Len(t, conv.Messages, 3)
+
+	// 清空消息
+	err = svc.ClearMessages(created.ID)
+	require.NoError(t, err)
+	svc.FlushSave()
+
+	// 对话仍存在但消息为空
+	conv, err = svc.GetConversation(created.ID)
+	require.NoError(t, err)
+	assert.Empty(t, conv.Messages)
+	assert.Equal(t, "To Clear", conv.Title)
+}
+
+func TestService_ClearMessages_NotFound(t *testing.T) {
+	svc := setupTestService(t)
+	err := svc.ClearMessages("nonexistent")
+	assert.Error(t, err)
+}
+
 // ----- 持久化测试 -----
 
 func TestService_ProvidersPersistence(t *testing.T) {
@@ -397,4 +436,87 @@ func TestService_CreateProvider_DefaultBaseURLs(t *testing.T) {
 			assert.Equal(t, tt.expected, provider.BaseURL)
 		})
 	}
+}
+
+// ----- SearchConversations 测试 -----
+
+func TestService_SearchConversations_MatchesTitle(t *testing.T) {
+	svc := setupTestService(t)
+
+	_, err := svc.CreateConversation(CreateConversationRequest{Title: "关于 Docker 的问题"})
+	require.NoError(t, err)
+	_, err = svc.CreateConversation(CreateConversationRequest{Title: "AI 助手介绍"})
+	require.NoError(t, err)
+	_, err = svc.CreateConversation(CreateConversationRequest{Title: "文件管理教程"})
+	require.NoError(t, err)
+
+	results := svc.SearchConversations("docker")
+	require.Len(t, results, 1)
+	assert.Contains(t, strings.ToLower(results[0].Title), "docker")
+}
+
+func TestService_SearchConversations_EmptyQueryReturnsAll(t *testing.T) {
+	svc := setupTestService(t)
+
+	for i := 0; i < 3; i++ {
+		_, err := svc.CreateConversation(CreateConversationRequest{Title: fmt.Sprintf("Conv %d", i+1)})
+		require.NoError(t, err)
+	}
+
+	results := svc.SearchConversations("")
+	assert.Len(t, results, 3)
+}
+
+func TestService_SearchConversations_NoMatch(t *testing.T) {
+	svc := setupTestService(t)
+
+	_, err := svc.CreateConversation(CreateConversationRequest{Title: "Hello World"})
+	require.NoError(t, err)
+
+	results := svc.SearchConversations("nonexistent")
+	assert.Empty(t, results)
+}
+
+// ----- trimMessages 测试 -----
+
+func TestTrimMessages_BelowLimit(t *testing.T) {
+	msgs := []Message{
+		{Role: "user", Content: "Hi"},
+		{Role: "assistant", Content: "Hello"},
+	}
+	trimmed := trimMessages(msgs, 20)
+	assert.Equal(t, msgs, trimmed)
+}
+
+func TestTrimMessages_ExceedsLimit(t *testing.T) {
+	msgs := make([]Message, 30)
+	for i := range msgs {
+		if i%2 == 0 {
+			msgs[i] = Message{Role: "user", Content: "question"}
+		} else {
+			msgs[i] = Message{Role: "assistant", Content: "answer"}
+		}
+	}
+
+	trimmed := trimMessages(msgs, 20)
+	assert.LessOrEqual(t, len(trimmed), 20)
+	// 第一条消息必须是 user
+	if len(trimmed) > 0 {
+		assert.Equal(t, "user", trimmed[0].Role)
+	}
+}
+
+func TestTrimMessages_StartsWithUser(t *testing.T) {
+	// 取最后 3 条：assistant("4"), user("5")。为了保证以 user 开头，应跳过 assistant("4")
+	msgs := []Message{
+		{Role: "user", Content: "1"},
+		{Role: "assistant", Content: "2"},
+		{Role: "user", Content: "3"},
+		{Role: "assistant", Content: "4"},
+		{Role: "user", Content: "5"},
+	}
+	// 取最后 3 条: assistant("4"), user("5") ... 但为了以 user 开头应跳过 assistant("4")
+	trimmed := trimMessages(msgs, 3)
+	assert.Greater(t, len(trimmed), 0)
+	assert.Equal(t, "user", trimmed[0].Role)
 }

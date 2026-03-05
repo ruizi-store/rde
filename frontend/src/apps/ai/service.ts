@@ -321,6 +321,10 @@ class AIService {
     return api.get<Conversation[]>("/ai/conversations");
   }
 
+  async searchConversations(query: string): Promise<Conversation[]> {
+    return api.get<Conversation[]>(`/ai/conversations/search?q=${encodeURIComponent(query)}`);
+  }
+
   async getConversation(id: string): Promise<Conversation> {
     return api.get<Conversation>(`/ai/conversations/${id}`);
   }
@@ -335,6 +339,10 @@ class AIService {
 
   async deleteConversation(id: string): Promise<void> {
     await api.delete(`/ai/conversations/${id}`);
+  }
+
+  async clearMessages(id: string): Promise<void> {
+    await api.delete(`/ai/conversations/${id}/messages`);
   }
 
   // ---- Chat (Non-Streaming) ----

@@ -122,6 +122,11 @@
     "successInstalled": "成功安装 {n} 个应用",
     "installComplete": "安装完成: {success} 成功, {fail} 失败",
     "installed": "已安装: {name}",
-    "installFailed2": "安装失败: {error}"
+    "installFailed2": "安装失败: {error}",
+    "apkNeedSetup": "Android 模拟器环境未配置，请先完成环境安装",
+    "apkStartingEmulator": "正在启动 Android 模拟器...",
+    "apkEmulatorStartFailed": "Android 模拟器启动失败，请手动启动后重试",
+    "apkInstallingFile": "正在安装 {name}...",
+    "apkInstallFailed": "APK 安装失败: {error}"
   }
 }

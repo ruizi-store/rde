@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { t } from "./i18n";
+  import { t, initI18n } from "./i18n";
   import Icon from "@iconify/svelte";
   import { Button, Spinner } from "$shared/ui";
   import { showToast } from "$shared/ui";
@@ -121,11 +121,23 @@
   );
 
   // ==================== 生命周期 ====================
+  let envCheckReady: Promise<void>;
+  let resolveEnvCheck: () => void;
+
+  function onApkInstallEvent(e: Event) {
+    handleExternalApkInstall(e as CustomEvent<{ path: string; name: string }>);
+  }
+
   onMount(async () => {
+    envCheckReady = new Promise(resolve => { resolveEnvCheck = resolve; });
+    window.addEventListener("rde:install-apk", onApkInstallEvent);
+    await initI18n();
     await checkEnv();
+    resolveEnvCheck();
   });
 
   onDestroy(() => {
+    window.removeEventListener("rde:install-apk", onApkInstallEvent);
     if (envPollTimer) clearInterval(envPollTimer);
     if (mirrorDelayTimer) clearInterval(mirrorDelayTimer);
     stopInstallWs();
@@ -134,6 +146,83 @@
       scrcpyClient = null;
     }
   });
+
+  // ==================== 外部 APK 安装请求 ====================
+  async function handleExternalApkInstall(e: CustomEvent<{ path: string; name: string }>) {
+    const { path, name } = e.detail;
+
+    // 等待环境检测完成
+    if (envCheckReady) {
+      await envCheckReady;
+    }
+
+    // 环境未就绪
+    if (!envReady) {
+      showToast($t("android.apkNeedSetup"), "error");
+      return;
+    }
+
+    // 模拟器未运行，尝试启动
+    if (emulatorStatus !== "running") {
+      showToast($t("android.apkStartingEmulator"), "info");
+      try {
+        await androidService.startContainer();
+        await new Promise(r => setTimeout(r, 2000));
+        await androidService.connect(EMULATOR_ADDRESS);
+        // 等待模拟器就绪（最多 30 秒）
+        const ready = await waitForEmulatorRunning(30000);
+        if (!ready) {
+          showToast($t("android.apkEmulatorStartFailed"), "error");
+          return;
+        }
+      } catch (e: any) {
+        showToast($t("android.apkEmulatorStartFailed"), "error");
+        emulatorStatus = "error";
+        return;
+      }
+    }
+
+    // 安装 APK
+    showToast($t("android.apkInstallingFile", { values: { name } }), "info");
+    try {
+      const app = await androidService.installAPK(path);
+      const appName = app.app_name || app.package_name || name;
+      showToast($t("android.installed", { values: { name: appName } }), "success");
+      addToRecentPaths(path);
+
+      // 启动刚安装的应用
+      if (app.package_name) {
+        try {
+          await androidService.launchApp(EMULATOR_ADDRESS, app.package_name);
+        } catch {
+          // 启动失败不影响安装结果
+        }
+      }
+    } catch (e: any) {
+      showToast($t("android.apkInstallFailed", { values: { error: e.message } }), "error");
+    }
+  }
+
+  /** 等待模拟器进入 running 状态 */
+  async function waitForEmulatorRunning(timeoutMs: number): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const devices = await androidService.getDevices();
+        const emulator = devices.find(d => d.id === EMULATOR_ADDRESS || d.address === EMULATOR_ADDRESS);
+        if (emulator && emulator.status === "device") {
+          emulatorStatus = "running";
+          emulatorInfo = {
+            name: emulator.name || emulator.model || $t("android.emulatorTitle"),
+            androidVersion: emulator.android_version || $t("android.unknown"),
+          };
+          return true;
+        }
+      } catch {}
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    return false;
+  }
 
   // ==================== 环境检测 ====================
   async function checkEnv() {

@@ -54,3 +54,4 @@ debian/*.debhelper
 debian/*.debhelper.log
 debian/files
 debian/debhelper-build-stamp
+frontend/package-lock.json

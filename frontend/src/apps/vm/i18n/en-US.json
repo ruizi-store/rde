@@ -89,6 +89,7 @@
       "snapshotReverted": "Reverted to snapshot",
       "snapshotDeleted": "Snapshot deleted",
       "isoDeleteNotImplemented": "ISO deletion not implemented yet",
+      "isoDeleted": "ISO deleted",
       "cloneSuccess": "Virtual machine cloned successfully",
       "enterFilePath": "Please enter file path",
       "autoStartEnabled": "Auto-start enabled",
@@ -222,7 +223,8 @@
       "deleteVM": "Are you sure you want to delete VM \"{name}\"? Disk data will be erased.",
       "deleteBatch": "Are you sure you want to delete {n} selected VMs? This cannot be undone.",
       "restoreBackup": "Are you sure you want to restore from backup \"{name}\"? This will create a new VM.",
-      "deleteBackup": "Are you sure you want to delete backup \"{name}\"? This cannot be undone."
+      "deleteBackup": "Are you sure you want to delete backup \"{name}\"? This cannot be undone.",
+      "deleteISO": "Are you sure you want to delete ISO \"{name}\"?"
     },
     "backup": {
       "title": "Backup Management - {name}",

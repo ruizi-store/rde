@@ -98,6 +98,10 @@
 
   // Sidebar
   let showSidebar = $state(true);
+  let convSearchQuery = $state("");
+
+  // Copy to clipboard feedback
+  let copiedMsgId = $state<string | null>(null);
 
   // Voice
   let isRecording = $state(false);
@@ -372,6 +376,88 @@
     }
   }
 
+  // ==================== Copy & Regenerate ====================
+
+  async function copyMessage(msgId: string, content: string) {
+    try {
+      await navigator.clipboard.writeText(content);
+      copiedMsgId = msgId;
+      setTimeout(() => { copiedMsgId = null; }, 2000);
+    } catch {
+      // Fallback for environments without clipboard API
+      const el = document.createElement("textarea");
+      el.value = content;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      copiedMsgId = msgId;
+      setTimeout(() => { copiedMsgId = null; }, 2000);
+    }
+  }
+
+  async function regenerate() {
+    if (isStreaming || chatMessages.length === 0) return;
+    // Remove the last assistant message
+    let msgs = [...chatMessages];
+    while (msgs.length > 0 && msgs[msgs.length - 1].role === "assistant") {
+      msgs = msgs.slice(0, -1);
+    }
+    if (msgs.length === 0) return;
+    chatMessages = msgs;
+    scrollToBottom();
+
+    isStreaming = true;
+    streamingContent = "";
+    abortController = new AbortController();
+
+    const reqMessages = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+    try {
+      const stream = aiService.streamChat(
+        {
+          provider_id: selectedProviderId,
+          model: selectedModel,
+          messages: reqMessages,
+          conversation_id: currentConversation?.id,
+        },
+        abortController.signal,
+      );
+      for await (const chunk of stream) {
+        if (chunk.error) throw new Error(chunk.error);
+        if (chunk.delta) {
+          streamingContent += chunk.delta;
+          scrollToBottom();
+        }
+        if (chunk.finish_reason) break;
+      }
+      const assistantMsg: ChatMessage = {
+        id: generateUUID(),
+        role: "assistant",
+        content: streamingContent,
+        timestamp: new Date().toISOString(),
+      };
+      chatMessages = [...chatMessages, assistantMsg];
+      streamingContent = "";
+    } catch (e: any) {
+      if (e.name !== "AbortError") {
+        const errMsg: ChatMessage = {
+          id: generateUUID(),
+          role: "assistant",
+          content: `⚠️ 错误: ${e.message}`,
+          timestamp: new Date().toISOString(),
+        };
+        chatMessages = [...chatMessages, errMsg];
+        streamingContent = "";
+      }
+    } finally {
+      isStreaming = false;
+      abortController = null;
+      scrollToBottom();
+    }
+  }
+
   // ==================== Chat ====================
 
   async function sendMessage() {
@@ -510,6 +596,23 @@
     { id: "config", label: $t("ai.globalConfig") },
     { id: "gateway", label: $t("ai.gatewayAndAlerts") },
   ]);
+
+  const filteredConversations = $derived(
+    convSearchQuery.trim()
+      ? conversations.filter((c) =>
+          c.title.toLowerCase().includes(convSearchQuery.toLowerCase())
+        )
+      : conversations
+  );
+
+  const lastAssistantMsgIndex = $derived(
+    (() => {
+      for (let i = chatMessages.length - 1; i >= 0; i--) {
+        if (chatMessages[i].role === "assistant") return i;
+      }
+      return -1;
+    })()
+  );
 </script>
 
 <div class="flex h-full bg-[var(--bg-primary)]">
@@ -524,11 +627,22 @@
         </div>
       </div>
 
+      <!-- Conversation search -->
+      <div class="px-2 py-1.5 border-b border-[var(--border-primary)]">
+        <input
+          class="w-full text-xs bg-[var(--bg-primary)] text-[var(--text-primary)] border border-[var(--border-primary)] rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-[var(--text-tertiary)]"
+          placeholder={$t("ai.searchConversations")}
+          bind:value={convSearchQuery}
+        />
+      </div>
+
       <div class="flex-1 overflow-y-auto">
-        {#if conversations.length === 0}
-          <div class="p-4 text-center text-xs text-[var(--text-tertiary)]">{$t("ai.noConversations")}</div>
+        {#if filteredConversations.length === 0}
+          <div class="p-4 text-center text-xs text-[var(--text-tertiary)]">
+            {convSearchQuery ? $t("ai.noSearchResults") : $t("ai.noConversations")}
+          </div>
         {:else}
-          {#each conversations as conv}
+          {#each filteredConversations as conv}
             <div
               class="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-hover)] border-b border-[var(--border-secondary)] flex items-center justify-between group transition-colors cursor-pointer"
               class:bg-[var(--bg-active)]={currentConversation?.id === conv.id}
@@ -622,7 +736,7 @@
           {/if}
         </div>
       {:else}
-        {#each chatMessages as msg}
+        {#each chatMessages as msg, idx}
           <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
             <div
               class="max-w-[80%] rounded-lg px-4 py-2 text-sm leading-relaxed {msg.role === 'user'
@@ -633,11 +747,25 @@
                 <div class="whitespace-pre-wrap break-words">{msg.content}</div>
               {:else}
                 <div class="markdown-body break-words" use:markdownAction>{@html renderMarkdown(msg.content)}</div>
-                <button
-                  class="inline-flex items-center gap-1 text-xs mt-1 px-1.5 py-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
-                  onclick={() => playTTS(msg.id, msg.content)}
-                  title={ttsPlaying === msg.id ? $t("ai.stopPlayback") : $t("ai.readAloud")}
-                >{ttsPlaying === msg.id ? "⏹" : "🔊"}</button>
+                <div class="flex items-center gap-1 mt-1">
+                  <button
+                    class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                    onclick={() => playTTS(msg.id, msg.content)}
+                    title={ttsPlaying === msg.id ? $t("ai.stopPlayback") : $t("ai.readAloud")}
+                  >{ttsPlaying === msg.id ? "⏹" : "🔊"}</button>
+                  <button
+                    class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded hover:bg-[var(--bg-hover)] transition-colors {copiedMsgId === msg.id ? 'text-green-500' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}"
+                    onclick={() => copyMessage(msg.id, msg.content)}
+                    title={copiedMsgId === msg.id ? $t("ai.copied") : $t("ai.copy")}
+                  >{copiedMsgId === msg.id ? "✓" : "⎘"}</button>
+                  {#if idx === lastAssistantMsgIndex && !isStreaming}
+                    <button
+                      class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                      onclick={regenerate}
+                      title={$t("ai.regenerate")}
+                    >↺</button>
+                  {/if}
+                </div>
               {/if}
               <div class="text-xs mt-1 {msg.role === 'user' ? 'text-blue-200' : 'text-[var(--text-tertiary)]'}">{formatTime(msg.timestamp)}</div>
             </div>

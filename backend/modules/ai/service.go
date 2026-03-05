@@ -210,6 +210,22 @@ func (s *Service) GetModels(providerID string) ([]Model, error) {
 	}
 }
 
+// MaxContextMessages 发送给 LLM 的最大消息数（保留最近 N 条，避免超出 context window）
+const MaxContextMessages = 20
+
+// trimMessages 保留最近 n 条消息；如果首条不是 user 消息，继续往前保留保证对话以 user 开头
+func trimMessages(msgs []Message, n int) []Message {
+	if len(msgs) <= n {
+		return msgs
+	}
+	trimmed := msgs[len(msgs)-n:]
+	// 确保上下文以 user 角色开头（跳过孤立的 assistant 消息）
+	for len(trimmed) > 0 && trimmed[0].Role != "user" {
+		trimmed = trimmed[1:]
+	}
+	return trimmed
+}
+
 // Chat 聊天
 func (s *Service) Chat(req ChatRequest) (*ChatResponse, error) {
 	providerID := req.ProviderID
@@ -224,6 +240,8 @@ func (s *Service) Chat(req ChatRequest) (*ChatResponse, error) {
 	if !ok {
 		return nil, fmt.Errorf("provider not found: %s", providerID)
 	}
+
+	req.Messages = trimMessages(req.Messages, MaxContextMessages)
 
 	switch provider.Provider {
 	case ProviderOllama:
@@ -250,6 +268,8 @@ func (s *Service) ChatStream(req ChatRequest, stream chan<- StreamChunk) error {
 		return fmt.Errorf("provider not found: %s", providerID)
 	}
 
+	req.Messages = trimMessages(req.Messages, MaxContextMessages)
+
 	// 对非 Ollama 的 OpenAI 兼容提供商，启用工具时使用 streamWithToolCalls
 	if provider.Provider != ProviderOllama && s.config.EnableTools && s.skills != nil {
 		return s.streamWithToolCalls(provider, req.Model, req, stream)
@@ -274,6 +294,27 @@ func (s *Service) GetConversations() []*Conversation {
 		conv := *c
 		conv.Messages = nil
 		convs = append(convs, &conv)
+	}
+	return convs
+}
+
+// SearchConversations 搜索对话（按标题模糊匹配）
+func (s *Service) SearchConversations(query string) []*Conversation {
+	if query == "" {
+		return s.GetConversations()
+	}
+	q := strings.ToLower(query)
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	convs := make([]*Conversation, 0)
+	for _, c := range s.conversations {
+		if strings.Contains(strings.ToLower(c.Title), q) {
+			conv := *c
+			conv.Messages = nil
+			convs = append(convs, &conv)
+		}
 	}
 	return convs
 }

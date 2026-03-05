@@ -321,6 +321,10 @@ class AIService {
     return api.get<Conversation[]>("/ai/conversations");
   }
 
+  async searchConversations(query: string): Promise<Conversation[]> {
+    return api.get<Conversation[]>(`/ai/conversations/search?q=${encodeURIComponent(query)}`);
+  }
+
   async getConversation(id: string): Promise<Conversation> {
     return api.get<Conversation>(`/ai/conversations/${id}`);
   }

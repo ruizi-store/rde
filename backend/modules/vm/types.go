@@ -107,6 +107,7 @@ type CreateVMRequest struct {
 	OSType       string        `json:"os_type,omitempty"`
 	Arch         string        `json:"arch,omitempty"`
 	Template     string        `json:"template,omitempty"`
+	AutoStart    bool          `json:"auto_start,omitempty"`
 	PortForwards []PortForward `json:"port_forwards,omitempty"`
 	USBDevices   []USBDevice   `json:"usb_devices,omitempty"`
 	NetworkMode  string        `json:"network_mode,omitempty"` // user, bridge

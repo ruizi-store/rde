@@ -90,6 +90,8 @@
       "snapshotDeleted": "快照已删除",
       "isoDeleteNotImplemented": "ISO 删除暂未实现",
       "isoDeleted": "ISO 已删除",
+      "isoUploaded": "ISO \"{name}\" 上传成功",
+      "editSaved": "虚拟机设置已保存",
       "cloneSuccess": "虚拟机克隆成功",
       "enterFilePath": "请输入文件路径",
       "autoStartEnabled": "已启用自动启动",
@@ -136,6 +138,7 @@
       "snapshot": "快照",
       "autoStartOn": "自动启动: 开",
       "autoStartOff": "自动启动: 关",
+      "edit": "编辑",
       "delete": "删除",
       "sshTerminal": "SSH 终端",
       "resourceMonitor": "资源监控",
@@ -150,7 +153,8 @@
       "importVM": "导入虚拟机",
       "exportVM": "导出虚拟机 - {name}",
       "sshConnection": "SSH 连接 - {name}",
-      "resourceMonitor": "资源监控 - {name}"
+      "resourceMonitor": "资源监控 - {name}",
+      "editVM": "编辑虚拟机 - {name}"
     },
     "form": {
       "snapshotName": "快照名称",
@@ -180,7 +184,9 @@
       "restore": "恢复"
     },
     "iso": {
-      "noISOFiles": "暂无 ISO 文件"
+      "noISOFiles": "暂无 ISO 文件",
+      "uploadISO": "上传 ISO",
+      "uploading": "上传中..."
     },
     "clone": {
       "willClone": "将克隆虚拟机"

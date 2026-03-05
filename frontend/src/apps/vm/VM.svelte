@@ -10,6 +10,8 @@
     type ISOFile,
     type Snapshot,
     type StorageInfo,
+    type UpdateVMRequest,
+    type PortForward,
   } from "./service";
   import VNCConsole from "./VNCConsole.svelte";
   import VMCreate from "./VMCreate.svelte";
@@ -37,6 +39,7 @@
 
   // ISO 管理
   let showISO = $state(false);
+  let isoUploading = $state(false);
 
   // 备份管理
   let showBackups = $state(false);
@@ -54,6 +57,23 @@
   // P3: 存储信息
   let showStorage = $state(false);
   let storageInfo = $state<StorageInfo | null>(null);
+
+  // VM 编辑
+  let showEdit = $state(false);
+  let editVM = $state<VM | null>(null);
+  let editForm = $state({
+    name: "",
+    description: "",
+    cpu: 2,
+    memory: 2048,
+    network_mode: "user",
+    bridge_iface: "",
+    cpu_model: "host",
+    enable_huge: false,
+    io_thread: false,
+    port_forwards: [] as PortForward[],
+  });
+  let editSaving = $state(false);
 
   // P5: 导入导出
   let showImport = $state(false);
@@ -172,6 +192,23 @@
       showToast($t("vm.toast.isoDeleted"), "success");
       isos = await vmService.listISOs();
     } catch (e: any) { showToast(e.message, "error"); }
+  }
+
+  async function uploadISO(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    isoUploading = true;
+    try {
+      await vmService.uploadISO(file);
+      showToast($t("vm.toast.isoUploaded", { values: { name: file.name } }), "success");
+      isos = await vmService.listISOs();
+    } catch (e: any) {
+      showToast(e.message, "error");
+    } finally {
+      isoUploading = false;
+      input.value = "";
+    }
   }
 
   function statusColor(s: string): "default" | "secondary" | "success" | "warning" | "error" {
@@ -313,6 +350,61 @@
     try {
       storageInfo = await vmService.getStorageInfo();
     } catch (e: any) { showToast(e.message, "error"); }
+  }
+
+  // ==================== VM 编辑 ====================
+
+  function openEdit(vm: VM) {
+    editVM = vm;
+    editForm = {
+      name: vm.name,
+      description: vm.description || "",
+      cpu: vm.cpu,
+      memory: vm.memory,
+      network_mode: vm.network_mode || "user",
+      bridge_iface: vm.bridge_iface || "",
+      cpu_model: vm.cpu_model || "host",
+      enable_huge: vm.enable_huge || false,
+      io_thread: vm.io_thread || false,
+      port_forwards: vm.port_forwards ? [...vm.port_forwards] : [],
+    };
+    showEdit = true;
+  }
+
+  async function saveEdit() {
+    if (!editVM) return;
+    editSaving = true;
+    try {
+      const req: UpdateVMRequest = {
+        name: editForm.name,
+        description: editForm.description,
+        cpu: editForm.cpu,
+        memory: editForm.memory,
+        network_mode: editForm.network_mode,
+        bridge_iface: editForm.bridge_iface,
+        cpu_model: editForm.cpu_model,
+        enable_huge: editForm.enable_huge,
+        io_thread: editForm.io_thread,
+        port_forwards: editForm.network_mode === "user" ? editForm.port_forwards : [],
+      };
+      await vmService.updateVM(editVM.id, req);
+      showToast($t("vm.toast.editSaved"), "success");
+      showEdit = false;
+      editVM = null;
+      await refreshVMs();
+    } catch (e: any) {
+      showToast(e.message, "error");
+    } finally {
+      editSaving = false;
+    }
+  }
+
+  function addPortForward() {
+    editForm.port_forwards = [...editForm.port_forwards, { name: "", protocol: "tcp", host_port: 0, guest_port: 0 }];
+  }
+
+  function removePortForward(i: number) {
+    editForm.port_forwards = editForm.port_forwards.filter((_, idx) => idx !== i);
   }
 
   // ==================== P5: 导入导出 ====================
@@ -551,6 +643,9 @@
                 </Button>
               </div>
               <div class="action-group">
+                <Button variant="ghost" size="sm" onclick={() => openEdit(vm)} title={$t("vm.tooltip.edit")}>
+                  <Icon icon="mdi:pencil-outline" width="16" />
+                </Button>
                 <Button variant="ghost" size="sm" onclick={() => openClone(vm)} title={$t("vm.tooltip.clone")}>
                   <Icon icon="mdi:content-copy" width="16" />
                 </Button>
@@ -654,6 +749,13 @@
 
 <!-- ISO 管理 -->
 <Modal bind:open={showISO} title={$t("vm.modal.isoImages")} size="md">
+  <div class="iso-toolbar">
+    <label class="upload-iso-btn" class:uploading={isoUploading}>
+      <Icon icon={isoUploading ? "mdi:loading" : "mdi:upload"} width="16" class={isoUploading ? "spin" : ""} />
+      {isoUploading ? $t("vm.iso.uploading") : $t("vm.iso.uploadISO")}
+      <input type="file" accept=".iso" aria-label={$t("vm.iso.uploadISO")} onchange={uploadISO} hidden disabled={isoUploading} />
+    </label>
+  </div>
   {#if isos.length === 0}
     <p class="text-muted" style="text-align:center;padding:20px;">{$t("vm.iso.noISOFiles")}</p>
   {:else}
@@ -669,6 +771,81 @@
           </Button>
         </div>
       {/each}
+    </div>
+  {/if}
+</Modal>
+
+<!-- VM 编辑 -->
+<Modal bind:open={showEdit} title={$t("vm.modal.editVM", { values: { name: editVM?.name } })} size="md">
+  {#if editVM}
+    <div class="edit-form">
+      <div class="form-group">
+        <label for="edit-name">{$t("vm.general.vmName")}</label>
+        <input id="edit-name" type="text" bind:value={editForm.name} placeholder={$t("vm.general.namePlaceholder")} />
+      </div>
+      <div class="form-group">
+        <label for="edit-desc">{$t("vm.general.description")}</label>
+        <input id="edit-desc" type="text" bind:value={editForm.description} placeholder={$t("vm.general.descPlaceholder")} />
+      </div>
+      <div class="edit-row">
+        <div class="form-group">
+          <label for="edit-cpu">{$t("vm.cpuMemory.cpuCores")}</label>
+          <input id="edit-cpu" type="number" min="1" max="64" bind:value={editForm.cpu} />
+        </div>
+        <div class="form-group">
+          <label for="edit-mem">{$t("vm.cpuMemory.memory")} (MB)</label>
+          <input id="edit-mem" type="number" min="256" step="256" bind:value={editForm.memory} />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{$t("vm.network.title")}</label>
+        <div class="network-tabs">
+          {#each ["user", "bridge", "none"] as mode}
+            <button
+              type="button"
+              class="net-tab"
+              class:active={editForm.network_mode === mode}
+              onclick={() => editForm.network_mode = mode}
+            >
+              {mode === "user" ? $t("vm.network.nat") : mode === "bridge" ? $t("vm.network.bridge") : $t("vm.network.none")}
+            </button>
+          {/each}
+        </div>
+        {#if editForm.network_mode === "bridge"}
+          <input type="text" bind:value={editForm.bridge_iface} placeholder={$t("vm.network.selectBridge")} style="margin-top: 8px;" />
+        {/if}
+      </div>
+      {#if editForm.network_mode === "user"}
+        <div class="form-group">
+          <label>{$t("vm.network.portForward")}</label>
+          {#each editForm.port_forwards as pf, i}
+            <div class="port-forward-row">
+              <input type="text" bind:value={pf.name} placeholder={$t("vm.network.name")} style="flex:1" />
+              <input type="number" bind:value={pf.host_port} placeholder={$t("vm.network.hostPort")} style="width:80px" />
+              <span>→</span>
+              <input type="number" bind:value={pf.guest_port} placeholder={$t("vm.network.guestPort")} style="width:80px" />
+              <Button variant="ghost" size="sm" onclick={() => removePortForward(i)}>
+                <Icon icon="mdi:minus-circle-outline" width="16" />
+              </Button>
+            </div>
+          {/each}
+          <Button variant="ghost" size="sm" onclick={addPortForward}>
+            <Icon icon="mdi:plus" width="14" /> {$t("vm.network.addRule")}
+          </Button>
+        </div>
+      {/if}
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" bind:checked={editForm.io_thread} />
+          {$t("vm.disk.ioThread")} — <span class="hint">{$t("vm.disk.ioThreadHint")}</span>
+        </label>
+      </div>
+      <div class="form-actions">
+        <Button variant="ghost" onclick={() => { showEdit = false; editVM = null; }}>{$t("common.cancel")}</Button>
+        <Button variant="primary" onclick={saveEdit} disabled={editSaving || !editForm.name}>
+          {editSaving ? $t("common.loading") : $t("common.save")}
+        </Button>
+      </div>
     </div>
   {/if}
 </Modal>
@@ -1061,6 +1238,23 @@
   .snap-actions { display: flex; gap: 4px; }
 
   /* ISO */
+  .iso-toolbar { margin-bottom: 12px; }
+  .upload-iso-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1px dashed var(--border-color, #ddd);
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-secondary, #666);
+    transition: all 0.2s;
+  }
+  .upload-iso-btn:hover { border-color: var(--primary, #0066cc); color: var(--primary, #0066cc); background: var(--bg-hover, #f0f0f0); }
+  .upload-iso-btn.uploading { opacity: 0.7; cursor: not-allowed; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  :global(.spin) { animation: spin 1s linear infinite; }
   .iso-list { display: flex; flex-direction: column; gap: 8px; }
   .iso-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--bg-tertiary, #f5f5f5); border-radius: 6px; }
   .iso-name { font-weight: 500; }
@@ -1074,6 +1268,36 @@
   .vm-select { position: absolute; top: 12px; left: 12px; }
   .vm-select input { width: 18px; height: 18px; cursor: pointer; }
   .vm-card { position: relative; }
+
+  /* VM 编辑 */
+  .edit-form { display: flex; flex-direction: column; gap: 16px; }
+  .edit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-group label { display: block; font-weight: 500; font-size: 13px; color: var(--text-secondary, #555); margin-bottom: 4px; }
+  .form-group input[type="text"], .form-group input[type="number"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+  .checkbox-label { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; font-weight: normal !important; cursor: pointer; }
+  .checkbox-label .hint { font-size: 12px; color: var(--text-muted, #999); }
+  .network-tabs { display: flex; gap: 4px; }
+  .net-tab {
+    padding: 5px 14px;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 6px;
+    background: var(--bg-card, white);
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary, #555);
+    transition: all 0.15s;
+  }
+  .net-tab.active { border-color: var(--primary, #0066cc); background: var(--primary-light, #e8f0ff); color: var(--primary, #0066cc); font-weight: 500; }
+  .port-forward-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 13px; }
+  .port-forward-row span { color: var(--text-muted, #999); }
+  .port-forward-row input { padding: 6px 8px; border: 1px solid var(--border-color, #ddd); border-radius: 4px; font-size: 13px; }
 
   /* P3: 克隆 */
   .clone-form { display: flex; flex-direction: column; gap: 16px; }

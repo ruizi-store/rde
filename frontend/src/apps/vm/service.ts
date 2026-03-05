@@ -55,14 +55,14 @@ export type VMStatus = "stopped" | "starting" | "running" | "stopping" | "paused
 export interface CreateVMRequest {
   name: string;
   description?: string;
-  memory_mb?: number;
-  cpu_cores?: number;
-  disk_gb?: number;
+  cpu?: number;
+  memory?: number;
+  disk_size?: number;
   iso_path?: string;
   os_type?: string;
   arch?: string;
   template?: string;
-  use_kvm?: boolean;
+  auto_start?: boolean;
   port_forwards?: PortForward[];
   usb_devices?: USBDevice[];
   network_mode?: string;
@@ -236,7 +236,7 @@ class VMService {
   // ---- 磁盘 ----
 
   async resizeDisk(id: string, newSizeGB: number): Promise<void> {
-    await api.post(`/vm/vms/${id}/resize`, { size_gb: newSizeGB });
+    await api.post(`/vm/vms/${id}/resize`, { size: newSizeGB });
   }
 
   // ---- 快照 ----
@@ -261,6 +261,12 @@ class VMService {
 
   async listISOs(): Promise<ISOFile[]> {
     return api.get<ISOFile[]>("/vm/isos");
+  }
+
+  async uploadISO(file: File): Promise<{ path: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.upload<{ path: string }>("/vm/isos", formData);
   }
 
   async deleteISO(name: string): Promise<void> {

@@ -189,8 +189,24 @@ func (s *Service) CreateVM(req CreateVMRequest) (*VM, error) {
 		Accelerator: s.detectAccelerator(),
 		Network:     "user",
 		Display:     "vnc",
+		AutoStart:   req.AutoStart,
+		CPUModel:    req.CPUModel,
+		EnableHuge:  req.EnableHuge,
+		IOThread:    req.IOThread,
+		CPUPinning:  req.CPUPinning,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
+	}
+
+	// 网络模式
+	if req.NetworkMode != "" {
+		vm.NetworkMode = req.NetworkMode
+	}
+	if req.BridgeIface != "" {
+		vm.BridgeIface = req.BridgeIface
+	}
+	if len(req.USBDevices) > 0 {
+		vm.USBDevices = req.USBDevices
 	}
 
 	// 设置端口转发，默认添加 SSH

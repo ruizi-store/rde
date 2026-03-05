@@ -52,6 +52,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 		// 对话
 		ai.GET("/conversations", h.GetConversations)
+		ai.GET("/conversations/search", h.SearchConversations)
 		ai.POST("/conversations", h.CreateConversation)
 		ai.GET("/conversations/:id", h.GetConversation)
 		ai.PUT("/conversations/:id", h.UpdateConversation)
@@ -320,6 +321,13 @@ func (h *Handler) ChatStream(c *gin.Context) {
 // GetConversations 获取对话列表
 func (h *Handler) GetConversations(c *gin.Context) {
 	convs := h.service.GetConversations()
+	c.JSON(http.StatusOK, convs)
+}
+
+// SearchConversations 搜索对话（GET /ai/conversations/search?q=...)
+func (h *Handler) SearchConversations(c *gin.Context) {
+	query := c.Query("q")
+	convs := h.service.SearchConversations(query)
 	c.JSON(http.StatusOK, convs)
 }
 

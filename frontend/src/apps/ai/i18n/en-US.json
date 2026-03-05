@@ -120,6 +120,11 @@
     "aiProviders": "AI Providers",
     "aiSettings": "AI Settings",
     "aiAssistant": "AI Assistant",
+    "searchConversations": "Search conversations...",
+    "noSearchResults": "No matching conversations",
+    "copy": "Copy",
+    "copied": "Copied",
+    "regenerate": "Regenerate",
     "skills": {
       "systemMonitor": "System Monitor",
       "systemInfo": "System Info",

@@ -28,7 +28,7 @@ type InstallWizard struct {
 func NewInstallWizard(config *InstallConfig) *InstallWizard {
 	if config == nil {
 		config = &InstallConfig{
-			DockerImage:      "redroid/redroid:16.0.0-latest",
+			DockerImage:      "redroid/redroid:14.0.0-latest",
 			ContainerName:    "ruizios-android",
 			BinderModulePath: "/var/lib/rde/plugins/android/binder-modules/binder",
 			ADBPort:          5555,
@@ -69,6 +69,7 @@ func (w *InstallWizard) CheckEnvironment() *EnvironmentStatus {
 		DKMSInstalled:    CheckDKMSInstalled(),
 		HeadersInstalled: CheckLinuxHeadersInstalled(),
 		BinderLoaded:     CheckBinderModuleLoaded(),
+		ADBInstalled:     CheckADBInstalled(),
 		DockerInstalled:  CheckDockerInstalled(),
 		KernelVersion:    GetKernelVersion(),
 		RequiredSteps:    make([]InstallStep, 0),
@@ -95,6 +96,9 @@ func (w *InstallWizard) CheckEnvironment() *EnvironmentStatus {
 		}
 		status.RequiredSteps = append(status.RequiredSteps, StepLoadBinder)
 	}
+	if !status.ADBInstalled {
+		status.RequiredSteps = append(status.RequiredSteps, StepInstallADB)
+	}
 	if !status.DockerInstalled {
 		status.RequiredSteps = append(status.RequiredSteps, StepInstallDocker)
 	}
@@ -105,9 +109,9 @@ func (w *InstallWizard) CheckEnvironment() *EnvironmentStatus {
 		status.RequiredSteps = append(status.RequiredSteps, StepStartContainer)
 	}
 
-	status.IsReady = status.BinderLoaded && status.DockerInstalled &&
+	status.IsReady = status.BinderLoaded && status.ADBInstalled && status.DockerInstalled &&
 		status.ImageExists && (status.ContainerRunning || status.ContainerExists)
-	status.OnlyNeedStartContainer = status.BinderLoaded && status.DockerInstalled &&
+	status.OnlyNeedStartContainer = status.BinderLoaded && status.ADBInstalled && status.DockerInstalled &&
 		status.ImageExists && status.ContainerExists && !status.ContainerRunning
 
 	return status
@@ -182,6 +186,9 @@ func (w *InstallWizard) Start(ctx context.Context) error {
 		case StepLoadBinder:
 			info.Title = "加载 Binder 模块"
 			info.Description = "将 Binder 模块加载到内核"
+		case StepInstallADB:
+			info.Title = "安装 ADB"
+			info.Description = "安装 Android Debug Bridge 工具"
 		case StepInstallDocker:
 			info.Title = "安装 Docker"
 			info.Description = "安装 Docker 容器运行时"
@@ -345,6 +352,11 @@ func (w *InstallWizard) executeStep(ctx context.Context, step *StepInfo) error {
 			time.Sleep(500 * time.Millisecond)
 		}
 
+	case StepInstallADB:
+		if err := runCmd("apt-get", "install", "-y", "android-tools-adb"); err != nil {
+			return fmt.Errorf("ADB 安装失败: %w", err)
+		}
+
 	case StepInstallDocker:
 		if err := runCmd("apt-get", "install", "-y", "docker.io"); err != nil {
 			return fmt.Errorf("Docker 安装失败: %w", err)
@@ -366,6 +378,9 @@ func (w *InstallWizard) executeStep(ctx context.Context, step *StepInfo) error {
 			return nil
 		}
 
+		// 确保 ADB server 运行
+		_ = EnsureADBServer()
+
 		// 容器已存在但未运行，直接启动
 		if CheckContainerExists(w.config.ContainerName) {
 			if err := runCmd("docker", "start", w.config.ContainerName); err != nil {
@@ -381,12 +396,15 @@ func (w *InstallWizard) executeStep(ctx context.Context, step *StepInfo) error {
 			"run", "-d",
 			"--name", w.config.ContainerName,
 			"--privileged",
+			"--memory-swappiness=0",
 			"-p", fmt.Sprintf("%d:5555", w.config.ADBPort),
 		}
 		if w.config.DataVolume != "" {
 			args = append(args, "-v", fmt.Sprintf("%s:/data", w.config.DataVolume))
 		}
-		args = append(args, w.config.DockerImage)
+		args = append(args, w.config.DockerImage,
+			"androidboot.redroid_gpu_mode=guest",
+		)
 
 		if err := runCmd("docker", args...); err != nil {
 			return fmt.Errorf("容器启动失败: %w", err)

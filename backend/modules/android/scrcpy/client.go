@@ -22,7 +22,7 @@ import (
 // 常量定义
 const (
 	// ServerVersion scrcpy-server 版本
-	ServerVersion = "3.1"
+	ServerVersion = "3.3.4"
 
 	// DefaultLocalPort 默认本地监听端口
 	DefaultLocalPort = 27183

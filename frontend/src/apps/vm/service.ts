@@ -263,6 +263,10 @@ class VMService {
     return api.get<ISOFile[]>("/vm/isos");
   }
 
+  async deleteISO(name: string): Promise<void> {
+    await api.delete(`/vm/isos/${encodeURIComponent(name)}`);
+  }
+
   async getTemplates(): Promise<VMTemplate[]> {
     return api.get<VMTemplate[]>("/vm/templates");
   }

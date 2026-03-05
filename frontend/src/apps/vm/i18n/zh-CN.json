@@ -89,6 +89,7 @@
       "snapshotReverted": "已恢复到快照",
       "snapshotDeleted": "快照已删除",
       "isoDeleteNotImplemented": "ISO 删除暂未实现",
+      "isoDeleted": "ISO 已删除",
       "cloneSuccess": "虚拟机克隆成功",
       "enterFilePath": "请输入文件路径",
       "autoStartEnabled": "已启用自动启动",
@@ -222,7 +223,8 @@
       "deleteVM": "确定删除虚拟机 \"{name}\" 吗？磁盘数据将被清除。",
       "deleteBatch": "确定删除选中的 {n} 台虚拟机吗？此操作不可恢复。",
       "restoreBackup": "确定要从备份 \"{name}\" 恢复？这将创建一个新虚拟机。",
-      "deleteBackup": "确定要删除备份 \"{name}\"？此操作不可恢复。"
+      "deleteBackup": "确定要删除备份 \"{name}\"？此操作不可恢复。",
+      "deleteISO": "确定要删除 ISO \"{name}\" 吗？"
     },
     "backup": {
       "title": "备份管理 - {name}",

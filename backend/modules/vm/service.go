@@ -256,6 +256,27 @@ func (s *Service) UpdateVM(id string, req UpdateVMRequest) (*VM, error) {
 	if req.PortForwards != nil {
 		vm.PortForwards = req.PortForwards
 	}
+	if req.USBDevices != nil {
+		vm.USBDevices = req.USBDevices
+	}
+	if req.NetworkMode != "" {
+		vm.NetworkMode = req.NetworkMode
+	}
+	if req.BridgeIface != "" {
+		vm.BridgeIface = req.BridgeIface
+	}
+	if req.CPUModel != "" {
+		vm.CPUModel = req.CPUModel
+	}
+	if req.EnableHuge != nil {
+		vm.EnableHuge = *req.EnableHuge
+	}
+	if req.IOThread != nil {
+		vm.IOThread = *req.IOThread
+	}
+	if req.CPUPinning != nil {
+		vm.CPUPinning = req.CPUPinning
+	}
 
 	vm.UpdatedAt = time.Now()
 	s.saveVMs()
@@ -636,14 +657,14 @@ func (s *Service) RevertSnapshot(vmID, tag string) error {
 }
 
 // GetISOs 获取 ISO 列表
-func (s *Service) GetISOs() ([]ISO, error) {
+func (s *Service) GetISOs() ([]ISOFile, error) {
 	isoDir := filepath.Join(s.dataDir, "iso")
 	entries, err := os.ReadDir(isoDir)
 	if err != nil {
 		return nil, err
 	}
 
-	isos := make([]ISO, 0)
+	isos := make([]ISOFile, 0)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -653,10 +674,11 @@ func (s *Service) GetISOs() ([]ISO, error) {
 			continue
 		}
 		info, _ := entry.Info()
-		isos = append(isos, ISO{
-			Name: name,
-			Path: filepath.Join(isoDir, name),
-			Size: info.Size(),
+		isos = append(isos, ISOFile{
+			Name:    name,
+			Path:    filepath.Join(isoDir, name),
+			Size:    info.Size(),
+			ModTime: info.ModTime(),
 		})
 	}
 

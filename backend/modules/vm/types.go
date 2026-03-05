@@ -130,8 +130,8 @@ type UpdateVMRequest struct {
 	BridgeIface  string        `json:"bridge_iface,omitempty"`
 	// 性能优化
 	CPUModel   string `json:"cpu_model,omitempty"`
-	EnableHuge bool   `json:"enable_huge,omitempty"`
-	IOThread   bool   `json:"io_thread,omitempty"`
+	EnableHuge *bool  `json:"enable_huge,omitempty"`
+	IOThread   *bool  `json:"io_thread,omitempty"`
 	CPUPinning []int  `json:"cpu_pinning,omitempty"`
 }
 

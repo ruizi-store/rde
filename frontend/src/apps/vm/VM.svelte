@@ -166,8 +166,12 @@
   }
 
   async function deleteISO(name: string) {
-    // ISO 删除需后端实现 DELETE /vm/isos/:name
-    showToast($t("vm.toast.isoDeleteNotImplemented"), "info");
+    if (!confirm($t("vm.confirm.deleteISO", { values: { name } }))) return;
+    try {
+      await vmService.deleteISO(name);
+      showToast($t("vm.toast.isoDeleted"), "success");
+      isos = await vmService.listISOs();
+    } catch (e: any) { showToast(e.message, "error"); }
   }
 
   function statusColor(s: string): "default" | "secondary" | "success" | "warning" | "error" {

@@ -88,7 +88,7 @@
       if (field.required) {
         const val = formValues[field.key];
         if (val === undefined || val === null || val === "") {
-          return `请填写 ${getFieldLabel(field)}`;
+          return $t("docker.install.pleaseFill", { values: { field: getFieldLabel(field) } });
         }
       }
     }
@@ -251,7 +251,7 @@
                     type="text"
                     value={formValues[field.key] ?? ""}
                     oninput={(e) => handleFieldInput(field, e)}
-                    placeholder={field.default != null ? `默认: ${field.default}` : ""}
+                    placeholder={field.default != null ? $t("docker.install.defaultPlaceholder", { values: { value: field.default } }) : ""}
                     required={field.required}
                   />
                   <button class="gen-btn" title={$t("docker.install.generatePassword")} onclick={() => {
@@ -267,7 +267,7 @@
                   type={field.type === "number" ? "number" : "text"}
                   value={formValues[field.key] ?? ""}
                   oninput={(e) => handleFieldInput(field, e)}
-                  placeholder={field.default != null ? `默认: ${field.default}` : ""}
+                  placeholder={field.default != null ? $t("docker.install.defaultPlaceholder", { values: { value: field.default } }) : ""}
                   required={field.required}
                 />
               {/if}

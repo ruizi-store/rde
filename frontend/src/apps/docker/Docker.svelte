@@ -397,7 +397,7 @@
                 {#if info.os}<div class="info-item"><span class="info-label">{$t("docker.infoLabels.system")}</span><span class="info-value">{info.os}/{info.arch}</span></div>{/if}
                 <div class="info-item"><span class="info-label">{$t("docker.infoLabels.containers")}</span><span class="info-value">{info.containers} ({$t("docker.infoLabels.running")} {info.running ?? 0}, {$t("docker.infoLabels.stopped")} {info.stopped ?? 0})</span></div>
                 <div class="info-item"><span class="info-label">{$t("docker.infoLabels.images")}</span><span class="info-value">{info.images}</span></div>
-                {#if info.ncpu}<div class="info-item"><span class="info-label">{$t("docker.infoLabels.cpu")}</span><span class="info-value">{info.ncpu} 核</span></div>{/if}
+                {#if info.ncpu}<div class="info-item"><span class="info-label">{$t("docker.infoLabels.cpu")}</span><span class="info-value">{$t("docker.cores", { values: { n: info.ncpu } })}</span></div>{/if}
                 {#if info.mem_total}<div class="info-item"><span class="info-label">{$t("docker.infoLabels.memory")}</span><span class="info-value">{formatBytes(info.mem_total)}</span></div>{/if}
               </div>
             {/if}

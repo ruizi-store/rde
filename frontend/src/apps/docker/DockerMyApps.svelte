@@ -222,7 +222,7 @@
             {#if isActioning(app.name)}
               <span class="action-loading">
                 <Spinner />
-                <span>{actionLabel(actionLoading[app.name])}中...</span>
+                <span>{$t("docker.myApps.inProgress", { values: { action: actionLabel(actionLoading[app.name]) } })}</span>
               </span>
             {:else}
               {#if app.status === "running"}

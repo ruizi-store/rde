@@ -110,7 +110,7 @@
           </Button>
         {:else}
           <Button variant="primary" onclick={() => onInstall?.(app!)}>
-            {$t("docker.install")}
+            {$t("docker.install.install")}
           </Button>
         {/if}
       </div>

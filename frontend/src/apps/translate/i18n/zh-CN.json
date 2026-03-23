@@ -1,0 +1,28 @@
+{
+  "loading": "加载中...",
+  "autoDetect": "自动检测",
+  "swap": "交换语言",
+  "clear": "清空",
+  "copy": "复制",
+  "sourceText": "源文本",
+  "detected": "检测到",
+  "enterText": "输入要翻译的文本...",
+  "translating": "翻译中...",
+  "translate": "翻译",
+  "translationWillAppear": "翻译结果将显示在这里",
+  "serviceOnline": "服务在线",
+  "serviceOffline": "服务离线",
+
+  "title": "离线翻译服务",
+  "subtitle": "安装后即可享受免费、私密的本地翻译功能",
+  "featurePrivate": "数据不离开本机，完全私密",
+  "featureOffline": "无需联网，离线可用",
+  "featureLanguages": "支持 30+ 种语言互译",
+  "installButton": "开始安装",
+  "installHint": "预计需要 2-5 分钟",
+  "downloading": "正在下载翻译引擎...",
+  "configuring": "正在配置服务...",
+  "almostDone": "即将完成...",
+  "installFailed": "安装失败，请重试",
+  "retry": "重试"
+}

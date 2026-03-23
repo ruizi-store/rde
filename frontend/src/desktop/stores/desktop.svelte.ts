@@ -194,6 +194,8 @@ class DesktopStore {
       { id: "26", name: "AI 助手", icon: "/icons/ai.svg", appId: "ai", x: 3, y: 1, },
       { id: "27", name: "虚拟机", icon: "/icons/vm.svg", appId: "vm", x: 3, y: 2, },
       { id: "28", name: "Android", icon: "/icons/android.svg", appId: "android", x: 3, y: 3, },
+      // 第五列：翻译
+      { id: "29", name: "翻译", icon: "/icons/translate.svg", appId: "translate", x: 4, y: 0, },
     ];
   }
 
@@ -253,6 +255,7 @@ class DesktopStore {
             { appId: "ai", name: "AI 助手", icon: "/icons/ai.svg" },
             { appId: "vm", name: "虚拟机", icon: "/icons/vm.svg" },
             { appId: "android", name: "Android", icon: "/icons/android.svg" },
+            { appId: "translate", name: "翻译", icon: "/icons/translate.svg" },
           ];
           for (const ni of newIcons) {
             if (!this.icons.some((i) => i.appId === ni.appId)) {

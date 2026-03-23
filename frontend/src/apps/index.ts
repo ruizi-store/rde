@@ -228,6 +228,19 @@ export function registerApps() {
       source: "module",
       category: "system" as StartMenuCategory,
     },
+    {
+      id: "translate",
+      name: "翻译",
+      icon: "/icons/translate.svg",
+      component: () => import("$apps/translate/Translate.svelte"),
+      defaultWidth: 800,
+      defaultHeight: 600,
+      minWidth: 500,
+      minHeight: 400,
+      singleton: true,
+      source: "module",
+      category: "tools" as StartMenuCategory,
+    },
 
   ]);
 }

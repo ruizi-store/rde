@@ -65,13 +65,15 @@ class AppsStore {
     "terminal",
     "notification",
     "music",
+    "translate",
   ]);
 
   // 固定在任务栏的应用 ID (已排序) - 保持简洁，只留文件管理
   pinnedAppIds = $state<string[]>(["file"]);
 
   // 桌面上的应用 ID（通过 desktop store 管理）
-  desktopAppIds = $state<string[]>([]);
+  // 新用户默认显示翻译应用
+  desktopAppIds = $state<string[]>(["translate"]);
 
   // 最近使用的应用
   recentApps = $state<string[]>([]);
@@ -531,9 +533,9 @@ class AppsStore {
   // 为当前用户重新加载配置（用户切换时调用）
   reloadForUser(): void {
     // 重置为默认值
-    this.pinnedStartMenuAppIds = ["file", "settings", "terminal", "notification", "music"];
+    this.pinnedStartMenuAppIds = ["file", "settings", "terminal", "notification", "music", "translate"];
     this.pinnedAppIds = ["file"];
-    this.desktopAppIds = [];
+    this.desktopAppIds = ["translate"];
     this.recentApps = [];
     this.startMenuPosition = "left";
     this._loaded = false;

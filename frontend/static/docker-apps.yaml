@@ -19752,4 +19752,71 @@ apps:
         en: Halo
         zh: Halo
       version: 2.22.14
+    - architectures:
+        - amd64
+        - arm64
+      category: ai
+      compose:
+        networks:
+            default:
+                external: true
+                name: rde-network
+        services:
+            libretranslate:
+                container_name: ${CONTAINER_NAME}
+                image: libretranslate/libretranslate:latest
+                user: root
+                labels:
+                    createdBy: Apps
+                networks:
+                    - default
+                ports:
+                    - ${PANEL_APP_PORT_HTTP}:5000
+                restart: always
+                volumes:
+                    - ./data:/home/libretranslate/.local
+                environment:
+                    - LT_LOAD_ONLY=${LT_LANGUAGES}
+      description:
+        en: Free and Open Source Machine Translation API, entirely self-hosted
+        zh: 免费开源的机器翻译 API，完全自托管的离线翻译服务
+      form:
+        - key: CONTAINER_NAME
+          label:
+            en: Container Name
+            zh: 容器名称
+          default: libretranslate
+          required: true
+          type: text
+          env_key: CONTAINER_NAME
+        - key: PANEL_APP_PORT_HTTP
+          label:
+            en: HTTP Port
+            zh: HTTP 端口
+          default: 5000
+          required: true
+          type: number
+          env_key: PANEL_APP_PORT_HTTP
+        - key: LT_LANGUAGES
+          label:
+            en: Languages (comma separated, e.g. en,zh,ja)
+            zh: 语言包（逗号分隔，如 en,zh,ja）
+          default: en,zh
+          required: false
+          type: text
+          env_key: LT_LANGUAGES
+      homepage: https://libretranslate.com/
+      icon: libretranslate.png
+      id: libretranslate
+      license: AGPL-3.0
+      name: LibreTranslate
+      platform: docker
+      repository: https://github.com/LibreTranslate/LibreTranslate
+      tags:
+        - ai
+        - translate
+      title:
+        en: LibreTranslate
+        zh: LibreTranslate
+      version: latest
 version: 1.0.0

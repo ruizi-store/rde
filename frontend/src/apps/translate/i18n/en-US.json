@@ -1,0 +1,28 @@
+{
+  "loading": "Loading...",
+  "autoDetect": "Auto Detect",
+  "swap": "Swap Languages",
+  "clear": "Clear",
+  "copy": "Copy",
+  "sourceText": "Source Text",
+  "detected": "Detected",
+  "enterText": "Enter text to translate...",
+  "translating": "Translating...",
+  "translate": "Translate",
+  "translationWillAppear": "Translation will appear here",
+  "serviceOnline": "Service Online",
+  "serviceOffline": "Service Offline",
+
+  "title": "Offline Translation",
+  "subtitle": "Enjoy free, private local translation after installation",
+  "featurePrivate": "Data stays on your device, fully private",
+  "featureOffline": "Works offline, no internet needed",
+  "featureLanguages": "Supports 30+ languages",
+  "installButton": "Install Now",
+  "installHint": "Takes about 2-5 minutes",
+  "downloading": "Downloading translation engine...",
+  "configuring": "Configuring service...",
+  "almostDone": "Almost done...",
+  "installFailed": "Installation failed, please retry",
+  "retry": "Retry"
+}

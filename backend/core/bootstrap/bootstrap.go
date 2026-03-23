@@ -39,6 +39,7 @@ import (
 	"github.com/ruizi-store/rde/backend/modules/sync"
 	"github.com/ruizi-store/rde/backend/modules/system"
 	"github.com/ruizi-store/rde/backend/modules/terminal"
+	"github.com/ruizi-store/rde/backend/modules/translate"
 	"github.com/ruizi-store/rde/backend/modules/users"
 	"github.com/ruizi-store/rde/backend/modules/video"
 	"github.com/ruizi-store/rde/backend/modules/vm"
@@ -83,6 +84,7 @@ type App struct {
 	Android     *android.Module
 	CloudBackup *cloudbackup.Module
 	VM          *vm.Module
+	Translate   *translate.Module
 }
 
 // Options 启动选项
@@ -304,6 +306,7 @@ func (app *App) registerModules() error {
 	app.Android = android.New()
 	app.CloudBackup = cloudbackup.New()
 	app.VM = vm.New()
+	app.Translate = translate.New()
 
 	// 核心模块（始终加载）
 	coreModules := []module.Module{
@@ -330,6 +333,7 @@ func (app *App) registerModules() error {
 		app.Android,
 		app.CloudBackup,
 		app.VM,
+		app.Translate,
 	}
 
 	// 注册核心模块

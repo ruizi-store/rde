@@ -132,8 +132,10 @@ deploy:
 
 setup:
 	@echo "$(CYAN)安装开发环境...$(RESET)"
-	@# Go
-	@if ! command -v go >/dev/null 2>&1; then \
+	@# Prefer toolchain in /usr/local over system packages
+	@export PATH=/usr/local/go/bin:/usr/local/node/bin:$$PATH; \
+	CURRENT_GO=$$(go version 2>/dev/null | grep -oE 'go[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 | sed 's/^go//'); \
+	if [ "$$CURRENT_GO" != "$(GO_VERSION)" ]; then \
 		echo "$(GREEN)安装 Go $(GO_VERSION)...$(RESET)"; \
 		HOST_ARCH=$$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/'); \
 		curl -Lo /tmp/go.tar.gz https://go.dev/dl/go$(GO_VERSION).linux-$$HOST_ARCH.tar.gz; \
@@ -143,8 +145,8 @@ setup:
 	else \
 		echo "$(YELLOW)Go 已安装: $$(go version)$(RESET)"; \
 	fi
-	@# Node.js
-	@if ! command -v node >/dev/null 2>&1 || [ "$$(node -v | sed 's/^v//')" != "$(NODE_VERSION)" ]; then \
+	@export PATH=/usr/local/go/bin:/usr/local/node/bin:$$PATH; \
+	if ! command -v node >/dev/null 2>&1 || [ "$$(node -v | sed 's/^v//')" != "$(NODE_VERSION)" ]; then \
 		echo "$(GREEN)安装 Node.js $(NODE_VERSION)...$(RESET)"; \
 		HOST_ARCH=$$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/'); \
 		curl -Lo /tmp/node.tar.xz https://nodejs.org/dist/v$(NODE_VERSION)/node-v$(NODE_VERSION)-linux-$$HOST_ARCH.tar.xz; \
@@ -155,20 +157,29 @@ setup:
 	else \
 		echo "$(YELLOW)Node.js 已安装: $$(node -v)$(RESET)"; \
 	fi
-	@# pnpm
-	@if ! command -v pnpm >/dev/null 2>&1; then \
+	@export PATH=/usr/local/go/bin:/usr/local/node/bin:$$PATH; \
+	if ! command -v pnpm >/dev/null 2>&1; then \
 		echo "$(GREEN)安装 pnpm...$(RESET)"; \
 		npm install -g pnpm; \
 	else \
 		echo "$(YELLOW)pnpm 已安装: $$(pnpm -v)$(RESET)"; \
 	fi
-	@# 镜像源
-	@go env -w GOPROXY=https://goproxy.cn,direct 2>/dev/null || true
-	@npm config set registry https://registry.npmmirror.com 2>/dev/null || true
+	@# Module registries (official first, Chinese mirror fallback)
+	@export PATH=/usr/local/go/bin:/usr/local/node/bin:$$PATH; \
+	go env -w GOPROXY=https://proxy.golang.org,https://goproxy.cn,direct 2>/dev/null || true; \
+	npm config set registry https://registry.npmjs.org 2>/dev/null || true
+	@# Runtime dirs used by backend defaults
+	@echo "$(GREEN)创建运行时目录...$(RESET)"
+	@sudo mkdir -p /var/lib/rde/db /var/lib/rde/conf /var/log/rde /var/run/rde /etc/rde
+	@if [ ! -f /etc/rde/rde.conf ]; then \
+		sudo cp $(BACKEND_DIR)/conf/conf.conf.sample /etc/rde/rde.conf; \
+	fi
 	@# PATH
 	@if ! grep -q "/usr/local/go/bin" ~/.bashrc 2>/dev/null; then \
-		echo 'export PATH=$$PATH:/usr/local/go/bin:/usr/local/node/bin' >> ~/.bashrc; \
+		echo 'export PATH=/usr/local/go/bin:/usr/local/node/bin:$$PATH' >> ~/.bashrc; \
 	fi
 	@echo ""
 	@echo "$(GREEN)✓ 开发环境安装完成$(RESET)"
 	@echo "$(YELLOW)请执行: source ~/.bashrc$(RESET)"
+	@echo "$(YELLOW)然后: cd frontend && pnpm install --config.dangerouslyAllowAllBuilds=true$(RESET)"
+	@echo "$(YELLOW)启动: make dev  (前端 http://localhost:5175  后端 http://localhost:3080)$(RESET)"

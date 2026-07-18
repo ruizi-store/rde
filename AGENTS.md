@@ -1,80 +1,80 @@
-# Agent Guide — RDE Development Environment
+# Agent 指南 — RDE 开发环境
 
-RDE (Ruizi Desktop Environment) is a web-based Linux desktop with a **Go** backend and **SvelteKit** frontend.
+RDE（瑞子云桌面 / Ruizi Desktop Environment）是基于浏览器的 Linux 云桌面，后端为 **Go**，前端为 **SvelteKit**。
 
-## Prerequisites
+## 前置要求
 
-| Tool | Required version |
-|------|------------------|
-| Go | 1.25.5+ (see `backend/go.mod`) |
-| Node.js | 20.19.1 (Makefile default) |
-| pnpm | latest |
+| 工具 | 所需版本 |
+|------|----------|
+| Go | 1.25.5+（见 `backend/go.mod`） |
+| Node.js | 20.19.1（Makefile 默认） |
+| pnpm | 最新版 |
 
-System packages: `sudo` (backend runs as root via `make dev`), `curl`, `make`.
+系统依赖：`sudo`（`make dev` 会以 root 跑后端）、`curl`、`make`。
 
-## One-time setup
+## 一次性安装
 
 ```bash
-# Install / upgrade Go, Node, pnpm
+# 安装 / 升级 Go、Node、pnpm
 make setup
 export PATH=/usr/local/go/bin:/usr/local/node/bin:$PATH
 
-# Runtime directories (required for backend defaults)
+# 运行时目录（后端默认路径需要这些目录）
 sudo mkdir -p /var/lib/rde/db /var/lib/rde/conf /var/log/rde /var/run/rde /etc/rde
 sudo cp -n backend/conf/conf.conf.sample /etc/rde/rde.conf
 sudo chmod -R a+rwX /var/lib/rde /var/log/rde /var/run/rde
 
-# Dependencies
+# 依赖
 cd frontend && pnpm install --config.dangerouslyAllowAllBuilds=true && cd ..
 cd backend && go mod download && cd ..
 ```
 
-Notes:
+说明：
 
-- `make setup` installs Go/Node under `/usr/local`. Prefer that PATH over system Go/Node.
-- If Chinese registries are unreachable, use:
+- `make setup` 会把 Go/Node 装到 `/usr/local`，请优先使用该 PATH，而不是系统自带版本。
+- 若国内镜像不可用，可改用官方源：
   - `go env -w GOPROXY=https://proxy.golang.org,direct`
   - `npm config set registry https://registry.npmjs.org`
-- pnpm 10 may skip dependency build scripts; allow builds for `esbuild` (Vite) as above.
+- pnpm 10 可能跳过依赖的 build 脚本；按上面方式允许 `esbuild`（Vite）构建即可。
 
-## Run
+## 启动
 
 ```bash
-make dev     # backend :3080, frontend :5175
-make stop    # stop both
+make dev     # 后端 :3080，前端 :5175
+make stop    # 停止两者
 ```
 
-Or separately:
+或分别启动：
 
 ```bash
-# Backend (needs write access to /var/lib/rde; make dev uses sudo)
-cd backend && sudo ./rde-backend   # after: go build -o rde-backend .
+# 后端（需要对 /var/lib/rde 有写权限；make dev 使用 sudo）
+cd backend && sudo ./rde-backend   # 先执行: go build -o rde-backend .
 
-# Frontend (proxies /api and /ws to :3080)
+# 前端（将 /api 与 /ws 代理到 :3080）
 cd frontend && pnpm dev --port 5175
 ```
 
-## Verify
+## 验证
 
-- Frontend UI: `http://localhost:5175/` (setup wizard when uninitialized)
-- Backend health: `curl -s http://localhost:3080/health`
-- Setup API: `curl -s http://localhost:3080/api/v1/setup/status`
-- Proxy via Vite: `curl -s http://localhost:5175/api/v1/setup/status`
+- 前端界面：`http://localhost:5175/`（未初始化时显示安装向导）
+- 后端健康检查：`curl -s http://localhost:3080/health`
+- Setup API：`curl -s http://localhost:3080/api/v1/setup/status`
+- 经 Vite 代理：`curl -s http://localhost:5175/api/v1/setup/status`
 
-On first run, setup is incomplete (`completed: false`) until the wizard creates an admin user.
+首次运行时 setup 未完成（`completed: false`），需通过向导创建管理员账号。
 
-## Layout
+## 目录结构
 
 ```
-backend/     Go API (Gin), modules under backend/modules/
+backend/     Go API（Gin），模块在 backend/modules/
 frontend/    SvelteKit + Tailwind v4 + Vite
-debian/      DEB packaging
+debian/      DEB 打包配置
 Makefile     setup / dev / stop / deb
 ```
 
-## Common pitfalls
+## 常见问题
 
-1. **Wrong Go version** — system Go (e.g. 1.22) cannot build this repo; use `/usr/local/go/bin/go` after `make setup`.
-2. **Missing data dirs** — backend defaults to `/var/lib/rde` and `/etc/rde/rde.conf`.
-3. **Port mismatch** — README mentions `:80` / `:5173` for production-ish flows; `make dev` uses **3080** / **5175**.
-4. **Optional services** — Docker, Flatpak, LibreTranslate, aria2, etc. may log warnings when absent; core UI/API still works.
+1. **Go 版本不对** — 系统自带 Go（如 1.22）无法编译本仓库；`make setup` 后请使用 `/usr/local/go/bin/go`。
+2. **缺少数据目录** — 后端默认使用 `/var/lib/rde` 与 `/etc/rde/rde.conf`。
+3. **端口不一致** — README 里生产/安装场景常见 `:80` / `:5173`；`make dev` 使用 **3080** / **5175**。
+4. **可选服务缺失** — Docker、Flatpak、LibreTranslate、aria2 等未安装时可能打 warning，核心 UI/API 仍可正常工作。

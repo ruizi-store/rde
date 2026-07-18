@@ -111,8 +111,16 @@ override_dh_auto_install:
 	-install -m 0755 backend/build/sysroot/usr/local/bin/rde-lock-root $(DESTDIR)/usr/bin/ 2>/dev/null || true
 	
 	# 安装第三方依赖
+	# offline/ → /usr/share/rde/offline（与 backend/pkg/offline 默认路径一致）
+	# 其余 thirdparty/* → /usr/share/rde/thirdparty/
 	mkdir -p $(DESTDIR)/usr/share/rde/thirdparty
-	-cp -r thirdparty/* $(DESTDIR)/usr/share/rde/thirdparty/ 2>/dev/null || true
+	mkdir -p $(DESTDIR)/usr/share/rde/offline
+	-cp -r thirdparty/offline/. $(DESTDIR)/usr/share/rde/offline/ 2>/dev/null || true
+	@for item in thirdparty/*; do \
+		[ -e "$$item" ] || continue; \
+		[ "$$(basename "$$item")" = "offline" ] && continue; \
+		cp -a "$$item" $(DESTDIR)/usr/share/rde/thirdparty/; \
+	done
 
 # 跳过测试
 override_dh_auto_test:

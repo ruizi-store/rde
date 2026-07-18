@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+	"github.com/ruizi-store/rde/backend/pkg/httputil"
 )
 
 // Handler HTTP 处理器
@@ -30,7 +31,7 @@ func NewHandler(service *Service, installWizard *InstallWizard, logger *zap.Logg
 		installWizard: installWizard,
 		logger:        logger,
 		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
+			CheckOrigin: httputil.SameOrigin,
 		},
 	}
 }

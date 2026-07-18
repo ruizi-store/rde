@@ -1619,9 +1619,40 @@
       "uninstallWarn": "This will stop and delete associated containers and volumes. This cannot be undone.",
       "addToDesktop": "Add to desktop",
       "addedToDesktop": "Added to desktop",
-      "alreadyOnDesktop": "Already on desktop"
+      "alreadyOnDesktop": "Already on desktop",
+      "inProgress": "{action}ing..."
     },
-    "install": "Install",
+    "install": {
+      "install": "Install",
+      "config": "Config",
+      "confirm": "Confirm",
+      "deploy": "Deploy",
+      "complete": "Complete",
+      "configParams": "Configuration",
+      "pleaseFill": "Please fill in {field}",
+      "defaultPlaceholder": "Default: {value}",
+      "confirmInstall": "Confirm Install",
+      "deploying": "Deploying",
+      "installComplete": "Installation Complete",
+      "installFailed": "Installation Failed",
+      "installSuccess": "{name} installed successfully",
+      "pullingImage": "Pulling image...",
+      "noConfigNeeded": "No configuration required for this app",
+      "generatePassword": "Generate random password",
+      "checkingPort": "Checking port...",
+      "portAvailable": "Port available",
+      "portOccupied": "Port is occupied",
+      "useSuggested": "Use {port}",
+      "next": "Next",
+      "previous": "Previous",
+      "startInstall": "Start Install",
+      "configSummary": "Configuration Summary",
+      "viewCompose": "View Docker Compose",
+      "deployedSuccess": "{name} has been deployed successfully",
+      "deployLog": "Deployment Log",
+      "backToModify": "Back to Modify",
+      "close": "Close"
+    },
     "loadStoreFailed": "Failed to load app store",
     "loadFailed": "Load failed",
     "retry": "Retry",
@@ -1715,7 +1746,8 @@
     "all": "All",
     "containerCount": "{n} containers",
     "imageCount": "{n} images",
-    "networkCount": "{n} networks"
+    "networkCount": "{n} networks",
+    "cores": "{n} cores"
   },
   "video": {
     "player": {

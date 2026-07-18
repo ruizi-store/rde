@@ -193,16 +193,23 @@ class PhotoService {
     return api.delete(`/photos/${id}`, { force });
   }
 
+  private mediaURL(path: string): string {
+    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    if (!token) return path;
+    const sep = path.includes("?") ? "&" : "?";
+    return `${path}${sep}token=${encodeURIComponent(token)}`;
+  }
+
   getThumbnailUrl(id: string): string {
-    return `/api/v1/photos/${id}/thumbnail`;
+    return this.mediaURL(`/api/v1/photos/${id}/thumbnail`);
   }
 
   getPreviewUrl(id: string): string {
-    return `/api/v1/photos/${id}/preview`;
+    return this.mediaURL(`/api/v1/photos/${id}/preview`);
   }
 
   getOriginalUrl(id: string): string {
-    return `/api/v1/photos/${id}/original`;
+    return this.mediaURL(`/api/v1/photos/${id}/original`);
   }
 
   // ============ 批量操作 ============

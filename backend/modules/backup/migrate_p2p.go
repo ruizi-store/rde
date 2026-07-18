@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/ruizi-store/rde/backend/pkg/httputil"
 )
 
 // 配对码相关常量
@@ -163,9 +164,7 @@ func NewP2PMigrateService(service *Service) *P2PMigrateService {
 		dataDir:   service.dataDir,
 		service:   service,
 		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true // 允许跨域
-			},
+			CheckOrigin: httputil.SameOrigin,
 		},
 	}
 }

@@ -31,6 +31,7 @@ RDE（瑞子云桌面）是一个开源的 Web 桌面环境，将 Linux 服务�
 - **AI 助手**：智能对话、语音交互、Telegram 机器人集成。
 - **安卓模拟器**：在 Linux 上运行 Android 应用。
 - **虚拟机管理**：QEMU/KVM 虚拟机的创建与管理。
+- **离线资源**：支持将 Docker 镜像 tar、依赖 deb 等预先放入 `/usr/share/rde/offline`，断网环境优先本地加载。
 
 ## 快速开始
 

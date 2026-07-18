@@ -149,7 +149,7 @@ configure_samba() {
 # Android Binder 内核模块配置
 configure_android_binder() {
     echo "Configuring Android Binder module..."
-    local BINDER_MODULE_DIR="/usr/share/rde/packages/rde-pkg-android/binder-modules"
+    local BINDER_MODULE_DIR="/usr/share/rde/thirdparty/android/binder-modules"
     local DKMS_MODULE_NAME="anbox-binder"
     local DKMS_MODULE_VERSION="1"
 
@@ -212,57 +212,16 @@ configure_android_binder() {
 configure_android_udev() {
     local UDEV_RULE='/etc/udev/rules.d/51-android.rules'
     if [ ! -f "$UDEV_RULE" ]; then
-        echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="*", MODE="0666", GROUP="plugdev"' > "$UDEV_RULE"
+        echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="*", MODE="0660", GROUP="plugdev"' > "$UDEV_RULE"
         udevadm control --reload-rules 2>/dev/null || true
     fi
 }
 
-# AI 套件配置
+# AI 模块数据目录（内置模块，不再使用独立套件路径）
 configure_ai() {
-    echo "Configuring AI module..."
-    local DATA_DIR="/var/lib/rde/packages/rde-pkg-ai"
-    local LOG_DIR="/var/log/rde/packages/rde-pkg-ai"
-    local RUN_DIR="/run/rde/packages/rde-pkg-ai"
-
-    mkdir -p "$DATA_DIR/data" "$DATA_DIR/bitnet" "$LOG_DIR" "$RUN_DIR"
-    chmod 755 "$DATA_DIR" "$LOG_DIR" "$RUN_DIR"
-
-    # 初始化 setup 状态
-    local SETUP_STATE_FILE="$DATA_DIR/data/setup-state.json"
-    if [ ! -f "$SETUP_STATE_FILE" ]; then
-        cat > "$SETUP_STATE_FILE" << 'AIEOF'
-{
-  "setupCompleted": false,
-  "currentStep": 0,
-  "selectedModel": null,
-  "enabledSkills": [],
-  "createdAt": null
-}
-AIEOF
-        chmod 644 "$SETUP_STATE_FILE"
-    fi
-
-    # 创建 BitNet systemd 服务
-    if [ ! -f "/etc/systemd/system/rde-pkg-ai-bitnet.service" ]; then
-        cat > /etc/systemd/system/rde-pkg-ai-bitnet.service << 'AIEOF'
-[Unit]
-Description=RDE AI BitNet Service
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=simple
-Restart=always
-RestartSec=5
-WorkingDirectory=/usr/share/rde/packages/rde-pkg-ai/bitnet
-ExecStart=/usr/bin/docker compose up
-ExecStop=/usr/bin/docker compose down
-TimeoutStartSec=300
-
-[Install]
-WantedBy=multi-user.target
-AIEOF
-    fi
+    echo "Configuring AI module data dirs..."
+    mkdir -p /var/lib/rde/ai /var/log/rde
+    chown -R "${RDE_USER}:${RDE_USER}" /var/lib/rde/ai 2>/dev/null || true
 }
 
 # PulseAudio 系统模式配置（Linux 应用音频支持）
@@ -339,63 +298,20 @@ PAEOF
     echo "PulseAudio system mode configured"
 }
 
-# Linux 应用管理器配置
+# Flatpak / Linux 桌面音频支持（内置 flatpak 模块）
 configure_linux_apps() {
-    echo "Configuring Linux Apps Manager..."
-    local INSTALL_DIR="/opt/rde/packages/ruizi-linux"
-    local DATA_DIR="/var/lib/rde/linux"
-
-    mkdir -p "$DATA_DIR/sessions" "$DATA_DIR/config" /var/log/rde
-    chmod 755 "$INSTALL_DIR/backend/rde-linux" 2>/dev/null || true
-
-    # 创建默认 xpra 配置
-    if [ ! -f "$DATA_DIR/config/xpra.json" ]; then
-        cat > "$DATA_DIR/config/xpra.json" << 'LEOF'
-{
-  "displayRange": [50, 99],
-  "portRange": [19050, 19099],
-  "html5": true,
-  "sharing": false,
-  "quality": 80,
-  "encoding": "auto"
-}
-LEOF
-    fi
-
-    # 初始化应用列表
-    [ ! -f "$DATA_DIR/apps.json" ] && echo "[]" > "$DATA_DIR/apps.json"
-
-    # 配置 PulseAudio 系统模式（Linux 应用音频所需）
+    echo "Configuring Linux desktop audio support..."
+    mkdir -p /var/lib/rde/linux /var/log/rde
+    chown -R "${RDE_USER}:${RDE_USER}" /var/lib/rde/linux 2>/dev/null || true
     configure_pulseaudio_system
-
-    # 创建 systemd 服务
-    cat > /etc/systemd/system/rde-linux.service << LEOF
-[Unit]
-Description=RDE Linux Apps Manager
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/backend/rde-linux
-Restart=on-failure
-RestartSec=5
-Environment=PORT=18089
-Environment=DATA_DIR=$DATA_DIR
-
-[Install]
-WantedBy=multi-user.target
-LEOF
-    systemctl enable rde-linux.service 2>/dev/null || true
 }
 
-# VM 套件配置
+# VM 模块数据目录（内置模块）
 configure_vm() {
     echo "Configuring VM module..."
-    local DATA_DIR="/var/lib/rde/packages/ruizi-vm/data"
+    local DATA_DIR="/var/lib/rde/vm"
     mkdir -p "$DATA_DIR/disks" "$DATA_DIR/iso"
     chown -R "${RDE_USER}:${RDE_USER}" "$DATA_DIR" 2>/dev/null || true
-    chmod +x "/opt/rde/packages/ruizi-vm/backend/rde-vm" 2>/dev/null || true
 
     # 添加 rde 用户到 kvm 组
     if [ -c /dev/kvm ] && getent group kvm &>/dev/null; then

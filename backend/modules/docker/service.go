@@ -16,6 +16,7 @@ import (
 	networktypes "github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/ruizi-store/rde/backend/pkg/offline"
 	"go.uber.org/zap"
 )
 
@@ -100,10 +101,21 @@ func (s *Service) GetInfo(ctx context.Context) (*DockerInfo, error) {
 	}, nil
 }
 
-// PullImage 拉取镜像
+// PullImage 拉取镜像（优先本地离线 tar）
 func (s *Service) PullImage(ctx context.Context, image string, progress chan<- string) error {
 	if s.client == nil {
 		return errors.New("docker client not available")
+	}
+
+	if loaded, err := offline.Global().LoadImage(image); err != nil {
+		s.logger.Warn("offline image load failed, falling back to pull",
+			zap.String("image", image), zap.Error(err))
+	} else if loaded {
+		if progress != nil {
+			progress <- "loaded from offline package"
+		}
+		s.logger.Info("Docker image loaded from offline store", zap.String("image", image))
+		return nil
 	}
 
 	reader, err := s.client.ImagePull(ctx, image, types.ImagePullOptions{})

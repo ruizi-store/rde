@@ -1,8 +1,6 @@
 // API 客户端基础封装
 // 统一处理请求、响应、错误、Token
 
-import { isTokenExpired } from "$shared/utils/auth";
-
 export interface ApiResponse<T = unknown> {
   success: boolean;
   message: string;
@@ -73,14 +71,9 @@ export class ApiClient {
       headers["Content-Type"] = contentType;
     }
 
-    // 每次请求时从 localStorage 读取最新的 token，并检查是否过期
+    // 每次请求读取最新 token；过期由 401 + refresh 处理，避免误踢长会话
     const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : this.token;
     if (token) {
-      if (isTokenExpired(token)) {
-        // token 过期，不发送请求，直接清除并跳转
-        this.clearAuthAndRedirect();
-        return headers;
-      }
       headers["Authorization"] = `Bearer ${token}`;
     }
 

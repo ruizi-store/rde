@@ -126,6 +126,11 @@ class AuthService {
       // 忽略登出错误
     } finally {
       api.setToken(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem(DEVICE_TOKEN_KEY);
+      }
     }
   }
 

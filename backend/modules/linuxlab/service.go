@@ -13,6 +13,7 @@ import (
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/ruizi-store/rde/backend/pkg/offline"
 	"go.uber.org/zap"
 )
 
@@ -235,6 +236,13 @@ func (s *Service) Setup(progressChan chan<- ProgressEvent) {
 }
 
 func (s *Service) pullImage(progressChan chan<- ProgressEvent) error {
+	if loaded, err := offline.Global().LoadImage(s.image); err == nil && loaded {
+		progressChan <- ProgressEvent{Status: "running", Message: "已从本地离线包加载镜像"}
+		return nil
+	} else if err != nil {
+		s.logger.Warn("offline image load failed", zap.String("image", s.image), zap.Error(err))
+	}
+
 	ctx := context.Background()
 	reader, err := s.cli.ImagePull(ctx, s.image, types.ImagePullOptions{})
 	if err != nil {

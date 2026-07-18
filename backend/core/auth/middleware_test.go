@@ -169,7 +169,7 @@ func TestOptionalMiddleware(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"user_id": userID})
 	})
 
-	// 无令牌 - 应该通过，但 user_id 为 0
+	// 无令牌 - 应该通过，但 user_id 为空
 	req := httptest.NewRequest("GET", "/optional", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

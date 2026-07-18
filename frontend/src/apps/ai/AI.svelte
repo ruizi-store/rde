@@ -12,6 +12,7 @@
     type AIConfig,
   } from "./service";
   import { Marked } from "marked";
+  import DOMPurify from "dompurify";
   import hljs from "highlight.js";
   import SetupWizard from "./SetupWizard.svelte";
   import GatewaySettings from "./GatewaySettings.svelte";
@@ -28,7 +29,12 @@
   function renderMarkdown(text: string): string {
     if (!text) return "";
     try {
-      return marked.parse(text) as string;
+      const html = marked.parse(text) as string;
+      return DOMPurify.sanitize(html, {
+        USE_PROFILES: { html: true },
+        FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form"],
+        FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover"],
+      });
     } catch {
       return escapeHtml(text);
     }

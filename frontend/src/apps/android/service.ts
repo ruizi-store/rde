@@ -217,7 +217,9 @@ class AndroidService {
   /** 连接安装进度 WebSocket */
   connectInstallWS(onMessage: (data: any) => void): WebSocket {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${location.host}/api/v1/android/ws/install`);
+    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const qs = token ? `?token=${encodeURIComponent(token)}` : "";
+    const ws = new WebSocket(`${protocol}//${location.host}/api/v1/android/ws/install${qs}`);
     ws.onmessage = (e) => {
       try { onMessage(JSON.parse(e.data)); } catch {}
     };

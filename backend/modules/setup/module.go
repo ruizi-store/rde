@@ -51,8 +51,8 @@ func (m *Module) Init(ctx *module.Context) error {
 	m.ctx = ctx
 	ctx.Logger.Info("Initializing setup module")
 
-	// 自动迁移数据库表
-	if err := ctx.DB.AutoMigrate(&SetupSettings{}); err != nil {
+	// 自动迁移数据库表（含可选模块开关）
+	if err := ctx.DB.AutoMigrate(&SetupSettings{}, &ModuleSetting{}); err != nil {
 		return err
 	}
 
@@ -155,8 +155,9 @@ func (m *Module) RegisterRoutes(router *gin.RouterGroup) {
 		m.ctx.Logger.Warn("TokenManager not found in Extra, factory-reset will not be available")
 	}
 
-	// 模块设置 API (需要认证，实际部署时应添加认证中间件)
+	// 模块设置 API（仅管理员）
 	settings := router.Group("/settings")
+	settings.Use(auth.RequireAdmin())
 	{
 		settings.GET("/modules", handler.GetModuleSettings)
 		settings.PUT("/modules/:id", handler.UpdateModuleSetting)

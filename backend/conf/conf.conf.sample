@@ -29,5 +29,9 @@ JWTSecret =
 
 [system]
 
+[offline]
+# 本地离线资源目录（Docker 镜像 tar / deb / 驱动），优先于网络拉取
+# Dir = /usr/share/rde/offline
+
 [common]
 RuntimePath=/var/run/rde

@@ -333,6 +333,7 @@ func (s *Service) CreateAdmin(req *SetupUserRequest) (*TwoFactorSetup, error) {
 		"role":       "admin",
 		"status":     "active",
 		"avatar":     req.Avatar,
+		"settings":   "{}", // 避免 settings 列为 NULL 导致 Pluck/Scan 失败
 		"created_at": time.Now(),
 		"updated_at": time.Now(),
 	}
@@ -816,10 +817,12 @@ func (s *Service) ConfigureStorage(req *StorageConfig) error {
 	return s.markStepCompleted(4)
 }
 
-// SkipStorageConfig 跳过存储配置，使用默认路径
+// SkipStorageConfig 跳过存储配置，使用当前数据目录
 func (s *Service) SkipStorageConfig() error {
-	// 设置默认数据路径
-	defaultPath := "/var/lib/rde"
+	defaultPath := s.dataDir
+	if defaultPath == "" {
+		defaultPath = "/var/lib/rde"
+	}
 
 	// 确保目录存在
 	if err := os.MkdirAll(defaultPath, 0755); err != nil {

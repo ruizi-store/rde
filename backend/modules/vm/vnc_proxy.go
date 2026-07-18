@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+	"github.com/ruizi-store/rde/backend/pkg/httputil"
 )
 
 // VNCProxy VNC WebSocket 代理
@@ -29,9 +29,7 @@ func NewVNCProxy(logger *zap.Logger) *VNCProxy {
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  4096,
 			WriteBufferSize: 4096,
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
+			CheckOrigin: httputil.SameOrigin,
 			Subprotocols: []string{"binary"},
 		},
 	}

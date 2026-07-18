@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ruizi-store/rde/backend/pkg/offline"
 	"go.uber.org/zap"
 )
 
@@ -558,6 +559,15 @@ func (is *InstalledService) InstallStreaming(appID string, config map[string]int
 			}
 			outputBuf.WriteString(fmt.Sprintf("Pulling %s ...\n", img))
 
+			if loaded, err := offline.Global().LoadImage(img); err == nil && loaded {
+				msg := fmt.Sprintf("[%d/%d] %s: loaded from offline package", i+1, len(images), img)
+				outputBuf.WriteString(msg + "\n")
+				if onOutput != nil {
+					onOutput(msg)
+				}
+				continue
+			}
+
 			pullCmd := exec.Command("docker", "pull", img)
 			pullPr, pullPw := io.Pipe()
 			pullCmd.Stdout = pullPw
@@ -594,7 +604,7 @@ func (is *InstalledService) InstallStreaming(appID string, config map[string]int
 			if pullErr != nil {
 				errMsg := fmt.Sprintf("拉取镜像失败: %s - %v", img, pullErr)
 				outputBuf.WriteString(errMsg + "\n")
-				return nil, outputBuf.String(), fmt.Errorf(errMsg)
+				return nil, outputBuf.String(), fmt.Errorf("%s", errMsg)
 			}
 
 			if onOutput != nil {

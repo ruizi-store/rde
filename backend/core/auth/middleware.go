@@ -29,6 +29,9 @@ type MiddlewareConfig struct {
 
 	// SuccessHandler 认证成功后的回调
 	SuccessHandler func(c *gin.Context, claims *Claims)
+
+	// BlacklistChecker 若返回 true，则令牌视为已登出/作废
+	BlacklistChecker func(token string) bool
 }
 
 // DefaultMiddlewareConfig 默认中间件配置
@@ -69,6 +72,12 @@ func MiddlewareWithConfig(tokenManager *TokenManager, config *MiddlewareConfig) 
 
 		if token == "" {
 			handleError(c, config, ErrUnauthorized)
+			return
+		}
+
+		// 检查登出黑名单
+		if config.BlacklistChecker != nil && config.BlacklistChecker(token) {
+			handleError(c, config, ErrInvalidToken)
 			return
 		}
 
@@ -196,14 +205,15 @@ func ExtractToken(c *gin.Context) string {
 	return ""
 }
 
-// GetUserID 从上下文获取用户 ID
-func GetUserID(c *gin.Context) uint {
+// GetUserID 从上下文获取用户 ID（字符串，与 JWT Claims.UserID 一致）
+func GetUserID(c *gin.Context) string {
 	if id, exists := c.Get(ContextKeyUserID); exists {
-		if uid, ok := id.(uint); ok {
-			return uid
+		switch v := id.(type) {
+		case string:
+			return v
 		}
 	}
-	return 0
+	return ""
 }
 
 // GetUsername 从上下文获取用户名
@@ -238,7 +248,7 @@ func GetClaims(c *gin.Context) *Claims {
 
 // IsAuthenticated 检查是否已认证
 func IsAuthenticated(c *gin.Context) bool {
-	return GetUserID(c) > 0
+	return GetUserID(c) != ""
 }
 
 // IsAdmin 检查是否为管理员

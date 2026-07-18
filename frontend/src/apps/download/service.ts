@@ -252,7 +252,9 @@ class DownloadService {
     if (typeof window === "undefined") return null;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/api/v1/download/ws`;
+    const token = localStorage.getItem("auth_token");
+    const qs = token ? `?token=${encodeURIComponent(token)}` : "";
+    const wsUrl = `${protocol}//${window.location.host}/api/v1/download/ws${qs}`;
 
     const ws = new WebSocket(wsUrl);
 

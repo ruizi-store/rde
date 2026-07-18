@@ -1,7 +1,6 @@
 package sudo
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -23,9 +22,10 @@ func NewHandler(executor *Executor, logger *zap.Logger) *Handler {
 	}
 }
 
-// RegisterRoutes 注册路由
+// RegisterRoutes 注册路由（特权操作仅管理员）
 func (h *Handler) RegisterRoutes(group *gin.RouterGroup) {
 	sudo := group.Group("/sudo")
+	sudo.Use(auth.RequireAdmin())
 	{
 		sudo.GET("/actions", h.ListActions)
 		sudo.POST("/preview", h.Preview)
@@ -129,7 +129,7 @@ func (h *Handler) Execute(c *gin.Context) {
 	}
 
 	// 获取用户信息
-	userID := fmt.Sprintf("%d", auth.GetUserID(c))
+	userID := auth.GetUserID(c)
 	username := auth.GetUsername(c)
 	clientIP := c.ClientIP()
 

@@ -135,7 +135,9 @@ class ScrcpyService {
     if (typeof window === "undefined") return "ws://localhost/ws/screen";
 
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    return `${protocol}//${location.host}/api/v1/android/ws/screen`;
+    const token = localStorage.getItem("auth_token");
+    const qs = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `${protocol}//${location.host}/api/v1/android/ws/screen${qs}`;
   }
 }
 

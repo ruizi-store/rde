@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/ruizi-store/rde/backend/core/auth"
+	"github.com/ruizi-store/rde/backend/pkg/httputil"
 	"go.uber.org/zap"
 )
 
@@ -30,10 +31,7 @@ func NewHandler(service *Service, logger *zap.Logger) *Handler {
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  WebSocketBufferSize,
 			WriteBufferSize: WebSocketBufferSize,
-			CheckOrigin: func(r *http.Request) bool {
-				// 在生产环境中应该验证 Origin
-				return true
-			},
+			CheckOrigin: httputil.SameOrigin,
 		},
 	}
 }

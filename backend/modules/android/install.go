@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ruizi-store/rde/backend/pkg/offline"
 )
 
 // InstallWizard 安装向导
@@ -30,7 +32,7 @@ func NewInstallWizard(config *InstallConfig) *InstallWizard {
 		config = &InstallConfig{
 			DockerImage:      "redroid/redroid:14.0.0-latest",
 			ContainerName:    "ruizios-android",
-			BinderModulePath: "/var/lib/rde/plugins/android/binder-modules/binder",
+			BinderModulePath: "/usr/share/rde/thirdparty/android/binder-modules/binder",
 			ADBPort:          5555,
 			DataVolume:       "ruizios-android-data",
 		}
@@ -369,8 +371,13 @@ func (w *InstallWizard) executeStep(ctx context.Context, step *StepInfo) error {
 		}
 
 	case StepPullImage:
+		if loaded, err := offline.Global().LoadImage(w.config.DockerImage); err == nil && loaded {
+			break
+		} else if err != nil {
+			// 离线包损坏时继续尝试网络拉取
+		}
 		if err := runCmd("docker", "pull", w.config.DockerImage); err != nil {
-			return fmt.Errorf("镜像拉取失败: %w", err)
+			return fmt.Errorf("镜像拉取失败（本地离线包与网络均不可用）: %w", err)
 		}
 
 	case StepStartContainer:

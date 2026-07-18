@@ -2,6 +2,7 @@ package users
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
@@ -469,15 +470,15 @@ func (s *Service) ValidatePassword(username, password string) (*User, error) {
 
 // getUserSettings 从 User.Settings JSON 读取 2FA 设置
 func (s *Service) getUserSettings(userID string) (*TwoFactorSettings, error) {
-	var settingsJSON string
+	var settingsJSON sql.NullString
 	if err := s.db.Model(&User{}).Where("id = ?", userID).Pluck("settings", &settingsJSON).Error; err != nil {
 		return nil, err
 	}
-	if settingsJSON == "" {
+	if !settingsJSON.Valid || settingsJSON.String == "" {
 		return &TwoFactorSettings{}, nil
 	}
 	var settings TwoFactorSettings
-	if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
+	if err := json.Unmarshal([]byte(settingsJSON.String), &settings); err != nil {
 		return &TwoFactorSettings{}, nil // 无法解析当作未启用
 	}
 	return &settings, nil

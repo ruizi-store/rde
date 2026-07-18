@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/ruizi-store/rde/backend/core/auth"
 	"go.uber.org/zap"
+	"github.com/ruizi-store/rde/backend/pkg/httputil"
 )
 
 // Handler HTTP 处理器
@@ -30,9 +31,7 @@ func NewHandler(service *Service, logger *zap.Logger) *Handler {
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  WebSocketBufferSize,
 			WriteBufferSize: WebSocketBufferSize,
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
+			CheckOrigin: httputil.SameOrigin,
 		},
 	}
 }

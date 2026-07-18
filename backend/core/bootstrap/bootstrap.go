@@ -6,7 +6,9 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -18,6 +20,7 @@ import (
 	"github.com/ruizi-store/rde/backend/core/event"
 	"github.com/ruizi-store/rde/backend/core/i18n"
 	"github.com/ruizi-store/rde/backend/core/module"
+	"github.com/ruizi-store/rde/backend/pkg/offline"
 
 	// 导入核心模块
 	"github.com/ruizi-store/rde/backend/modules/ai"
@@ -56,8 +59,9 @@ type App struct {
 	EventBus     *event.Bus
 	Registry     *module.Registry
 	Logger       *zap.Logger
-	Router       *gin.Engine
-	TokenManager *auth.TokenManager
+	Router           *gin.Engine
+	TokenManager     *auth.TokenManager
+	tokenBlacklist   *auth.PersistentBlacklist
 
 	// 核心模块快捷访问
 	Setup        *setup.Module
@@ -139,6 +143,7 @@ func New(opts *Options) (*App, error) {
 	// 2. 初始化配置
 	cfg := config.New()
 	cfg.Set("data_dir", opts.DataDir)
+	cfg.Set("data_path", opts.DataDir) // system/terminal 等模块读 data_path
 	cfg.Set("db_path", opts.DBPath)
 	cfg.Set("log_path", opts.LogPath)
 	cfg.Set("debug", opts.Debug)
@@ -218,15 +223,16 @@ func New(opts *Options) (*App, error) {
 		router.Use(gin.Logger())
 	}
 
-	// 添加 CORS 中间件
+	// CORS：仅允许同源 Origin（LAN 一体机场景），拒绝任意跨站凭证请求
 	router.Use(func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
-		if origin != "" {
+		if origin != "" && isAllowedOrigin(origin, c.Request.Host) {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Max-Age", "86400")
+			c.Header("Vary", "Origin")
 		}
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -236,14 +242,15 @@ func New(opts *Options) (*App, error) {
 	})
 
 	app := &App{
-		DB:           dbMgr.DB(),
-		dbMgr:        dbMgr,
-		Config:       cfg,
-		EventBus:     eventBus,
-		Registry:     registry,
-		Logger:       logger,
-		Router:       router,
-		TokenManager: tokenManager,
+		DB:             dbMgr.DB(),
+		dbMgr:          dbMgr,
+		Config:         cfg,
+		EventBus:       eventBus,
+		Registry:       registry,
+		Logger:         logger,
+		Router:         router,
+		TokenManager:   tokenManager,
+		tokenBlacklist: tokenBlacklist,
 	}
 
 	// 9. 注册所有内置模块
@@ -351,7 +358,18 @@ func (app *App) registerModules() error {
 func (app *App) Start() error {
 	app.Logger.Info("Starting RDE application")
 
-	// 0. 加载用户 i18n 区域设置（在模块启动前，确保镜像源配置正确）
+	// 0. 离线资源目录（Docker 镜像 tar / deb / 驱动）
+	offlineDir := app.Config.GetString("offline.dir")
+	if offlineDir == "" {
+		offlineDir = app.Config.GetString("offline.Dir")
+	}
+	if offlineDir == "" {
+		offlineDir = offline.DefaultDir
+	}
+	store := offline.InitGlobal(offlineDir)
+	app.Logger.Info("Offline asset store ready", zap.String("dir", store.Dir()))
+
+	// 0.1 加载用户 i18n 区域设置（在模块启动前，确保镜像源配置正确）
 	app.loadI18nRegion()
 
 	// 1. 启动所有模块
@@ -362,13 +380,12 @@ func (app *App) Start() error {
 	// 2. 注册模块路由
 	apiV1 := app.Router.Group("/api/v1")
 
-	// 添加 JWT 认证中间件（跳过公开路由）
+	// JWT 认证：WebSocket / 媒体请通过 ?token= 或 Cookie 传递（不再全局跳过 WS / photos）
 	authMiddleware := auth.MiddlewareWithConfig(app.TokenManager, &auth.MiddlewareConfig{
 		Skipper: func(c *gin.Context) bool {
 			path := c.Request.URL.Path
 			method := c.Request.Method
 
-			// 公开路由 - 不需要认证
 			publicPaths := []string{
 				"/api/v1/auth/login",
 				"/api/v1/auth/refresh",
@@ -376,73 +393,33 @@ func (app *App) Start() error {
 				"/api/v1/setup/status",
 				"/api/v1/setup/complete",
 				"/api/v1/setup/initialize",
-				"/api/v1/system/i18n", // 登录页面需要获取i18n设置
+				"/api/v1/system/i18n",
 			}
-
 			for _, p := range publicPaths {
 				if path == p {
 					return true
 				}
 			}
-
-			// 健康检查
 			if path == "/ping" || path == "/health" {
 				return true
 			}
-
-			// Setup 流程相关路由（所有 setup 路由在初始化前都应公开）
 			if strings.HasPrefix(path, "/api/v1/setup/") {
 				return true
 			}
 
-			// Flatpak VNC 代理使用 cookie 认证，不跳过中间件
-			// 首次加载 vnc.html?token=XXX 时由 handler 将 token 写入 cookie，
-			// 后续 JS/CSS/WebSocket 请求自动携带 cookie 通过认证
-
-			// GET 请求的某些路径（静态资源等）
-			if method == "GET" {
-				// WebSocket 升级请求（无法设置 Authorization header）
-				// 排除 VNC 路径：VNC WebSocket 使用 cookie 认证
-				if strings.EqualFold(c.GetHeader("Upgrade"), "websocket") &&
-					!strings.HasPrefix(path, "/api/v1/flatpak/vnc/") {
-					return true
-				}
-				// 系统基本信息
-				if strings.HasPrefix(path, "/api/v1/system/info") {
-					return true
-				}
-				// 套件列表（桌面初始化时需要）
-				if path == "/api/v1/packages" {
-					return true
-				}
-				// 套件前端资源和图标（iframe 内加载不带 Authorization header）
-				if strings.HasPrefix(path, "/api/v1/pkg-assets/") {
-					return true
-				}
-				if strings.HasPrefix(path, "/api/v1/pkg-icon/") {
-					return true
-				}
-				// 套件后端 API 代理（iframe 内请求不带 Authorization）
-				if strings.HasPrefix(path, "/api/v1/pkg-api/") {
-					return true
-				}
-				// Flatpak 应用图标（img src 不带 Authorization header）
-				if strings.HasPrefix(path, "/api/v1/flatpak/icons/") {
-					return true
-				}
-				// 照片缩略图/预览图/原图（img src 不带 Authorization header）
-				if strings.HasPrefix(path, "/api/v1/photos/") &&
-					(strings.HasSuffix(path, "/thumbnail") ||
-						strings.HasSuffix(path, "/preview") ||
-						strings.HasSuffix(path, "/original")) {
-					return true
-				}
+			// Flatpak 图标供 img 标签使用（无敏感数据）
+			if method == "GET" && strings.HasPrefix(path, "/api/v1/flatpak/icons/") {
+				return true
 			}
-
 			return false
 		},
+		BlacklistChecker: func(token string) bool {
+			if app.tokenBlacklist == nil {
+				return false
+			}
+			return app.tokenBlacklist.Contains(token)
+		},
 		SuccessHandler: func(c *gin.Context, claims *auth.Claims) {
-			// 记录用户活跃状态（用于在线检测）
 			if app.Users != nil {
 				app.Users.GetService().RecordActivity(claims.UserID)
 			}
@@ -523,20 +500,20 @@ func (app *App) registerStaticFiles() {
 			return
 		}
 
-		// 尝试提供静态文件
-		filePath := filepath.Join(wwwDir, path)
-		if _, err := os.Stat(filePath); err == nil {
-			// 不可变资源（带 content hash）可以永久缓存
-			if strings.HasPrefix(path, "/_app/immutable/") {
-				c.Header("Cache-Control", "public, max-age=31536000, immutable")
-			} else if path == "/" || strings.HasSuffix(path, ".html") {
-				// HTML 文件禁止缓存，确保部署后浏览器获取最新版本
-				c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
-				c.Header("Pragma", "no-cache")
-				c.Header("Expires", "0")
+		// 尝试提供静态文件（限制在 wwwDir 内，防止路径穿越）
+		filePath, ok := safeWWWPath(wwwDir, path)
+		if ok {
+			if _, err := os.Stat(filePath); err == nil {
+				if strings.HasPrefix(path, "/_app/immutable/") {
+					c.Header("Cache-Control", "public, max-age=31536000, immutable")
+				} else if path == "/" || strings.HasSuffix(path, ".html") {
+					c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+					c.Header("Pragma", "no-cache")
+					c.Header("Expires", "0")
+				}
+				c.File(filePath)
+				return
 			}
-			c.File(filePath)
-			return
 		}
 
 		// 不可变资源（带 hash 的 JS/CSS chunk）不存在时直接返回 404，
@@ -647,4 +624,41 @@ func (app *App) loadI18nRegion() {
 		app.Logger.Info("Loaded user region setting",
 			zap.String("region", settings.Region))
 	}
+}
+
+// isAllowedOrigin 仅允许与请求 Host 同源的 Origin
+func isAllowedOrigin(origin, host string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	return strings.EqualFold(u.Host, host)
+}
+
+// safeWWWPath 将 URL 路径解析为 wwwDir 内的安全文件路径
+func safeWWWPath(wwwDir, requestPath string) (string, bool) {
+	clean := pathCleanSlash(requestPath)
+	rel := strings.TrimPrefix(clean, "/")
+	full := filepath.Join(wwwDir, filepath.FromSlash(rel))
+	absWWW, err1 := filepath.Abs(wwwDir)
+	absFull, err2 := filepath.Abs(full)
+	if err1 != nil || err2 != nil {
+		return "", false
+	}
+	sep := string(os.PathSeparator)
+	if absFull != absWWW && !strings.HasPrefix(absFull, absWWW+sep) {
+		return "", false
+	}
+	return absFull, true
+}
+
+func pathCleanSlash(p string) string {
+	if p == "" {
+		return "/"
+	}
+	cleaned := path.Clean("/" + p)
+	if cleaned == "." {
+		return "/"
+	}
+	return cleaned
 }

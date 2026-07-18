@@ -93,7 +93,7 @@ func (s *Service) Start() error {
 	// 检查 aria2c 是否存在
 	if _, err := exec.LookPath("aria2c"); err != nil {
 		s.logger.Warn("aria2c not found, download module will be disabled", zap.Error(err))
-		return nil
+		return fmt.Errorf("aria2c not found: %w", err)
 	}
 
 	sessionFile := filepath.Join(s.dataDir, "aria2.session")
@@ -186,7 +186,9 @@ func (s *Service) Start() error {
 		s.cmd.Process.Kill()
 		s.cmd = nil
 	}
-	return nil
+	s.client = nil
+	s.running = false
+	return fmt.Errorf("aria2c not ready after timeout")
 }
 
 // Stop 停止 aria2c
@@ -234,10 +236,16 @@ func (s *Service) IsRunning() bool {
 
 // EnsureRunning 确保 aria2c 已启动（懒启动）
 func (s *Service) EnsureRunning() error {
-	if s.IsRunning() {
+	if s.IsRunning() && s.client != nil {
 		return nil
 	}
-	return s.Start()
+	if err := s.Start(); err != nil {
+		return err
+	}
+	if !s.IsRunning() || s.client == nil {
+		return fmt.Errorf("aria2 not running")
+	}
+	return nil
 }
 
 // AddURI 添加 URI 下载
@@ -408,8 +416,8 @@ func (s *Service) GetTasks() (*TaskListResponse, error) {
 		resp.Stats.NumStoppedTotal = total
 	}
 
-	// Aria2 未运行时，仅返回历史记录
-	if err := s.EnsureRunning(); err != nil {
+	// Aria2 未运行时，仅返回历史记录（避免 client 为空时 panic）
+	if err := s.EnsureRunning(); err != nil || !s.IsRunning() || s.client == nil {
 		return resp, nil
 	}
 
@@ -441,7 +449,7 @@ func (s *Service) GetTasks() (*TaskListResponse, error) {
 
 // GetStats 获取统计
 func (s *Service) GetStats() (*GlobalStat, error) {
-	if err := s.EnsureRunning(); err != nil {
+	if err := s.EnsureRunning(); err != nil || !s.IsRunning() || s.client == nil {
 		return &GlobalStat{}, nil
 	}
 

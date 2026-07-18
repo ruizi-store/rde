@@ -49,11 +49,8 @@ export function getValidToken(): string | null {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) return null;
 
-  if (isTokenExpired(token)) {
-    localStorage.removeItem(TOKEN_KEY);
-    return null;
-  }
-
+  // 过期时仍返回 token（供 WS/媒体 URL 使用），由后端 401 + refresh 续期；
+  // 不再此处直接清除，避免打断仍有 refresh_token 的会话
   return token;
 }
 

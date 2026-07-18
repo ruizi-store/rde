@@ -24,6 +24,7 @@ type Handler struct {
 	thumbnails   *ThumbnailService
 	db           *gorm.DB
 	elevationMgr *ElevationManager
+	dataDir      string
 }
 
 // NewHandler 创建处理器
@@ -34,6 +35,11 @@ func NewHandler(service *Service, thumbnails *ThumbnailService, db *gorm.DB) *Ha
 		db:           db,
 		elevationMgr: NewElevationManager(),
 	}
+}
+
+// SetDataDir 设置数据目录（用于非 root 环境下的用户主目录回退）
+func (h *Handler) SetDataDir(dir string) {
+	h.dataDir = dir
 }
 
 // response 通用响应结构
@@ -1498,8 +1504,19 @@ func (h *Handler) GetBookmarks(c *gin.Context) {
 	if _, err := os.Stat(homeDir); os.IsNotExist(err) {
 		// 尝试创建用户主目录
 		if mkErr := os.MkdirAll(homeDir, 0755); mkErr != nil {
-			// 创建失败，回退到 /root（兼容 root 用户运行的情况）
-			homeDir = "/root"
+			// 非 root 运行时无法创建 /home；优先回退到数据目录下的用户目录，
+			// 仅当进程本身是 root 时才使用 /root，避免普通用户打开文件管理即 403。
+			if os.Geteuid() == 0 {
+				homeDir = "/root"
+			} else {
+				base := h.dataDir
+				if base == "" {
+					base = "/var/lib/rde"
+				}
+				fallback := filepath.Join(base, "homes", username)
+				_ = os.MkdirAll(fallback, 0755)
+				homeDir = fallback
+			}
 		} else {
 			// 修改目录所有权为用户
 			runas.ChownToUser(homeDir, username)

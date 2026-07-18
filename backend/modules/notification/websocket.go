@@ -7,12 +7,11 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/ruizi-store/rde/backend/pkg/httputil"
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true // 允许所有来源
-	},
+	CheckOrigin: httputil.SameOrigin,
 }
 
 // WebSocketHub 管理所有 WebSocket 连接

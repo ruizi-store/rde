@@ -2,8 +2,6 @@
 package android
 
 import (
-	"path/filepath"
-
 	"github.com/gin-gonic/gin"
 	"github.com/ruizi-store/rde/backend/core/module"
 )
@@ -53,23 +51,22 @@ func (m *Module) Init(ctx *module.Context) error {
 	logger := ctx.Logger
 	m.service = NewService(logger)
 
-	// 获取基础目录
-	baseDir := ctx.Config.GetString("base_dir")
-	if baseDir == "" {
-		baseDir = "/opt/rde"
-	}
-
 	// Android Docker 镜像地址
 	androidImage := ctx.Config.GetString("android.docker_image")
 	if androidImage == "" {
 		androidImage = "redroid/redroid:14.0.0-latest"
 	}
 
-	// binder-modules 路径改为 thirdparty/android/binder-modules
+	// binder 模块：与 debian 打包路径对齐（/usr/share/rde/thirdparty/...）
+	binderPath := ctx.Config.GetString("android.binder_module_path")
+	if binderPath == "" {
+		binderPath = "/usr/share/rde/thirdparty/android/binder-modules/binder"
+	}
+
 	installCfg := &InstallConfig{
 		DockerImage:      androidImage,
 		ContainerName:    "ruizios-android",
-		BinderModulePath: filepath.Join(baseDir, "thirdparty", "android", "binder-modules", "binder"),
+		BinderModulePath: binderPath,
 		ADBPort:          5555,
 		DataVolume:       "ruizios-android-data",
 	}

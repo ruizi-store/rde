@@ -40,7 +40,11 @@ func (m *Module) Dependencies() []string {
 // Init 初始化模块
 func (m *Module) Init(ctx *module.Context) error {
 	// 系统模块不需要数据库
-	m.service = NewService(ctx.Logger, "1.0.0", ctx.Config.GetString("data_path"))
+	dataPath := ctx.Config.GetString("data_path")
+	if dataPath == "" {
+		dataPath = ctx.Config.GetString("data_dir")
+	}
+	m.service = NewService(ctx.Logger, "1.0.0", dataPath)
 	m.service.SetEventBus(ctx.EventBus)
 	m.handler = NewHandler(m.service)
 	return nil

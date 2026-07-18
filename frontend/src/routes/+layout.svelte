@@ -30,8 +30,12 @@
 
   // 确保主题在客户端初始化
   onMount(async () => {
-    // 异步加载离线图标集（避免阻塞首屏）
-    await initOfflineIcons();
+    // 异步加载离线图标集（失败不阻断桌面）
+    try {
+      await initOfflineIcons();
+    } catch (e) {
+      console.error("[Icons] init failed", e);
+    }
     // 强制初始化主题（确保 data-theme 和强调色被应用）
     theme.set(theme.mode);
     

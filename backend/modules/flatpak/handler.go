@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	rdehttputil "github.com/ruizi-store/rde/backend/pkg/httputil"
 )
 
 // Handler HTTP 处理器
@@ -431,7 +432,7 @@ func (h *Handler) ServeIcon(c *gin.Context) {
 // ==================== KasmVNC 反向代理 ====================
 
 var vncWSUpgrader = websocket.Upgrader{
-	CheckOrigin:  func(r *http.Request) bool { return true },
+	CheckOrigin: rdehttputil.SameOrigin,
 	Subprotocols: []string{"binary"},
 }
 

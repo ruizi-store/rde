@@ -64,9 +64,9 @@ func TestApp_Start(t *testing.T) {
 	err := app.Start()
 	require.NoError(t, err)
 
-	// 验证核心模块信息（可选模块在测试中默认未启用）
+	// 验证已注册模块数量（含原插件迁移后的内置模块）
 	modules := app.Registry.GetAll()
-	assert.Len(t, modules, 17) // 17 个核心模块
+	assert.Len(t, modules, 23)
 
 	// 验证路由器已配置
 	router := app.GetRouter()

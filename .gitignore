@@ -10,11 +10,13 @@ backend/ruizios-server
 frontend/build/
 frontend/node_modules/
 frontend/.svelte-kit/
+frontend/static/emulatorjs/
 
 # 构建输出目录
 outputs/
 dist/
 *.deb
+!thirdparty/kasmvnc/*.deb
 *.buildinfo
 *.changes
 

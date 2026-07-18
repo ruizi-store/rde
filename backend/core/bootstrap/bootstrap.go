@@ -490,9 +490,13 @@ func (app *App) registerStaticFiles() {
 	dataDir := app.Config.GetString("data_dir")
 	wwwDir := filepath.Join(dataDir, "www")
 
-	// EmulatorJS 静态文件（按需下载后存放于 {dataDir}/emulatorjs/）
-	emulatorjsDir := filepath.Join(dataDir, "emulatorjs")
-	os.MkdirAll(emulatorjsDir, 0755)
+	// EmulatorJS：优先使用构建期打包到 www/emulatorjs 的离线资源
+	emulatorjsDir := filepath.Join(wwwDir, "emulatorjs")
+	if _, err := os.Stat(filepath.Join(emulatorjsDir, "emulator.min.js")); err != nil {
+		// 兼容旧版按需下载目录
+		emulatorjsDir = filepath.Join(dataDir, "emulatorjs")
+		os.MkdirAll(emulatorjsDir, 0755)
+	}
 	app.Router.Static("/emulatorjs", emulatorjsDir)
 	app.Logger.Info("EmulatorJS static route registered", zap.String("path", emulatorjsDir))
 

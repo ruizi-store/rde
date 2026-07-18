@@ -5,7 +5,7 @@
 import type { PlatformInfo, KeyMapping, VideoFilter } from "./types";
 
 // 支持的平台配置
-// 核心名称必须与 EmulatorJS CDN 上的实际核心名称匹配
+// 核心名称必须与 EmulatorJS 本地静态资源中的实际核心名称匹配
 export const PLATFORMS: PlatformInfo[] = [
   {
     id: "nes",
@@ -131,7 +131,7 @@ export const VIDEO_FILTERS: { id: VideoFilter; name: string }[] = [
   { id: "pixelated", name: "像素完美" },
 ];
 
-// EmulatorJS 路径 (使用本地静态文件)
+// EmulatorJS 路径（构建期打包到 static/emulatorjs，离线可用）
 export const EMULATORJS_CDN = "/emulatorjs/";
 
 // 默认 ROM 目录

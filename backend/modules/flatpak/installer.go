@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -240,6 +241,49 @@ func codename2kasmName(d *distroInfo) (string, string, error) {
 	return "", "", fmt.Errorf("不支持的发行版: %s %s", d.ID, d.VersionID)
 }
 
+// debArch 返回当前架构对应的 Debian 包架构名
+func debArch() string {
+	switch runtime.GOARCH {
+	case "arm64":
+		return "arm64"
+	default:
+		return "amd64"
+	}
+}
+
+// isDebianTrixie 是否为 Debian 13 (trixie)
+func isDebianTrixie(d *distroInfo) bool {
+	if d == nil || d.ID != "debian" {
+		return false
+	}
+	if d.VersionCodename == "trixie" {
+		return true
+	}
+	return strings.HasPrefix(d.VersionID, "13")
+}
+
+// findLocalPackage 查找随安装包内置的 KasmVNC deb（Debian 13 / amd64+arm64）
+func (inst *Installer) findLocalPackage() string {
+	filename := fmt.Sprintf("kasmvncserver_trixie_%s_%s.deb", kasmVNCVersion, debArch())
+	candidates := []string{
+		filepath.Join("/usr/share/rde/thirdparty/kasmvnc", filename),
+		filepath.Join("thirdparty/kasmvnc", filename),
+	}
+	// 开发环境：从仓库根目录查找
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append(candidates,
+			filepath.Join(wd, "thirdparty", "kasmvnc", filename),
+			filepath.Join(wd, "..", "thirdparty", "kasmvnc", filename),
+		)
+	}
+	for _, p := range candidates {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p
+		}
+	}
+	return ""
+}
+
 // GetDownloadURL 获取下载地址（国内自动走 ghproxy 加速）
 func (inst *Installer) GetDownloadURL() (string, string, error) {
 	distro, err := detectDistro()
@@ -264,8 +308,34 @@ func (inst *Installer) GetDownloadURL() (string, string, error) {
 	return directURL, pkgType, nil
 }
 
-// Install 下载并安装 KasmVNC
+// Install 安装 KasmVNC：优先使用内置 deb（Debian 13），否则联网下载
 func (inst *Installer) Install(onProgress func(line string)) error {
+	distro, err := detectDistro()
+	if err != nil {
+		return fmt.Errorf("detect distro: %w", err)
+	}
+
+	// 1) 本地离线包优先（Debian 13 trixie + amd64/arm64）
+	if localPath := inst.findLocalPackage(); localPath != "" {
+		if isDebianTrixie(distro) {
+			onProgress(fmt.Sprintf("使用内置 KasmVNC 安装包: %s", filepath.Base(localPath)))
+			inst.logger.Info("installing KasmVNC from bundled package",
+				zap.String("path", localPath),
+				zap.String("version", kasmVNCVersion),
+			)
+			if err := inst.installDebPackage(localPath, onProgress); err != nil {
+				return err
+			}
+			onProgress(fmt.Sprintf("KasmVNC v%s 安装完成", kasmVNCVersion))
+			inst.logger.Info("KasmVNC installed", zap.String("version", kasmVNCVersion), zap.String("source", "bundled"))
+			return nil
+		}
+		onProgress(fmt.Sprintf("检测到内置包，但当前系统不是 Debian 13 (trixie)，将尝试联网安装（当前: %s %s）", distro.ID, distro.VersionID))
+	} else if isDebianTrixie(distro) {
+		onProgress("未找到内置 KasmVNC 包，尝试联网下载...")
+	}
+
+	// 2) 联网下载回退
 	downloadURL, pkgType, err := inst.GetDownloadURL()
 	if err != nil {
 		return fmt.Errorf("detect distro: %w", err)
@@ -280,7 +350,6 @@ func (inst *Installer) Install(onProgress func(line string)) error {
 	onProgress(fmt.Sprintf("正在下载 KasmVNC v%s ...", kasmVNCVersion))
 	onProgress(fmt.Sprintf("下载地址: %s", downloadURL))
 
-	// 下载
 	resp, err := http.Get(downloadURL)
 	if err != nil {
 		return fmt.Errorf("download KasmVNC: %w", err)
@@ -291,7 +360,6 @@ func (inst *Installer) Install(onProgress func(line string)) error {
 		return fmt.Errorf("download KasmVNC: HTTP %d", resp.StatusCode)
 	}
 
-	// 确定临时文件后缀
 	suffix := ".deb"
 	switch pkgType {
 	case "rpm":
@@ -300,7 +368,6 @@ func (inst *Installer) Install(onProgress func(line string)) error {
 		suffix = ".tgz"
 	}
 
-	// 创建临时文件
 	tmpFile, err := os.CreateTemp("", "kasmvnc-*"+suffix)
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
@@ -308,7 +375,6 @@ func (inst *Installer) Install(onProgress func(line string)) error {
 	tmpPath := tmpFile.Name()
 	defer os.Remove(tmpPath)
 
-	// 写入临时文件
 	written, err := io.Copy(tmpFile, resp.Body)
 	tmpFile.Close()
 	if err != nil {
@@ -316,52 +382,12 @@ func (inst *Installer) Install(onProgress func(line string)) error {
 	}
 	onProgress(fmt.Sprintf("下载完成，大小: %.1f MB", float64(written)/1024/1024))
 
-	// 根据包类型安装
 	onProgress("正在安装...")
 	switch pkgType {
 	case "deb":
-		// 先更新 apt 缓存，避免依赖解析失败
-		onProgress("更新 apt 缓存...")
-		updateCmd := exec.Command("apt-get", "update", "-q")
-		updateCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-		if out, err := updateCmd.CombinedOutput(); err != nil {
-			onProgress(fmt.Sprintf("⚠ apt-get update 失败（继续尝试安装）: %s", strings.TrimSpace(string(out))))
+		if err := inst.installDebPackage(tmpPath, onProgress); err != nil {
+			return err
 		}
-
-		// 先修复可能存在的待配置包（如 pulseaudio conffile 问题）
-		fixPending := exec.Command("dpkg", "--configure", "--force-confold", "-a")
-		fixPending.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-		fixPending.Run() // 忽略错误
-
-		// 使用 apt 安装本地 deb，自动解决依赖
-		// --force-confold: 保留当前配置文件，避免 conffile 提示在非交互模式下卡住
-		onProgress("使用 apt 安装...")
-		dpkgForceOpt := `-o=Dpkg::Options::=--force-confold`
-		if err := inst.runStreamedCmd(onProgress,
-			[]string{"DEBIAN_FRONTEND=noninteractive"},
-			"apt-get", "install", "-y", "--no-install-recommends", dpkgForceOpt, tmpPath,
-		); err != nil {
-			// apt 安装失败，回退到 dpkg + apt-get -f install
-			onProgress(fmt.Sprintf("⚠ apt 安装失败: %v", err))
-			onProgress("回退到 dpkg 安装...")
-			if err2 := inst.runStreamedCmd(onProgress,
-				[]string{"DEBIAN_FRONTEND=noninteractive"},
-				"dpkg", "--force-confold", "-i", tmpPath,
-			); err2 != nil {
-				onProgress(fmt.Sprintf("dpkg 安装报错（尝试修复依赖）: %v", err2))
-			}
-			// 修复依赖
-			onProgress("修复依赖...")
-			if err3 := inst.runStreamedCmd(onProgress,
-				[]string{"DEBIAN_FRONTEND=noninteractive"},
-				"apt-get", "install", "-y", "-f", dpkgForceOpt,
-			); err3 != nil {
-				onProgress(fmt.Sprintf("✗ 依赖修复失败: %v", err3))
-				return fmt.Errorf("install KasmVNC deb failed, see output above")
-			}
-			onProgress("依赖修复完成")
-		}
-
 	case "rpm":
 		cmd := exec.Command("rpm", "-Uvh", "--force", tmpPath)
 		out, err := cmd.CombinedOutput()
@@ -369,22 +395,59 @@ func (inst *Installer) Install(onProgress func(line string)) error {
 			return fmt.Errorf("install KasmVNC rpm: %s", string(out))
 		}
 		onProgress(string(out))
-
 	case "alpine":
-		// Alpine 使用 tgz，解压到 /
 		cmd := exec.Command("tar", "-xzf", tmpPath, "-C", "/")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("install KasmVNC alpine: %s", string(out))
 		}
 		onProgress("解压完成")
-
 	default:
 		return fmt.Errorf("unsupported package type: %s", pkgType)
 	}
 
 	onProgress(fmt.Sprintf("KasmVNC v%s 安装完成", kasmVNCVersion))
-	inst.logger.Info("KasmVNC installed", zap.String("version", kasmVNCVersion))
+	inst.logger.Info("KasmVNC installed", zap.String("version", kasmVNCVersion), zap.String("source", "download"))
+	return nil
+}
+
+// installDebPackage 使用 apt/dpkg 安装本地 deb
+func (inst *Installer) installDebPackage(debPath string, onProgress func(line string)) error {
+	onProgress("更新 apt 缓存...")
+	updateCmd := exec.Command("apt-get", "update", "-q")
+	updateCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	if out, err := updateCmd.CombinedOutput(); err != nil {
+		onProgress(fmt.Sprintf("⚠ apt-get update 失败（继续尝试安装）: %s", strings.TrimSpace(string(out))))
+	}
+
+	fixPending := exec.Command("dpkg", "--configure", "--force-confold", "-a")
+	fixPending.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	fixPending.Run()
+
+	onProgress("使用 apt 安装...")
+	dpkgForceOpt := `-o=Dpkg::Options::=--force-confold`
+	if err := inst.runStreamedCmd(onProgress,
+		[]string{"DEBIAN_FRONTEND=noninteractive"},
+		"apt-get", "install", "-y", "--no-install-recommends", dpkgForceOpt, debPath,
+	); err != nil {
+		onProgress(fmt.Sprintf("⚠ apt 安装失败: %v", err))
+		onProgress("回退到 dpkg 安装...")
+		if err2 := inst.runStreamedCmd(onProgress,
+			[]string{"DEBIAN_FRONTEND=noninteractive"},
+			"dpkg", "--force-confold", "-i", debPath,
+		); err2 != nil {
+			onProgress(fmt.Sprintf("dpkg 安装报错（尝试修复依赖）: %v", err2))
+		}
+		onProgress("修复依赖...")
+		if err3 := inst.runStreamedCmd(onProgress,
+			[]string{"DEBIAN_FRONTEND=noninteractive"},
+			"apt-get", "install", "-y", "-f", dpkgForceOpt,
+		); err3 != nil {
+			onProgress(fmt.Sprintf("✗ 依赖修复失败: %v", err3))
+			return fmt.Errorf("install KasmVNC deb failed, see output above")
+		}
+		onProgress("依赖修复完成")
+	}
 	return nil
 }
 

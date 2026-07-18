@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/ruizi-store/rde/backend/core/i18n"
+	"go.uber.org/zap"
 )
 
 // i18n 设置文件名
@@ -72,6 +74,9 @@ func (s *Service) UpdateI18nSettings(req I18nSettingsRequest) (*I18nSettingsResp
 		i18n.SetRegionOverride(data.Region)
 	}
 
+	// 将 Docker 镜像加速同步写入 daemon.json（中文/CN 区域默认开启）
+	s.applyDockerMirrorFromI18n(data)
+
 	// 发布事件
 	s.publishEvent("system.i18n.changed", map[string]interface{}{
 		"region": data.Region,
@@ -83,6 +88,48 @@ func (s *Service) UpdateI18nSettings(req I18nSettingsRequest) (*I18nSettingsResp
 		Mirrors:        data.Mirrors,
 		LyricSource:    data.LyricSource,
 	}, nil
+}
+
+// applyDockerMirrorFromI18n 根据 i18n 镜像设置配置 Docker registry-mirrors
+func (s *Service) applyDockerMirrorFromI18n(data *I18nSettingsData) {
+	if data == nil {
+		return
+	}
+
+	dockerSetting := ""
+	if data.Mirrors != nil {
+		dockerSetting = data.Mirrors["docker"]
+	}
+
+	var mirrorURL string
+	switch {
+	case strings.HasPrefix(dockerSetting, "http://"), strings.HasPrefix(dockerSetting, "https://"):
+		mirrorURL = dockerSetting
+	default:
+		customURL := ""
+		if data.CustomURLs != nil {
+			customURL = data.CustomURLs["docker"]
+		}
+		setting := dockerSetting
+		if setting == "" {
+			setting = i18n.MirrorFollow
+		}
+		mirrorURL = i18n.GetMirrorURL("docker", setting, data.Region, customURL)
+	}
+
+	if mirrorURL == "" {
+		s.removeDockerMirror()
+		return
+	}
+
+	if err := s.configureDockerMirror(mirrorURL); err != nil {
+		s.logger.Warn("Failed to apply Docker mirror from i18n settings",
+			zap.String("mirror", mirrorURL),
+			zap.Error(err),
+		)
+		return
+	}
+	s.logger.Info("Docker mirror applied from i18n settings", zap.String("mirror", mirrorURL))
 }
 
 // PreviewRegionSwitch 预览区域切换

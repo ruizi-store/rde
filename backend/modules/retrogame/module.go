@@ -1,9 +1,8 @@
 // Package retrogame 复古游戏模块
-// 负责 EmulatorJS 的按需下载安装和 ROM 管理
+// EmulatorJS 随前端静态资源打包；本模块负责状态检查与 ROM 管理
 package retrogame
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -44,11 +43,6 @@ func (m *Module) Init(ctx *module.Context) error {
 	}
 
 	m.service = NewService(ctx.Logger, m.dataDir)
-
-	// 确保 emulatorjs 目录存在（即使尚未安装）
-	emulatorDir := m.service.GetEmulatorDir()
-	os.MkdirAll(emulatorDir, 0755)
-
 	return nil
 }
 
@@ -85,5 +79,8 @@ func (m *Module) GetService() *Service {
 
 // GetEmulatorDir 返回 EmulatorJS 目录路径（供 bootstrap 注册静态文件用）
 func (m *Module) GetEmulatorDir() string {
-	return filepath.Join(m.dataDir, "emulatorjs")
+	if m.service != nil {
+		return m.service.GetEmulatorDir()
+	}
+	return filepath.Join(m.dataDir, "www", "emulatorjs")
 }

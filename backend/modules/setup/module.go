@@ -51,8 +51,8 @@ func (m *Module) Init(ctx *module.Context) error {
 	m.ctx = ctx
 	ctx.Logger.Info("Initializing setup module")
 
-	// 自动迁移数据库表
-	if err := ctx.DB.AutoMigrate(&SetupSettings{}); err != nil {
+	// 自动迁移数据库表（含可选模块开关）
+	if err := ctx.DB.AutoMigrate(&SetupSettings{}, &ModuleSetting{}); err != nil {
 		return err
 	}
 

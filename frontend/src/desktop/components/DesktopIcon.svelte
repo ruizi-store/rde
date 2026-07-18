@@ -140,6 +140,7 @@
   class="desktop-icon"
   class:selected={isSelected}
   class:dragging
+  data-app-id={icon.appId}
   onclick={handleClick}
   ondblclick={handleDoubleClick}
   oncontextmenu={handleContextMenu}

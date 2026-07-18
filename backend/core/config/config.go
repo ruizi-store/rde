@@ -129,15 +129,33 @@ func (c *Config) GetString(key string) string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// 特殊处理已解析的路径字段
+	// 特殊处理已解析的路径字段；运行时 Set("data_dir"/"data_path") 优先于默认路径
 	switch key {
-	case "data_path", "paths.data":
+	case "data_path", "paths.data", "data_dir":
+		if v := c.viper.GetString("data_dir"); v != "" {
+			return v
+		}
+		if v := c.viper.GetString("data_path"); v != "" {
+			return v
+		}
+		if v := c.viper.GetString("paths.data"); v != "" {
+			return v
+		}
 		return c.DataPath
 	case "db_path", "paths.db":
+		if v := c.viper.GetString("db_path"); v != "" {
+			return v
+		}
 		return c.DBPath
 	case "log_path", "paths.log":
+		if v := c.viper.GetString("log_path"); v != "" {
+			return v
+		}
 		return c.LogPath
 	case "cache_path", "paths.cache":
+		if v := c.viper.GetString("cache_path"); v != "" {
+			return v
+		}
 		return c.CachePath
 	}
 
@@ -184,6 +202,20 @@ func (c *Config) Set(key string, value interface{}) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.viper.Set(key, value)
+
+	// 同步常用路径字段，避免 GetString("data_path") 仍返回 initPaths 默认值
+	if s, ok := value.(string); ok && s != "" {
+		switch key {
+		case "data_dir", "data_path", "paths.data":
+			c.DataPath = s
+		case "db_path", "paths.db":
+			c.DBPath = s
+		case "log_path", "paths.log":
+			c.LogPath = s
+		case "cache_path", "paths.cache":
+			c.CachePath = s
+		}
+	}
 }
 
 // IsSet 检查配置是否已设置

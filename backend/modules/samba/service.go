@@ -4,7 +4,9 @@ package samba
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -112,6 +114,10 @@ func (s *Service) ReloadService(ctx context.Context) error {
 func (s *Service) ListShares(ctx context.Context) ([]SambaShare, error) {
 	config, err := s.configParser.Parse()
 	if err != nil {
+		// 未安装或尚无配置文件时返回空列表，避免应用打开即 500
+		if errors.Is(err, os.ErrNotExist) || isSambaConfigMissing(err) {
+			return []SambaShare{}, nil
+		}
 		return nil, err
 	}
 	return config.Shares, nil
@@ -236,9 +242,28 @@ func (s *Service) DeleteShare(ctx context.Context, name string) error {
 func (s *Service) GetGlobalConfig(ctx context.Context) (*SambaGlobalConfig, error) {
 	config, err := s.configParser.Parse()
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) || isSambaConfigMissing(err) {
+			return &SambaGlobalConfig{
+				Workgroup:    "WORKGROUP",
+				ServerString: "RDE Samba Server",
+				Security:     "user",
+			}, nil
+		}
 		return nil, err
 	}
 	return &config.Global, nil
+}
+
+// isSambaConfigMissing 判断是否为 smb.conf 不存在（含被包装的 open 错误）
+func isSambaConfigMissing(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "no such file or directory") || strings.Contains(msg, "failed to open smb.conf")
 }
 
 // UpdateGlobalConfig 更新全局配置

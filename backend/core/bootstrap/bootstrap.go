@@ -143,6 +143,7 @@ func New(opts *Options) (*App, error) {
 	// 2. 初始化配置
 	cfg := config.New()
 	cfg.Set("data_dir", opts.DataDir)
+	cfg.Set("data_path", opts.DataDir) // system/terminal 等模块读 data_path
 	cfg.Set("db_path", opts.DBPath)
 	cfg.Set("log_path", opts.LogPath)
 	cfg.Set("debug", opts.Debug)

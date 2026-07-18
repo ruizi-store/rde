@@ -53,7 +53,11 @@ func (m *Module) Init(ctx *module.Context) error {
 	m.handler = NewHandler(m.service, m.logger)
 
 	// 设置数据目录（用于读取终端启用配置）
-	if dataPath := ctx.Config.GetString("data_path"); dataPath != "" {
+	dataPath := ctx.Config.GetString("data_path")
+	if dataPath == "" {
+		dataPath = ctx.Config.GetString("data_dir")
+	}
+	if dataPath != "" {
 		m.handler.SetDataPath(dataPath)
 	}
 

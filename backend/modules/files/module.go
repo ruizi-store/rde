@@ -74,6 +74,9 @@ func (m *Module) Init(ctx *module.Context) error {
 
 	// 创建处理器
 	m.handler = NewHandler(m.service, m.thumbnails, ctx.DB)
+	if dataDir := ctx.Config.GetString("data_dir"); dataDir != "" {
+		m.handler.SetDataDir(dataDir)
+	}
 
 	ctx.Logger.Info("files module initialized",
 		zap.Strings("root_paths", rootPaths),

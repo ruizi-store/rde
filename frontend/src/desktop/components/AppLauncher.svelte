@@ -99,9 +99,7 @@
   // 处理键盘事件
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") {
-      if (showModuleDisabledModal) {
-        closeModuleDisabledModal();
-      } else if (showConfirmModal) {
+      if (showConfirmModal) {
         showConfirmModal = false;
         confirmAction = null;
       } else if (showAllApps) {

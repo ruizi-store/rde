@@ -64,14 +64,19 @@ func (h *Handler) Setup(c *gin.Context) {
 	})
 }
 
-// Uninstall 卸载 EmulatorJS
+// Uninstall 卸载 EmulatorJS（仅清理运行时下载目录；构建期内置资源不可卸载）
 func (h *Handler) Uninstall(c *gin.Context) {
-	if !h.service.IsInstalled() {
+	if dirReady(h.service.bundledDir) {
+		c.JSON(http.StatusOK, gin.H{"message": "EmulatorJS 已随安装包内置，无需卸载"})
+		return
+	}
+
+	if !dirReady(h.service.emulatorDir) {
 		c.JSON(http.StatusOK, gin.H{"message": "EmulatorJS 未安装"})
 		return
 	}
 
-	emulatorDir := h.service.GetEmulatorDir()
+	emulatorDir := h.service.emulatorDir
 	h.logger.Info("Uninstalling EmulatorJS", zap.String("dir", emulatorDir))
 
 	if err := removeAll(emulatorDir); err != nil {

@@ -48,10 +48,18 @@
 
   onMount(async () => {
     try {
+      // 以本地语言偏好为准（step1 已写入），确保中文默认开启加速
+      const savedLang = localStorage.getItem("rde_language");
+      if (savedLang === "zh-CN" || savedLang === "en-US") {
+        language = savedLang;
+      } else {
+        language = $currentLanguage;
+      }
+
       const optionsData = await getI18nOptions();
       options = optionsData;
 
-      // 如果是中文用户，默认开启镜像加速并选择默认中国镜像
+      // 中文用户默认开启镜像加速（含 Docker registry-mirrors）
       if (language === "zh-CN" && optionsData.services) {
         mirrorEnabled = true;
         const defaultMirrors: Record<string, string> = {};

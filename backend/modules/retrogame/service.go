@@ -37,32 +37,40 @@ var httpSources = []string{
 // Service 复古游戏服务
 type Service struct {
 	logger      *zap.Logger
-	emulatorDir string
+	bundledDir  string // 构建期打包目录（www/emulatorjs），离线优先
+	emulatorDir string // 运行时数据目录（兼容旧版按需下载）
 	mu          sync.Mutex
 	installing  bool
 }
 
 // NewService 创建服务
 func NewService(logger *zap.Logger, dataDir string) *Service {
-	emulatorDir := filepath.Join(dataDir, "emulatorjs")
+	wwwDir := filepath.Join(dataDir, "www")
 	return &Service{
 		logger:      logger,
-		emulatorDir: emulatorDir,
+		bundledDir:  filepath.Join(wwwDir, "emulatorjs"),
+		emulatorDir: filepath.Join(dataDir, "emulatorjs"),
 	}
 }
 
-// GetEmulatorDir 返回 EmulatorJS 安装目录
+// dirReady 检查目录是否包含可用的 EmulatorJS
+func dirReady(dir string) bool {
+	_, err1 := os.Stat(filepath.Join(dir, "version.json"))
+	_, err2 := os.Stat(filepath.Join(dir, "emulator.min.js"))
+	return err1 == nil && err2 == nil
+}
+
+// GetEmulatorDir 返回当前应使用的 EmulatorJS 目录（打包目录优先）
 func (s *Service) GetEmulatorDir() string {
+	if dirReady(s.bundledDir) {
+		return s.bundledDir
+	}
 	return s.emulatorDir
 }
 
-// IsInstalled 检查 EmulatorJS 是否已安装（同时检查 version.json 和 emulator.min.js）
+// IsInstalled 检查 EmulatorJS 是否可用（打包静态资源或运行时目录）
 func (s *Service) IsInstalled() bool {
-	versionFile := filepath.Join(s.emulatorDir, "version.json")
-	minJS := filepath.Join(s.emulatorDir, "emulator.min.js")
-	_, err1 := os.Stat(versionFile)
-	_, err2 := os.Stat(minJS)
-	return err1 == nil && err2 == nil
+	return dirReady(s.bundledDir) || dirReady(s.emulatorDir)
 }
 
 // GetStatus 获取安装状态
@@ -70,11 +78,11 @@ func (s *Service) GetStatus() *SetupStatus {
 	return &SetupStatus{
 		Installed:   s.IsInstalled(),
 		Version:     EmulatorJSVersion,
-		EmulatorDir: s.emulatorDir,
+		EmulatorDir: s.GetEmulatorDir(),
 	}
 }
 
-// Setup 下载并安装 EmulatorJS，通过 channel 报告进度
+// Setup 确保 EmulatorJS 可用。优先使用构建期打包资源；仅在缺失时回退联网安装。
 func (s *Service) Setup(progressChan chan<- ProgressEvent) {
 	defer close(progressChan)
 
@@ -95,6 +103,15 @@ func (s *Service) Setup(progressChan chan<- ProgressEvent) {
 		s.installing = false
 		s.mu.Unlock()
 	}()
+
+	if dirReady(s.bundledDir) {
+		progressChan <- ProgressEvent{
+			Status:   "completed",
+			Message:  "EmulatorJS 已随安装包内置，可直接使用",
+			Progress: 100,
+		}
+		return
+	}
 
 	if s.IsInstalled() {
 		progressChan <- ProgressEvent{

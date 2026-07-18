@@ -1,35 +1,41 @@
 /**
  * Iconify 离线图标配置
- * 预加载项目中使用的所有图标，支持离线环境
+ * 构建期打包全量 mdi + simple-icons，运行时从同源 chunk 加载，不依赖外网 CDN
  */
 
 import { addCollection } from "@iconify/svelte";
 
 // 标记是否已初始化
 let initialized = false;
+let initPromise: Promise<void> | null = null;
 
 /**
- * 初始化离线图标（异步按需加载）
+ * 初始化离线图标（全量 Iconify 集合）
  * 在应用启动时调用此函数
  */
 export async function initOfflineIcons(): Promise<void> {
-  // 避免重复初始化
   if (initialized) return;
-  initialized = true;
+  if (initPromise) return initPromise;
 
-  // 动态导入图标集
-  const [mdiIcons, simpleIcons] = await Promise.all([
-    import("@iconify-json/mdi/icons.json"),
-    import("@iconify-json/simple-icons/icons.json"),
-  ]);
+  initPromise = (async () => {
+    const [mdiIcons, simpleIcons] = await Promise.all([
+      import("@iconify-json/mdi/icons.json"),
+      import("@iconify-json/simple-icons/icons.json"),
+    ]);
 
-  // 注册 MDI 图标集
-  addCollection(mdiIcons.default as any);
+    addCollection(mdiIcons.default as any);
+    addCollection(simpleIcons.default as any);
+    initialized = true;
+    console.log("[Icons] Full offline icon collections loaded");
+  })();
 
-  // 注册 Simple Icons 图标集
-  addCollection(simpleIcons.default as any);
-
-  console.log("[Icons] Offline icon collections loaded");
+  try {
+    await initPromise;
+  } catch (err) {
+    initPromise = null;
+    console.error("[Icons] Failed to load offline icon collections:", err);
+    throw err;
+  }
 }
 
 // 导出常用图标名称常量，便于代码补全和类型检查

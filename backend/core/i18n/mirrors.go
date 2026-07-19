@@ -248,7 +248,8 @@ func getDefaultMirrorsConfig() *MirrorsConfig {
 				},
 				NPM:     MirrorEntry{Name: "npmmirror", URL: "https://registry.npmmirror.com"},
 				PIP:     PIPMirror{URL: "https://pypi.tuna.tsinghua.edu.cn/simple", TrustedHost: "pypi.tuna.tsinghua.edu.cn"},
-				Flatpak: MirrorEntry{Name: "上海交大", URL: "https://mirror.sjtu.edu.cn/flathub"},
+				// 交大 flathub 镜像已对 summary.idx 做 301 跳官方源，flatpak/ostree 会报 SSL [60]
+				Flatpak: MirrorEntry{Name: "中科大", URL: "https://mirrors.ustc.edu.cn/flathub"},
 				Go:      MirrorEntry{Name: "goproxy.cn", URL: "https://goproxy.cn"},
 				Cargo:   MirrorEntry{Name: "中科大", URL: "https://mirrors.ustc.edu.cn/crates.io-index"},
 				GitHub:  MirrorEntry{Name: "ghproxy", URL: "https://ghproxy.com"},

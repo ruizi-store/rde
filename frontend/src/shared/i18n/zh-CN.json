@@ -202,7 +202,11 @@
       "uninstalled": "已卸载",
       "uninstallFailed": "卸载失败",
       "alreadyOnDesktop": "已在桌面上",
-      "addedToDesktop": "已添加到桌面"
+      "addedToDesktop": "已添加到桌面",
+      "open": "打开",
+      "ports": "端口",
+      "openPort": "在新窗口打开 :{port}",
+      "noPort": "未检测到可访问端口"
     }
   }
 }

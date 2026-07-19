@@ -1625,7 +1625,11 @@
       "addToDesktop": "Add to desktop",
       "addedToDesktop": "Added to desktop",
       "alreadyOnDesktop": "Already on desktop",
-      "inProgress": "{action}ing..."
+      "inProgress": "{action}ing...",
+      "open": "Open",
+      "ports": "Ports",
+      "openPort": "Open :{port} in a new tab",
+      "noPort": "No accessible port detected"
     },
     "install": {
       "install": "Install",

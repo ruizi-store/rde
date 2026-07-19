@@ -87,6 +87,10 @@ export interface InstalledApp {
   config: Record<string, unknown>;
   compose_path: string;
   installed_at: string;
+  /** 主机端口列表 */
+  ports?: string[];
+  /** 首选 Web 访问端口 */
+  web_port?: string;
 }
 
 /** 安装任务（异步） */

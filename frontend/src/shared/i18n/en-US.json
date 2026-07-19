@@ -202,7 +202,11 @@
       "uninstalled": "uninstalled",
       "uninstallFailed": "Uninstall failed",
       "alreadyOnDesktop": "Already on desktop",
-      "addedToDesktop": "Added to desktop"
+      "addedToDesktop": "Added to desktop",
+      "open": "Open",
+      "ports": "Ports",
+      "openPort": "Open :{port} in a new tab",
+      "noPort": "No accessible port detected"
     }
   }
 }

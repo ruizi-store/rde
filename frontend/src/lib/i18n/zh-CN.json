@@ -1624,7 +1624,11 @@
       "addToDesktop": "添加到桌面",
       "addedToDesktop": "已添加到桌面",
       "alreadyOnDesktop": "已在桌面上",
-      "inProgress": "{action}中..."
+      "inProgress": "{action}中...",
+      "open": "打开",
+      "ports": "端口",
+      "openPort": "在新窗口打开 :{port}",
+      "noPort": "未检测到可访问端口"
     },
     "install": {
       "install": "安装",

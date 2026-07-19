@@ -9,7 +9,6 @@
     type InstalledApp,
   } from "./store-service";
   import { refreshExternalApps } from "$apps";
-  import { desktop } from "$desktop/stores/desktop.svelte";
 
   // ==================== Props ====================
   interface Props {
@@ -120,9 +119,9 @@
 
   function statusColor(status: string): string {
     switch (status) {
-      case "running": return "var(--color-success, #27ae60)";
-      case "stopped": return "var(--color-error, #e74c3c)";
-      default: return "var(--text-muted, #999)";
+      case "running": return "#27ae60";
+      case "stopped": return "#e74c3c";
+      default: return "#999";
     }
   }
 
@@ -131,26 +130,39 @@
     return m[status] || status;
   }
 
-  // 添加应用到桌面
-  function addToDesktop(app: InstalledApp) {
-    const appId = `docker:${app.name}`;
-    if (desktop.hasIcon(appId)) {
-      showToast($t("docker.myApps.alreadyOnDesktop"), "info");
-      return;
+  /** 解析展示用端口列表（兼容旧后端只返回 config） */
+  function appPorts(app: InstalledApp): string[] {
+    if (app.ports?.length) return app.ports;
+    if (app.web_port) return [app.web_port];
+    const cfg = app.config || {};
+    const ports: string[] = [];
+    const preferred = cfg["PANEL_APP_PORT_HTTP"];
+    if (preferred != null && String(preferred).match(/^\d+$/)) {
+      ports.push(String(preferred));
     }
-    desktop.addIcon({
-      name: app.name,
-      icon: app.icon ? dockerStoreService.getIconUrl(app.icon) : "mdi:docker",
-      appId,
-      x: 0,
-      y: 0,
-    });
-    showToast($t("docker.myApps.addedToDesktop"), "success");
+    for (const [k, v] of Object.entries(cfg)) {
+      if (!/PORT/i.test(k) || v == null) continue;
+      const p = String(v);
+      if (!/^\d{1,5}$/.test(p) || ports.includes(p)) continue;
+      ports.push(p);
+    }
+    return ports;
   }
 
-  // 检查应用是否在桌面上
-  function isOnDesktop(app: InstalledApp): boolean {
-    return desktop.hasIcon(`docker:${app.name}`);
+  function webPort(app: InstalledApp): string {
+    if (app.web_port) return app.web_port;
+    const ports = appPorts(app);
+    return ports[0] || "";
+  }
+
+  function openApp(app: InstalledApp) {
+    const port = webPort(app);
+    if (!port) {
+      showToast($t("docker.myApps.noPort"), "info");
+      return;
+    }
+    const url = `${location.protocol}//${location.hostname}:${port}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   function formatDate(dateStr: string): string {
@@ -218,6 +230,29 @@
             </div>
           </div>
 
+          {#if appPorts(app).length}
+            <div class="app-meta">
+              <span class="meta-label">{$t("docker.myApps.ports")}</span>
+              <span class="meta-ports">
+                {#each appPorts(app) as port (port)}
+                  <button
+                    type="button"
+                    class="port-chip"
+                    class:primary={port === webPort(app)}
+                    disabled={app.status !== "running"}
+                    onclick={() => {
+                      const url = `${location.protocol}//${location.hostname}:${port}`;
+                      window.open(url, "_blank", "noopener,noreferrer");
+                    }}
+                    title={$t("docker.myApps.openPort", { values: { port } })}
+                  >
+                    :{port}
+                  </button>
+                {/each}
+              </span>
+            </div>
+          {/if}
+
           <div class="app-actions">
             {#if isActioning(app.name)}
               <span class="action-loading">
@@ -225,6 +260,11 @@
                 <span>{$t("docker.myApps.inProgress", { values: { action: actionLabel(actionLoading[app.name]) } })}</span>
               </span>
             {:else}
+              {#if app.status === "running" && webPort(app)}
+                <Button variant="primary" size="sm" onclick={() => openApp(app)}>
+                  {$t("docker.myApps.open")}
+                </Button>
+              {/if}
               {#if app.status === "running"}
                 <Button variant="ghost" size="sm" onclick={() => stopApp(app.name)}>
                   {$t("docker.myApps.stop")}
@@ -240,11 +280,6 @@
               <Button variant="ghost" size="sm" onclick={() => viewLogs(app)}>
                 {$t("docker.myApps.logs")}
               </Button>
-              {#if !isOnDesktop(app)}
-                <Button variant="ghost" size="sm" onclick={() => addToDesktop(app)} title={$t("docker.myApps.addToDesktop")}>
-                  <Icon icon="mdi:desktop-mac" width="14" />
-                </Button>
-              {/if}
               <Button variant="ghost" size="sm" onclick={() => confirmUninstall(app)}>
                 <Icon icon="mdi:delete-outline" width="14" />
               </Button>
@@ -358,6 +393,50 @@
     font-size: 12px;
     color: var(--text-muted, #999);
     margin-top: 2px;
+  }
+
+  .app-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .meta-label {
+    font-size: 12px;
+    color: var(--text-muted, #999);
+  }
+
+  .meta-ports {
+    display: inline-flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .port-chip {
+    appearance: none;
+    border: 1px solid var(--border-color, #e0e0e0);
+    background: var(--bg-secondary, #f5f5f5);
+    color: var(--text-primary, #333);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    cursor: pointer;
+    line-height: 1.6;
+  }
+  .port-chip.primary {
+    border-color: #3b82f6;
+    color: #2563eb;
+    background: rgba(59, 130, 246, 0.08);
+  }
+  .port-chip:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .port-chip:not(:disabled):hover {
+    border-color: #3b82f6;
   }
 
   .app-status {

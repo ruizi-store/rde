@@ -79,6 +79,10 @@ type InstalledApp struct {
 	Config      map[string]interface{} `json:"config"`
 	ComposePath string                 `json:"compose_path"`
 	InstalledAt time.Time              `json:"installed_at"`
+	// Ports 主机端口列表（用于前端展示访问地址）；优先取安装配置中的 PANEL_APP_PORT*
+	Ports []string `json:"ports,omitempty"`
+	// WebPort 首选 HTTP 访问端口（PANEL_APP_PORT_HTTP / 第一个端口）
+	WebPort string `json:"web_port,omitempty"`
 }
 
 // InstallTask 安装任务（异步）
@@ -239,7 +243,7 @@ func (is *InstalledService) resolveStatus(app *InstalledApp) string {
 
 // ==================== 查询 ====================
 
-// GetAll 获取所有已安装应用（含实时状态）
+// GetAll 获取所有已安装应用（含实时状态与端口）
 func (is *InstalledService) GetAll() []*InstalledApp {
 	is.mu.RLock()
 	appsCopy := make([]*InstalledApp, 0, len(is.apps))
@@ -249,9 +253,10 @@ func (is *InstalledService) GetAll() []*InstalledApp {
 	}
 	is.mu.RUnlock()
 
-	// 在锁外查询状态
+	// 在锁外查询状态与端口
 	for _, app := range appsCopy {
 		app.Status = is.resolveStatus(app)
+		is.enrichPorts(app)
 	}
 	return appsCopy
 }
@@ -268,7 +273,90 @@ func (is *InstalledService) Get(name string) *InstalledApp {
 	is.mu.RUnlock()
 
 	cp.Status = is.resolveStatus(&cp)
+	is.enrichPorts(&cp)
 	return &cp
+}
+
+// enrichPorts 填充 Ports / WebPort，供「已安装」页展示访问地址
+func (is *InstalledService) enrichPorts(app *InstalledApp) {
+	ports := portsFromConfig(app.Config)
+	if len(ports) == 0 && app.ComposePath != "" {
+		if data, err := os.ReadFile(app.ComposePath); err == nil {
+			ports = extractHostPorts(string(data))
+		}
+	}
+	app.Ports = ports
+	app.WebPort = preferredWebPort(app.Config, ports)
+}
+
+// portsFromConfig 从安装配置提取主机端口（PANEL_APP_PORT_* 等）
+func portsFromConfig(cfg map[string]interface{}) []string {
+	if cfg == nil {
+		return nil
+	}
+	type kv struct {
+		key  string
+		port string
+	}
+	var found []kv
+	portNum := regexp.MustCompile(`^\d{1,5}$`)
+	for k, v := range cfg {
+		uk := strings.ToUpper(k)
+		if !strings.Contains(uk, "PORT") {
+			continue
+		}
+		p := strings.TrimSpace(fmt.Sprintf("%v", v))
+		if p == "" || p == "0" || p == "<nil>" || !portNum.MatchString(p) {
+			continue
+		}
+		found = append(found, kv{key: uk, port: p})
+	}
+	score := func(k string) int {
+		switch {
+		case strings.Contains(k, "HTTP") && !strings.Contains(k, "HTTPS"):
+			return 0
+		case strings.Contains(k, "HTTPS"):
+			return 1
+		default:
+			return 2
+		}
+	}
+	for i := 0; i < len(found); i++ {
+		for j := i + 1; j < len(found); j++ {
+			si, sj := score(found[i].key), score(found[j].key)
+			if sj < si || (sj == si && found[j].key < found[i].key) {
+				found[i], found[j] = found[j], found[i]
+			}
+		}
+	}
+	seen := make(map[string]bool)
+	var ports []string
+	for _, item := range found {
+		if seen[item.port] {
+			continue
+		}
+		seen[item.port] = true
+		ports = append(ports, item.port)
+	}
+	return ports
+}
+
+func preferredWebPort(cfg map[string]interface{}, ports []string) string {
+	portNum := regexp.MustCompile(`^\d{1,5}$`)
+	if cfg != nil {
+		for _, key := range []string{"PANEL_APP_PORT_HTTP", "WEB_PORT", "HTTP_PORT", "PORT"} {
+			if v, ok := cfg[key]; ok {
+				p := strings.TrimSpace(fmt.Sprintf("%v", v))
+				if portNum.MatchString(p) {
+					return p
+				}
+			}
+		}
+	}
+	if len(ports) > 0 {
+		return ports[0]
+	}
+	return ""
 }
 
 // ==================== Compose 变量校验 ====================

@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 // 终端 WebSocket 服务
 import { api } from "./api";
 
@@ -67,7 +68,7 @@ class TerminalService {
   getWebSocketUrl(sessionId: string): string {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
-    const token = localStorage.getItem("auth_token") || "";
+    const token = getAuthItem("auth_token") || "";
     return `${protocol}//${host}/api/v1/terminal/${sessionId}/ws?token=${token}`;
   }
 

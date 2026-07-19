@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 /**
  * AI Service - AI 助手
  *
@@ -357,7 +358,7 @@ class AIService {
     req: ChatRequest,
     signal?: AbortSignal,
   ): AsyncGenerator<StreamChunk, void, unknown> {
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const token = typeof window !== "undefined" ? getAuthItem("auth_token") : null;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
@@ -441,7 +442,7 @@ class AIService {
   }
 
   async *downloadModel(model: string, signal?: AbortSignal): AsyncGenerator<DownloadProgress> {
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const token = typeof window !== "undefined" ? getAuthItem("auth_token") : null;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
@@ -603,7 +604,7 @@ class AIService {
   async transcribeAudio(file: File): Promise<{ text: string; filename: string }> {
     const formData = new FormData();
     formData.append("audio", file);
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const token = typeof window !== "undefined" ? getAuthItem("auth_token") : null;
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch("/api/v1/ai/voice/transcribe", { method: "POST", headers, body: formData });
@@ -612,7 +613,7 @@ class AIService {
   }
 
   async textToSpeech(text: string): Promise<Blob> {
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const token = typeof window !== "undefined" ? getAuthItem("auth_token") : null;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch("/api/v1/ai/voice/tts", { method: "POST", headers, body: JSON.stringify({ text }) });

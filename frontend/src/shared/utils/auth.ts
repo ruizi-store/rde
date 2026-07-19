@@ -1,6 +1,8 @@
 // JWT token 工具函数
 // 纯客户端解码，不发网络请求
 
+import { getAuthItem, removeAuthItem } from "./auth-storage";
+
 const TOKEN_KEY = "auth_token";
 
 interface JwtPayload {
@@ -18,7 +20,6 @@ function decodeJwtPayload(token: string): JwtPayload | null {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
 
-    // base64url → base64 → 解码
     const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const json = atob(base64);
     return JSON.parse(json);
@@ -33,24 +34,21 @@ function decodeJwtPayload(token: string): JwtPayload | null {
  */
 export function isTokenExpired(token: string, bufferSeconds = 30): boolean {
   const payload = decodeJwtPayload(token);
-  if (!payload?.exp) return true; // 无 exp 视为过期
+  if (!payload?.exp) return true;
 
   const now = Math.floor(Date.now() / 1000);
   return payload.exp - bufferSeconds <= now;
 }
 
 /**
- * 从 localStorage 获取 token 并检查有效性
- * 返回有效 token 或 null（过期/不存在时自动清除）
+ * 从 localStorage 获取 token
  */
 export function getValidToken(): string | null {
   if (typeof window === "undefined") return null;
 
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = getAuthItem(TOKEN_KEY);
   if (!token) return null;
 
-  // 过期时仍返回 token（供 WS/媒体 URL 使用），由后端 401 + refresh 续期；
-  // 不再此处直接清除，避免打断仍有 refresh_token 的会话
   return token;
 }
 
@@ -59,4 +57,11 @@ export function getValidToken(): string | null {
  */
 export function hasValidToken(): boolean {
   return getValidToken() !== null;
+}
+
+/** 清除本地认证（供页面在校验失败时调用） */
+export function clearLocalAuth(): void {
+  removeAuthItem("auth_token");
+  removeAuthItem("refresh_token");
+  removeAuthItem("rde_device_token");
 }

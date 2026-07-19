@@ -75,7 +75,7 @@ function createI18nStore() {
       const currentState = get({ subscribe });
       if (currentState.language === lang) return;
 
-      // 保存到 localStorage
+      // 保存到 localStorage（实例对账失败/换机时会整站清空）
       if (browser) {
         localStorage.setItem("rde_language", lang);
       }

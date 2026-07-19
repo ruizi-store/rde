@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 // 相册服务
 // 处理照片、相册、图库等操作
 
@@ -194,7 +195,7 @@ class PhotoService {
   }
 
   private mediaURL(path: string): string {
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const token = typeof window !== "undefined" ? getAuthItem("auth_token") : null;
     if (!token) return path;
     const sep = path.includes("?") ? "&" : "?";
     return `${path}${sep}token=${encodeURIComponent(token)}`;

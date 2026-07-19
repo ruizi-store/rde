@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { getAuthItem } from "$shared/utils/auth-storage";
   import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
   import { fileService, type FileInfo } from "$shared/services/files";
@@ -214,7 +215,7 @@
     const savedPosition = videoSettings.getPosition(file.path);
     
     // 获取认证 token
-    const token = localStorage.getItem("auth_token") || "";
+    const token = getAuthItem("auth_token") || "";
     
     // 等待 DOM 更新后设置视频源
     setTimeout(() => {
@@ -279,7 +280,7 @@
     } catch (e) {
       console.error("Failed to load HLS.js:", e);
       // 尝试直接播放
-      const fallbackToken = localStorage.getItem("auth_token") || "";
+      const fallbackToken = getAuthItem("auth_token") || "";
       videoElement.src = `/api/v1/video/stream?path=${encodeURIComponent(currentVideo!.path)}&token=${fallbackToken}`;
       videoElement.currentTime = startPosition;
       videoElement.play().catch(() => {
@@ -521,7 +522,7 @@
   // 加载字幕列表
   async function loadSubtitles() {
     if (!currentVideo) return;
-    const token = localStorage.getItem("auth_token") || "";
+    const token = getAuthItem("auth_token") || "";
     try {
       const res = await fetch(`/api/v1/video/subtitles?path=${encodeURIComponent(currentVideo.path)}&token=${token}`);
       if (res.ok) {
@@ -546,7 +547,7 @@
     
     if (!sub) return;
     
-    const token = localStorage.getItem("auth_token") || "";
+    const token = getAuthItem("auth_token") || "";
     const track = document.createElement("track");
     track.kind = "subtitles";
     track.label = sub.label;
@@ -566,7 +567,7 @@
   // 加载视频信息
   async function loadVideoInfo() {
     if (!currentVideo) return;
-    const token = localStorage.getItem("auth_token") || "";
+    const token = getAuthItem("auth_token") || "";
     try {
       const res = await fetch(`/api/v1/video/info?path=${encodeURIComponent(currentVideo.path)}&token=${token}`);
       if (res.ok) {
@@ -675,7 +676,7 @@
 
   // 获取最近播放缩略图URL
   function getHistoryThumbnail(path: string): string {
-    const token = localStorage.getItem("auth_token") || "";
+    const token = getAuthItem("auth_token") || "";
     return fileService.getThumbnailUrl(path, 128);
   }
 

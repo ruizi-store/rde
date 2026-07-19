@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 /**
  * Scrcpy Service - 业务层封装
  *
@@ -135,7 +136,7 @@ class ScrcpyService {
     if (typeof window === "undefined") return "ws://localhost/ws/screen";
 
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const token = localStorage.getItem("auth_token");
+    const token = getAuthItem("auth_token");
     const qs = token ? `?token=${encodeURIComponent(token)}` : "";
     return `${protocol}//${location.host}/api/v1/android/ws/screen${qs}`;
   }

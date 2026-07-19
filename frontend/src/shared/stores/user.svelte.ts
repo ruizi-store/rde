@@ -1,6 +1,8 @@
 // User Store - Svelte 5 Runes
 // 用户状态管理
 
+import { getAuthItem, removeAuthItem, setAuthItem } from "$shared/utils/auth-storage";
+
 export interface User {
   id: string;
   username: string;
@@ -31,20 +33,20 @@ class UserStore {
   login(user: User, token: string): void {
     this.user = user;
     this.token = token;
-    localStorage.setItem("auth_token", token);
+    setAuthItem("auth_token", token);
   }
 
   // 登出
   logout(): void {
     this.user = null;
     this.token = null;
-    localStorage.removeItem("auth_token");
+    removeAuthItem("auth_token");
   }
 
   // 从 localStorage 恢复 Token
   restoreToken(): string | null {
     if (typeof window === "undefined") return null;
-    const token = localStorage.getItem("auth_token");
+    const token = getAuthItem("auth_token");
     if (token) {
       this.token = token;
     }

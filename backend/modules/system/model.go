@@ -17,6 +17,13 @@ type SystemInfo struct {
 	Procs        uint64 `json:"procs"`        // 进程数
 }
 
+// InstanceInfo 安装实例标识（同 IP 换机/重装时变化，供前端清本地缓存）
+type InstanceInfo struct {
+	InstanceID string `json:"instance_id"`
+	BootID     string `json:"boot_id,omitempty"`
+	Version    string `json:"version,omitempty"`
+}
+
 // CPUInfo CPU 信息
 type CPUInfo struct {
 	ModelName   string  `json:"model_name"`

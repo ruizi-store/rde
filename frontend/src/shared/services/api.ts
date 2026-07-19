@@ -1,6 +1,8 @@
 // API 客户端基础封装
 // 统一处理请求、响应、错误、Token
 
+import { clearAuthItems, getAuthItem, removeAuthItem, setAuthItem } from "$shared/utils/auth-storage";
+
 export interface ApiResponse<T = unknown> {
   success: boolean;
   message: string;
@@ -27,9 +29,8 @@ export class ApiClient {
 
   constructor(baseUrl: string = "/api/v1") {
     this.baseUrl = baseUrl;
-    // 从 localStorage 恢复 token
     if (typeof window !== "undefined") {
-      this.token = localStorage.getItem("auth_token");
+      this.token = getAuthItem("auth_token");
     }
   }
 
@@ -38,9 +39,9 @@ export class ApiClient {
     this.token = token;
     if (typeof window !== "undefined") {
       if (token) {
-        localStorage.setItem("auth_token", token);
+        setAuthItem("auth_token", token);
       } else {
-        localStorage.removeItem("auth_token");
+        removeAuthItem("auth_token");
       }
     }
   }
@@ -58,6 +59,7 @@ export class ApiClient {
   // 清除认证并触发登出
   clearAuthAndRedirect(): void {
     this.setToken(null);
+    clearAuthItems();
     if (onUnauthorized) {
       onUnauthorized();
     }
@@ -72,7 +74,7 @@ export class ApiClient {
     }
 
     // 每次请求读取最新 token；过期由 401 + refresh 处理，避免误踢长会话
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : this.token;
+    const token = typeof window !== "undefined" ? getAuthItem("auth_token") : this.token;
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -123,19 +125,20 @@ export class ApiClient {
     if (this._refreshing) return this._refreshing;
     this._refreshing = (async () => {
       try {
-        const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
+        const refreshToken = typeof window !== "undefined" ? getAuthItem("refresh_token") : null;
         if (!refreshToken) return false;
         const res = await fetch(`${this.baseUrl}/auth/refresh`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh_token: refreshToken }),
+          cache: "no-store",
         });
         if (!res.ok) return false;
         const json = await res.json();
         if (json.data?.access_token) {
           this.setToken(json.data.access_token);
           if (json.data.refresh_token) {
-            localStorage.setItem("refresh_token", json.data.refresh_token);
+            setAuthItem("refresh_token", json.data.refresh_token);
           }
           return true;
         }

@@ -15,8 +15,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ruizi-store/rde/backend/common"
 	"github.com/ruizi-store/rde/backend/core/module"
 	"github.com/ruizi-store/rde/backend/model"
+	"github.com/ruizi-store/rde/backend/pkg/instance"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
@@ -55,6 +57,15 @@ func (s *Service) SetEventBus(eventBus module.EventBus) {
 func (s *Service) publishEvent(eventType string, data interface{}) {
 	if s.eventBus != nil {
 		s.eventBus.Publish(eventType, data)
+	}
+}
+
+// GetInstanceInfo 返回安装实例标识
+func (s *Service) GetInstanceInfo() *InstanceInfo {
+	return &InstanceInfo{
+		InstanceID: instance.ID(),
+		BootID:     instance.BootID(),
+		Version:    common.VERSION,
 	}
 }
 

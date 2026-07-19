@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 // 文件服务
 // 处理文件和目录操作
 
@@ -189,7 +190,7 @@ class FileService {
         xhr.addEventListener("error", () => reject(new Error("Upload failed")));
 
         xhr.open("POST", "/api/v1/files/upload");
-        const token = localStorage.getItem("auth_token");
+        const token = getAuthItem("auth_token");
         if (token) {
           xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         }
@@ -209,7 +210,7 @@ class FileService {
   // 获取缩略图
   getThumbnailUrl(path: string, size: number = 128): string {
     const encodedPath = encodeURIComponent(path);
-    const token = localStorage.getItem("auth_token");
+    const token = getAuthItem("auth_token");
     return `/api/v1/files/thumbnail?path=${encodedPath}&size=${size}&token=${token || ""}`;
   }
 
@@ -278,7 +279,7 @@ class FileService {
   // 获取文件预览 URL（直接流式返回文件内容）
   getPreviewUrl(path: string): string {
     const encodedPath = encodeURIComponent(path);
-    const token = localStorage.getItem("auth_token");
+    const token = getAuthItem("auth_token");
     // 使用 download 接口，浏览器会根据 Content-Type 决定是否内嵌显示
     return `/api/v1/files/download?path=${encodedPath}&token=${token || ""}&inline=1`;
   }

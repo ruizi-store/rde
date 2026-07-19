@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 // 类型定义
 export interface SetupStatus {
   completed: boolean;
@@ -331,7 +332,7 @@ export const setupApi = {
   // 恢复出厂设置（需要登录）
   async factoryReset(request: FactoryResetRequest): Promise<FactoryResetResponse> {
     // 从 localStorage 获取 token
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const token = typeof window !== "undefined" ? getAuthItem("auth_token") : null;
 
     const headers: HeadersInit = { "Content-Type": "application/json" };
     if (token) {

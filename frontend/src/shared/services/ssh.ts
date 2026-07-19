@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 // SSH 远程连接服务
 import { api } from "./api";
 
@@ -270,7 +271,7 @@ class SSHService {
   getWebSocketUrl(sessionId: string): string {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
-    const token = localStorage.getItem("auth_token") || "";
+    const token = getAuthItem("auth_token") || "";
     return `${protocol}//${host}/api/v1/ssh/sessions/${sessionId}/ws?token=${token}`;
   }
 
@@ -452,7 +453,7 @@ class SSHService {
   getTransferProgressUrl(): string {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
-    const token = localStorage.getItem("auth_token") || "";
+    const token = getAuthItem("auth_token") || "";
     return `${protocol}//${host}/api/v1/sftp/transfers/ws?token=${token}`;
   }
 }

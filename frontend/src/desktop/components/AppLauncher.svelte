@@ -5,6 +5,7 @@
   import { authService } from "$shared/services/auth";
   import { systemService } from "$shared/services/system";
   import { getAvatarUrl } from "$shared/utils/avatar";
+  import { clearLocalDataAndReload } from "$shared/utils/instance";
   import Icon from "@iconify/svelte";
   import { t } from "svelte-i18n";
   import AppContextMenu from "./AppContextMenu.svelte";
@@ -17,7 +18,7 @@
 
   // 确认弹窗状态
   let showConfirmModal = $state(false);
-  let confirmAction = $state<"shutdown" | "reboot" | "logout" | null>(null);
+  let confirmAction = $state<"shutdown" | "reboot" | "logout" | "clearLocal" | null>(null);
   let actionLoading = $state(false);
 
   // 应用右键菜单
@@ -111,7 +112,7 @@
   }
 
   // 显示确认弹窗
-  function showConfirm(action: "shutdown" | "reboot" | "logout") {
+  function showConfirm(action: "shutdown" | "reboot" | "logout" | "clearLocal") {
     confirmAction = action;
     showConfirmModal = true;
   }
@@ -134,6 +135,9 @@
           user.logout();
           window.location.href = "/login";
           break;
+        case "clearLocal":
+          clearLocalDataAndReload();
+          break;
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : $t("desktop.launcher.actionFailed"));
@@ -146,7 +150,7 @@
   }
 
   // 获取确认弹窗的标题和描述
-  function getConfirmInfo(action: "shutdown" | "reboot" | "logout" | null) {
+  function getConfirmInfo(action: "shutdown" | "reboot" | "logout" | "clearLocal" | null) {
     switch (action) {
       case "shutdown":
         return {
@@ -168,6 +172,13 @@
           desc: $t("desktop.launcher.logoutDesc"),
           icon: "mdi:logout",
           color: "#6c757d",
+        };
+      case "clearLocal":
+        return {
+          title: $t("desktop.launcher.clearLocalTitle"),
+          desc: $t("desktop.launcher.clearLocalDesc"),
+          icon: "mdi:broom",
+          color: "#0d6efd",
         };
       default:
         return { title: "", desc: "", icon: "", color: "" };
@@ -377,6 +388,9 @@
               <Icon icon="mdi:restart" width="18" />
             </button>
           {/if}
+          <button class="power-btn" onclick={() => showConfirm("clearLocal")} title={$t("desktop.launcher.clearLocal")}>
+            <Icon icon="mdi:broom" width="18" />
+          </button>
           <button class="power-btn" onclick={() => showConfirm("logout")} title={$t("desktop.launcher.logout")}>
             <Icon icon="mdi:logout" width="18" />
           </button>

@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 /**
  * Flatpak Apps Service
  *
@@ -86,7 +87,7 @@ function streamRequest(
 ): () => void {
   const controller = new AbortController();
   const token =
-    typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    typeof window !== "undefined" ? getAuthItem("auth_token") : null;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -199,7 +200,7 @@ class FlatpakService {
 
   /** 获取 VNC iframe URL */
   getVNCUrl(): string {
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : "";
+    const token = typeof window !== "undefined" ? getAuthItem("auth_token") : "";
     const cacheBust = Date.now();
     const base = `/api/v1/flatpak/vnc/vnc.html?autoconnect=true&resize=remote&path=api/v1/flatpak/vnc/websockify&_t=${cacheBust}`;
     return token ? `${base}&token=${encodeURIComponent(token)}` : base;

@@ -103,7 +103,9 @@
     "loggingIn": "Logging in...",
     "login": "Login",
     "rememberDevice": "Trust this device",
-    "rememberDeviceHint": "Skip verification for 30 days"
+    "rememberDeviceHint": "Skip verification for 30 days",
+    "clearLocalData": "Clear local cache",
+    "clearLocalDataHint": "Clear login and desktop cache in this browser if you reinstalled on the same IP"
   },
   "setup": {
     "welcome": "Welcome to RDE",
@@ -446,6 +448,8 @@
       "rebootDesc": "Are you sure you want to reboot the server? This will temporarily interrupt all services.",
       "logoutTitle": "Log Out",
       "logoutDesc": "Are you sure you want to log out?",
+      "clearLocalTitle": "Clear local data",
+      "clearLocalDesc": "Clears login session and desktop cache in this browser (server data is untouched), then returns to login.",
       "searchPlaceholder": "Search apps, settings...",
       "userSettings": "User Settings",
       "avatar": "Avatar",
@@ -453,6 +457,7 @@
       "shutdown": "Shutdown",
       "reboot": "Reboot",
       "logout": "Log Out",
+      "clearLocal": "Clear local data",
       "cancel": "Cancel",
       "confirm": "OK",
       "noMatchingApps": "No matching apps found",

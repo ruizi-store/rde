@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 /**
  * Linux Lab API 服务（容器模式）
  */
@@ -21,7 +22,7 @@ function sseRequest(
   onDone: () => void,
 ): AbortController {
   const controller = new AbortController();
-  const token = localStorage.getItem("auth_token");
+  const token = getAuthItem("auth_token");
 
   const init: RequestInit = {
     method,

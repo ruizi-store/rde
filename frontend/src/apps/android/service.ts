@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 /**
  * Android Service - 安卓设备管理
  *
@@ -217,7 +218,7 @@ class AndroidService {
   /** 连接安装进度 WebSocket */
   connectInstallWS(onMessage: (data: any) => void): WebSocket {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const token = typeof window !== "undefined" ? getAuthItem("auth_token") : null;
     const qs = token ? `?token=${encodeURIComponent(token)}` : "";
     const ws = new WebSocket(`${protocol}//${location.host}/api/v1/android/ws/install${qs}`);
     ws.onmessage = (e) => {
@@ -267,7 +268,7 @@ class AndroidService {
 }
 
 function authHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+  const token = typeof window !== "undefined" ? getAuthItem("auth_token") : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

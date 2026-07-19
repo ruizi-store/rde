@@ -55,6 +55,18 @@ func (h *Handler) GetSystemInfo(c *gin.Context) {
 	ok(c, info)
 }
 
+// GetInstance 获取安装实例 ID（公开接口，无需登录）
+// @Summary 获取安装实例 ID
+// @Tags system
+// @Produce json
+// @Success 200 {object} InstanceInfo
+// @Router /api/v1/system/instance [get]
+func (h *Handler) GetInstance(c *gin.Context) {
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
+	c.Header("Pragma", "no-cache")
+	ok(c, h.service.GetInstanceInfo())
+}
+
 // GetCPUInfo 获取 CPU 信息
 // @Summary 获取 CPU 信息
 // @Tags system
@@ -504,6 +516,7 @@ func (h *Handler) TestProxy(c *gin.Context) {
 func (h *Handler) RegisterRoutes(group *gin.RouterGroup) {
 	sys := group.Group("/system")
 	{
+		sys.GET("/instance", h.GetInstance)
 		sys.GET("/info", h.GetSystemInfo)
 		sys.GET("/cpu", h.GetCPUInfo)
 		sys.GET("/memory", h.GetMemoryInfo)

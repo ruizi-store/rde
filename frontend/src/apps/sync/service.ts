@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 /**
  * 文件同步 Service - 基于 TUS 协议的断点续传上传
  * API: /api/v1/sync/...
@@ -72,7 +73,7 @@ export class TusUploader {
   }
 
   async start(): Promise<void> {
-    const token = localStorage.getItem("auth_token") || "";
+    const token = getAuthItem("auth_token") || "";
 
     this.upload = new tus.Upload(this.file, {
       endpoint: "/api/v1/sync/upload",
@@ -318,7 +319,7 @@ class SyncService {
   }
 
   getDownloadUrl(id: string): string {
-    const token = localStorage.getItem("auth_token") || "";
+    const token = getAuthItem("auth_token") || "";
     return `/api/v1${this.base}/files/${id}/download?token=${encodeURIComponent(token)}`;
   }
 

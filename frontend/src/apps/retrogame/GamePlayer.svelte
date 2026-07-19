@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { getAuthItem } from "$shared/utils/auth-storage";
   import { onMount, onDestroy } from "svelte";
   import Icon from "@iconify/svelte";
   import { Button } from "$shared/ui";
@@ -418,7 +419,7 @@
 
   async function downloadRomAsArrayBuffer(path: string): Promise<ArrayBuffer> {
     const url = retroGameService.getFileUrl(path);
-    const token = userStore.token || localStorage.getItem("auth_token");
+    const token = userStore.token || getAuthItem("auth_token");
 
     const headers: HeadersInit = {};
     if (token) {

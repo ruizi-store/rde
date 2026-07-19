@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 /**
  * Download Service - 下载管理
  * API: /api/v1/download/...
@@ -252,7 +253,7 @@ class DownloadService {
     if (typeof window === "undefined") return null;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const token = localStorage.getItem("auth_token");
+    const token = getAuthItem("auth_token");
     const qs = token ? `?token=${encodeURIComponent(token)}` : "";
     const wsUrl = `${protocol}//${window.location.host}/api/v1/download/ws${qs}`;
 

@@ -1,6 +1,7 @@
 // 认证服务
 // 处理登录、登出、用户信息
 
+import { clearAuthItems, getAuthItem, setAuthItem } from "$shared/utils/auth-storage";
 import { api } from "./api";
 
 const DEVICE_TOKEN_KEY = "rde_device_token";
@@ -57,7 +58,7 @@ class AuthService {
   // 登录
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     // 自动附加保存的设备信任令牌
-    const deviceToken = typeof window !== "undefined" ? localStorage.getItem(DEVICE_TOKEN_KEY) : null;
+    const deviceToken = typeof window !== "undefined" ? getAuthItem(DEVICE_TOKEN_KEY) : null;
     const requestData = {
       ...credentials,
       device_token: deviceToken || undefined,
@@ -84,7 +85,7 @@ class AuthService {
       api.setToken(response.data.access_token);
       // 保存 refresh_token 用于刷新
       if (typeof window !== "undefined" && response.data.refresh_token) {
-        localStorage.setItem("refresh_token", response.data.refresh_token);
+        setAuthItem("refresh_token", response.data.refresh_token);
       }
       return { success: true, data: response.data };
     }
@@ -105,11 +106,10 @@ class AuthService {
       api.setToken(response.data.access_token);
       if (typeof window !== "undefined") {
         if (response.data.refresh_token) {
-          localStorage.setItem("refresh_token", response.data.refresh_token);
+          setAuthItem("refresh_token", response.data.refresh_token);
         }
-        // 保存设备信任令牌
         if (response.data.device_token) {
-          localStorage.setItem(DEVICE_TOKEN_KEY, response.data.device_token);
+          setAuthItem(DEVICE_TOKEN_KEY, response.data.device_token);
         }
       }
       return { success: true, data: response.data };
@@ -126,11 +126,7 @@ class AuthService {
       // 忽略登出错误
     } finally {
       api.setToken(null);
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem(DEVICE_TOKEN_KEY);
-      }
+      clearAuthItems();
     }
   }
 
@@ -164,7 +160,7 @@ class AuthService {
   // 刷新 Token
   async refreshToken(): Promise<boolean> {
     try {
-      const refreshToken = localStorage.getItem("refresh_token");
+      const refreshToken = getAuthItem("refresh_token");
       if (!refreshToken) return false;
       const response = await api.post<LoginResponse>("/auth/refresh", {
         refresh_token: refreshToken,
@@ -172,7 +168,7 @@ class AuthService {
       if (response.success && response.data?.access_token) {
         api.setToken(response.data.access_token);
         if (response.data.refresh_token) {
-          localStorage.setItem("refresh_token", response.data.refresh_token);
+          setAuthItem("refresh_token", response.data.refresh_token);
         }
         return true;
       }

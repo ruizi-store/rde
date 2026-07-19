@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 /**
  * RetroGame Service - ROM 管理和模拟器服务
  */
@@ -371,7 +372,7 @@ export async function checkEmulatorStatus(): Promise<EmulatorSetupStatus> {
 export async function setupEmulator(
   onProgress: (event: SetupProgress) => void,
 ): Promise<void> {
-  const token = userStore.token || localStorage.getItem("auth_token");
+  const token = userStore.token || getAuthItem("auth_token");
 
   const response = await fetch("/api/v1/retrogame/setup", {
     method: "POST",

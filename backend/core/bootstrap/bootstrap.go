@@ -20,6 +20,7 @@ import (
 	"github.com/ruizi-store/rde/backend/core/event"
 	"github.com/ruizi-store/rde/backend/core/i18n"
 	"github.com/ruizi-store/rde/backend/core/module"
+	"github.com/ruizi-store/rde/backend/pkg/instance"
 	"github.com/ruizi-store/rde/backend/pkg/offline"
 
 	// 导入核心模块
@@ -358,7 +359,24 @@ func (app *App) registerModules() error {
 func (app *App) Start() error {
 	app.Logger.Info("Starting RDE application")
 
-	// 0. 离线资源目录（Docker 镜像 tar / deb / 驱动）
+	// 0. 安装实例 ID（重装/新机变化；用于前端清同 IP 旧缓存）
+	dataPath := app.Config.GetString("data_path")
+	if dataPath == "" {
+		dataPath = instance.DefaultDataDir
+	}
+	if id, err := instance.Init(dataPath); err != nil {
+		app.Logger.Warn("Failed to init instance id", zap.Error(err))
+	} else {
+		app.Logger.Info("Instance id ready", zap.String("id", id))
+	}
+	app.Router.Use(func(c *gin.Context) {
+		if id := instance.ID(); id != "" {
+			c.Header(instance.HeaderName, id)
+		}
+		c.Next()
+	})
+
+	// 0.1 离线资源目录（Docker 镜像 tar / deb / 驱动）
 	offlineDir := app.Config.GetString("offline.dir")
 	if offlineDir == "" {
 		offlineDir = app.Config.GetString("offline.Dir")
@@ -369,7 +387,7 @@ func (app *App) Start() error {
 	store := offline.InitGlobal(offlineDir)
 	app.Logger.Info("Offline asset store ready", zap.String("dir", store.Dir()))
 
-	// 0.1 加载用户 i18n 区域设置（在模块启动前，确保镜像源配置正确）
+	// 0.2 加载用户 i18n 区域设置（在模块启动前，确保镜像源配置正确）
 	app.loadI18nRegion()
 
 	// 1. 启动所有模块
@@ -394,6 +412,7 @@ func (app *App) Start() error {
 				"/api/v1/setup/complete",
 				"/api/v1/setup/initialize",
 				"/api/v1/system/i18n",
+				"/api/v1/system/instance",
 			}
 			for _, p := range publicPaths {
 				if path == p {

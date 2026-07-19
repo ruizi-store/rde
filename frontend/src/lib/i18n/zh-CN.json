@@ -103,7 +103,9 @@
     "loggingIn": "登录中...",
     "login": "登录",
     "rememberDevice": "信任此设备",
-    "rememberDeviceHint": "30 天内无需再次输入验证码"
+    "rememberDeviceHint": "30 天内无需再次输入验证码",
+    "clearLocalData": "清除本地缓存数据",
+    "clearLocalDataHint": "同 IP 重装或显示异常时可清除本机浏览器中的登录与桌面缓存"
   },
   "setup": {
     "welcome": "欢迎使用 RDE",
@@ -446,6 +448,8 @@
       "rebootDesc": "确定要重启服务器吗？这将暂时中断所有服务。",
       "logoutTitle": "退出登录",
       "logoutDesc": "确定要退出当前账户吗？",
+      "clearLocalTitle": "清除本地数据",
+      "clearLocalDesc": "将清除本浏览器中的登录态与桌面缓存（不影响服务器数据），然后返回登录页。",
       "searchPlaceholder": "搜索应用、设置...",
       "userSettings": "用户设置",
       "avatar": "头像",
@@ -453,6 +457,7 @@
       "shutdown": "关机",
       "reboot": "重启",
       "logout": "退出登录",
+      "clearLocal": "清除本地数据",
       "cancel": "取消",
       "confirm": "确定",
       "noMatchingApps": "未找到匹配的应用",

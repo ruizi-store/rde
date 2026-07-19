@@ -3,6 +3,8 @@
   import { goto } from "$app/navigation";
   import { authService } from "$shared/services/auth";
   import { user } from "$shared/stores/user.svelte";
+  import { setAuthItem } from "$shared/utils/auth-storage";
+  import { clearLocalDataAndReload } from "$shared/utils/instance";
   import Icon from "@iconify/svelte";
 
   let username = $state("");
@@ -19,7 +21,7 @@
 
   function completeLogin(data: NonNullable<Awaited<ReturnType<typeof authService.login>>["data"]>) {
     if (data.access_token) {
-      localStorage.setItem("auth_token", data.access_token);
+      setAuthItem("auth_token", data.access_token);
     }
     const userData = data.user;
     if (userData) {
@@ -238,6 +240,14 @@
 
     <!-- 版权信息 -->
     <footer class="login-footer">
+      <button
+        type="button"
+        class="clear-local-btn"
+        onclick={() => clearLocalDataAndReload()}
+        title={$t("auth.clearLocalDataHint")}
+      >
+        {$t("auth.clearLocalData")}
+      </button>
       <p>&copy; 2026 RDE. All rights reserved.</p>
     </footer>
   </div>
@@ -440,6 +450,21 @@
   .login-footer {
     margin-top: 32px;
     text-align: center;
+
+    .clear-local-btn {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: 0;
+      border: none;
+      background: none;
+      color: rgba(255, 255, 255, 0.45);
+      font-size: 12px;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .clear-local-btn:hover {
+      color: rgba(255, 255, 255, 0.75);
+    }
 
     p {
       font-size: 12px;

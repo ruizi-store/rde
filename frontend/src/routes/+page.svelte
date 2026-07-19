@@ -5,7 +5,7 @@
   import Desktop from "$desktop/components/Desktop.svelte";
   import { registerApps, initApps } from "$apps";
   import { setupApi } from "$shared/services/setup";
-  import { getValidToken } from "$shared/utils/auth";
+  import { clearLocalAuth, getValidToken } from "$shared/utils/auth";
   import { reloadAllStoresForUser } from "$desktop/utils/reload-stores";
   import { userStore } from "$shared/stores/user.svelte";
   import { api } from "$shared/services/api";
@@ -54,7 +54,7 @@
       // token 验证失败，清除并跳转登录
       console.error("Token validation failed:", e);
       api.setToken(null);
-      localStorage.removeItem("refresh_token");
+      clearLocalAuth();
       goto("/login");
       return;
     }

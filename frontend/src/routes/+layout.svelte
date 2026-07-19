@@ -9,18 +9,22 @@
   import { setUnauthorizedHandler } from "$shared/services/api";
   import { initI18n, isLoading } from "$lib/i18n";
   import { i18nStore } from "$lib/i18n/store";
+  import { clearAuthItems, migrateLegacyAuthKeys } from "$shared/utils/auth-storage";
+  import { reconcileInstance } from "$shared/utils/instance";
 
   let { children } = $props();
   let i18nReady = $state(false);
+  let instanceReady = $state(!browser);
 
   // 初始化 i18n（异步等待语言包加载）
   initI18n().then(() => {
     i18nReady = true;
   });
 
-  // 设置全局 401 处理器
+  // 设置全局 401 处理器：清认证并跳转登录
   if (browser) {
     setUnauthorizedHandler(() => {
+      clearAuthItems();
       const path = window.location.pathname;
       if (!path.startsWith("/login") && !path.startsWith("/setup")) {
         goto("/login");
@@ -28,21 +32,26 @@
     });
   }
 
-  // 确保主题在客户端初始化
   onMount(async () => {
-    // 异步加载离线图标集（失败不阻断桌面）
+    // 最先对账实例 ID，避免同 IP 换机沿用旧 localStorage
+    try {
+      await reconcileInstance();
+      migrateLegacyAuthKeys();
+    } catch (e) {
+      console.error("[instance] reconcile failed", e);
+    } finally {
+      instanceReady = true;
+    }
+
     try {
       await initOfflineIcons();
     } catch (e) {
       console.error("[Icons] init failed", e);
     }
-    // 强制初始化主题（确保 data-theme 和强调色被应用）
     theme.set(theme.mode);
-    
-    // 只在非登录/setup 页面加载 i18n 设置（需要认证）
+
     const path = window.location.pathname;
     if (!path.startsWith("/login") && !path.startsWith("/setup")) {
-      // 从后端加载 i18n 设置
       await i18nStore.init();
     }
   });
@@ -53,7 +62,7 @@
   <!-- 字体已本地化，无需在线加载 -->
 </svelte:head>
 
-{#if i18nReady}
+{#if i18nReady && instanceReady}
   {@render children()}
   <ConfirmModal />
 {/if}

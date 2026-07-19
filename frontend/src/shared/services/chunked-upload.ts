@@ -1,3 +1,4 @@
+import { getAuthItem } from "$shared/utils/auth-storage";
 /**
  * 分片上传服务
  * 支持大文件上传（最大10GB）
@@ -450,7 +451,7 @@ export class ChunkedUploader {
       xhr.open(options.method || "GET", url);
 
       // 设置认证头
-      const token = localStorage.getItem("auth_token");
+      const token = getAuthItem("auth_token");
       if (token) {
         xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       }
@@ -514,7 +515,7 @@ export class ChunkedUploader {
    * 获取认证头
    */
   private getAuthHeader(): Record<string, string> {
-    const token = localStorage.getItem("auth_token");
+    const token = getAuthItem("auth_token");
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 

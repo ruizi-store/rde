@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { setAuthItem, removeAuthItem } from "$shared/utils/auth-storage";
   import { t } from "svelte-i18n";
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
@@ -196,7 +197,7 @@
         api.setToken(response.auto_login_token);
         // 保存 refresh_token
         if (response.refresh_token && typeof window !== "undefined") {
-          localStorage.setItem("refresh_token", response.refresh_token);
+          setAuthItem("refresh_token", response.refresh_token);
         }
         
         // 验证 token 是否有效
@@ -211,7 +212,7 @@
           // token 验证失败，清除并跳转到登录页
           console.error("Auto-login token validation failed:", e);
           api.setToken(null);
-          localStorage.removeItem("refresh_token");
+          removeAuthItem("refresh_token");
           setTimeout(() => {
             goto("/login");
           }, 1500);

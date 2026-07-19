@@ -34,9 +34,30 @@ export interface DetectResponse {
   confidence: number;
 }
 
+export type ServicePhase =
+  | "ready"
+  | "starting"
+  | "ready_to_start"
+  | "missing"
+  | "error"
+  | string;
+
 export interface ServiceStatus {
   available: boolean;
   url: string;
+  message?: string;
+  phase?: ServicePhase;
+  image?: string;
+  container?: string;
+  containerRunning?: boolean;
+  imageReady?: boolean;
+  offlineReady?: boolean;
+}
+
+export interface EnsureResult {
+  status: "success" | "starting" | "failed" | string;
+  available: boolean;
+  phase?: ServicePhase;
   message?: string;
 }
 
@@ -77,6 +98,14 @@ export async function getLanguages(): Promise<Language[]> {
  */
 export async function getStatus(): Promise<ServiceStatus> {
   const response = await api.get<ServiceStatus>("/translate/status");
+  return response;
+}
+
+/**
+ * 确保翻译服务已启动（复用容器 / 离线镜像，不走 Docker Store 安装）
+ */
+export async function ensureService(waitSec = 20): Promise<EnsureResult> {
+  const response = await api.post<EnsureResult>(`/translate/ensure?wait=${waitSec}`);
   return response;
 }
 

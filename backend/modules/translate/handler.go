@@ -3,6 +3,8 @@ package translate
 
 import (
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,6 +34,9 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 		// 服务状态
 		translate.GET("/status", h.GetStatus)
+
+		// 确保服务启动（复用容器 / 离线 load，避免走 Docker Store 重复安装）
+		translate.POST("/ensure", h.EnsureService)
 
 		// 配置
 		translate.GET("/config", h.GetConfig)
@@ -128,6 +133,32 @@ func (h *Handler) GetLanguages(c *gin.Context) {
 func (h *Handler) GetStatus(c *gin.Context) {
 	status := h.service.CheckStatus()
 	c.JSON(http.StatusOK, status)
+}
+
+// EnsureService 确保 LibreTranslate 容器已启动
+// @Summary 启动/恢复离线翻译服务
+// @Tags translate
+// @Produce json
+// @Param wait query int false "最长等待秒数（默认 20，最大 180）"
+// @Success 200 {object} EnsureResult
+// @Router /translate/ensure [post]
+func (h *Handler) EnsureService(c *gin.Context) {
+	waitSec := 20
+	if v := c.Query("wait"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			waitSec = n
+		}
+	}
+	if waitSec < 0 {
+		waitSec = 0
+	}
+	if waitSec > 180 {
+		waitSec = 180
+	}
+
+	result := h.service.EnsureService(time.Duration(waitSec) * time.Second)
+	// 统一 200：失败也带 EnsureResult，避免前端只能看到笼统 HTTP 错误
+	c.JSON(http.StatusOK, result)
 }
 
 // GetConfig 获取配置

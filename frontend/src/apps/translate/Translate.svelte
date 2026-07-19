@@ -41,16 +41,17 @@
     await checkStatus();
   });
 
-  async function checkStatus() {
-    loading = true;
+  /** @returns 服务是否已可用；quiet 时不切换全屏 loading（供 Setup 轮询） */
+  async function checkStatus(quiet = false): Promise<boolean> {
+    if (!quiet) {
+      loading = true;
+    }
     error = "";
 
     try {
-      // 检查服务状态
       status = await getStatus();
 
       if (status.available) {
-        // 服务可用，加载语言列表和配置
         const currentLocale = get(locale) || "en-US";
         const [langs, cfg] = await Promise.all([
           getLanguages(),
@@ -59,18 +60,23 @@
         languages = langs;
         config = cfg;
 
-        // 设置默认语言
         sourceLang = "auto";
         targetLang = cfg.defaultTarget || "en";
-      } else {
-        // 服务不可用，显示安装引导
-        showSetup = true;
+        showSetup = false;
+        return true;
       }
+
+      // 不可用：显示启动/安装引导（starting 时由 Setup 自动跟进）
+      showSetup = true;
+      return false;
     } catch (e) {
       error = e instanceof Error ? e.message : "加载失败";
       showSetup = true;
+      return false;
     } finally {
-      loading = false;
+      if (!quiet) {
+        loading = false;
+      }
     }
   }
 
@@ -155,13 +161,7 @@
       <p>{$t("loading")}</p>
     </div>
   {:else if showSetup}
-    <TranslateSetup
-      {status}
-      onRetry={async () => {
-        showSetup = false;
-        await checkStatus();
-      }}
-    />
+    <TranslateSetup {status} onReady={() => checkStatus(true)} />
   {:else}
     <!-- 主界面 -->
     <div class="translate-header">

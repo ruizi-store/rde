@@ -210,34 +210,9 @@ func (s *Service) GetLanguages() ([]Language, error) {
 	return languages, nil
 }
 
-// CheckStatus 检查服务状态
+// CheckStatus 检查服务状态（HTTP + Docker/离线包）
 func (s *Service) CheckStatus() *ServiceStatus {
-	s.mu.RLock()
-	serviceURL := s.serviceURL
-	s.mu.RUnlock()
-
-	status := &ServiceStatus{
-		Available: false,
-		URL:       serviceURL,
-	}
-
-	// 尝试获取语言列表来验证服务
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(serviceURL + "/languages")
-	if err != nil {
-		status.Message = fmt.Sprintf("无法连接到翻译服务: %v", err)
-		return status
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		status.Message = fmt.Sprintf("翻译服务返回错误: %d", resp.StatusCode)
-		return status
-	}
-
-	status.Available = true
-	status.Message = "翻译服务运行正常"
-	return status
+	return s.enrichStatus(s.probeHTTP())
 }
 
 // GetConfig 获取翻译配置（根据系统语言设置默认值）

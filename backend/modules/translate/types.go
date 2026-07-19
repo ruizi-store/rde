@@ -31,11 +31,34 @@ type DetectResponse struct {
 	Confidence float64 `json:"confidence"` // 置信度
 }
 
+// 服务生命周期阶段（供前端区分「启动中」与「安装失败」）
+const (
+	PhaseReady        = "ready"          // HTTP 可用
+	PhaseStarting     = "starting"       // 容器已在跑/刚启动，模型加载中
+	PhaseReadyToStart = "ready_to_start" // 本地或离线镜像已就绪，可一键启动
+	PhaseMissing      = "missing"        // 无镜像，需要安装/拉取
+	PhaseError        = "error"          // 明确错误
+)
+
 // ServiceStatus 服务状态
 type ServiceStatus struct {
-	Available bool   `json:"available"` // 服务是否可用
-	URL       string `json:"url"`       // 服务地址
-	Message   string `json:"message,omitempty"` // 状态消息
+	Available        bool   `json:"available"`                   // 服务是否可用
+	URL              string `json:"url"`                         // 服务地址
+	Message          string `json:"message,omitempty"`           // 状态消息
+	Phase            string `json:"phase,omitempty"`             // ready|starting|ready_to_start|missing|error
+	Image            string `json:"image,omitempty"`             // 期望镜像
+	Container        string `json:"container,omitempty"`         // 容器名
+	ContainerRunning bool   `json:"containerRunning,omitempty"`  // 容器是否在跑
+	ImageReady       bool   `json:"imageReady,omitempty"`        // 本地 Docker 已有镜像
+	OfflineReady     bool   `json:"offlineReady,omitempty"`      // 离线 tar 可用
+}
+
+// EnsureResult 确保服务启动的结果
+type EnsureResult struct {
+	Status    string `json:"status"`              // success|starting|failed
+	Available bool   `json:"available"`           // 此刻是否已可翻译
+	Phase     string `json:"phase,omitempty"`     // 与 ServiceStatus.phase 相同语义
+	Message   string `json:"message,omitempty"`
 }
 
 // TranslateConfig 翻译配置

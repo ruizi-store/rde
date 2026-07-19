@@ -2,73 +2,86 @@
   import { get } from "svelte/store";
   import { t } from "./i18n";
   import { Button, Spinner } from "$shared/ui";
-  import { dockerStoreService } from "$apps/docker/store-service";
-  import type { ServiceStatus } from "./service";
+  import { ensureService, getStatus, type ServiceStatus } from "./service";
 
   interface Props {
     status: ServiceStatus | null;
-    onRetry: () => Promise<void>;
+    /** 重新检查状态；返回 true 表示服务已可用 */
+    onReady: () => Promise<boolean>;
   }
 
-  let { status, onRetry }: Props = $props();
+  let { status, onReady }: Props = $props();
 
-  let installing = $state(false);
-  let installProgress = $state("");
-  let installError = $state("");
+  let working = $state(false);
+  let progress = $state("");
+  let errorText = $state("");
+  let autoStarted = $state(false);
 
-  async function handleInstall() {
-    installing = true;
-    installError = "";
-    
+  const phase = $derived(status?.phase || "missing");
+  const hasLocalImage = $derived(!!(status?.offlineReady || status?.imageReady));
+
+  async function pollUntilReady(timeoutMs: number): Promise<boolean> {
     const getText = (key: string) => get(t)(key);
-    const downloadingText = getText("downloading");
-    const configuringText = getText("configuring");
-    const almostDoneText = getText("almostDone");
-    const installFailedText = getText("installFailed");
-    
-    installProgress = downloadingText;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      progress = getText("loadingModels");
+      const ready = await onReady();
+      if (ready) return true;
+      const st = await getStatus().catch(() => null);
+      if (st?.available) {
+        return onReady();
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    return false;
+  }
+
+  async function handleEnsure() {
+    if (working) return;
+    working = true;
+    errorText = "";
+    const getText = (key: string) => get(t)(key);
+    progress = getText("starting");
 
     try {
-      const task = await dockerStoreService.installAppAsync("libretranslate", {
-        CONTAINER_NAME: "libretranslate",
-        PANEL_APP_PORT_HTTP: 5000,
-        LT_LANGUAGES: "en,zh",
-      });
+      const result = await ensureService(25);
 
-      const result = await dockerStoreService.pollInstallTask(task.id, (taskStatus) => {
-        if (taskStatus.output) {
-          const output = taskStatus.output.toLowerCase();
-          if (output.includes("pulling") || output.includes("download")) {
-            installProgress = downloadingText;
-          } else if (output.includes("creating") || output.includes("starting")) {
-            installProgress = configuringText;
-          } else {
-            installProgress = almostDoneText;
-          }
+      if (result.available || result.status === "success") {
+        progress = getText("almostDone");
+        await onReady();
+        return;
+      }
+
+      if (result.status === "starting" || result.phase === "starting") {
+        progress = result.message || getText("loadingModels");
+        const ok = await pollUntilReady(3 * 60 * 1000);
+        if (ok) {
+          progress = getText("almostDone");
+          return;
         }
-      });
-
-      if (result.status === "success") {
-        installProgress = almostDoneText;
-        setTimeout(async () => {
-          await onRetry();
-        }, 2000);
+        errorText = getText("startTimeout");
       } else {
-        installError = installFailedText;
+        errorText = result.message || getText("startFailed");
       }
     } catch (e: any) {
-      installError = installFailedText;
+      const msg = e?.response?.data?.message || e?.data?.message || e?.message;
+      errorText = msg || getText("startFailed");
     } finally {
-      if (installError) {
-        installing = false;
-      }
+      working = false;
     }
   }
+
+  // bootstrap 已拉起容器时自动跟进等待，避免用户再点「安装」撞端口
+  $effect(() => {
+    if ((phase === "starting" || status?.containerRunning) && !autoStarted && !working) {
+      autoStarted = true;
+      handleEnsure();
+    }
+  });
 </script>
 
 <div class="setup-container">
   <div class="setup-card">
-    <!-- 大图标 -->
     <div class="setup-icon">
       <svg width="80" height="80" viewBox="0 0 24 24" fill="none">
         <defs>
@@ -77,18 +90,16 @@
             <stop offset="100%" style="stop-color:#06b6d4" />
           </linearGradient>
         </defs>
-        <path 
-          d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8H4.69c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z" 
+        <path
+          d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8H4.69c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"
           fill="url(#iconGradient)"
         />
       </svg>
     </div>
 
-    <!-- 标题 -->
     <h2 class="setup-title">{$t("title")}</h2>
     <p class="setup-subtitle">{$t("subtitle")}</p>
 
-    <!-- 特性列表 -->
     <div class="features">
       <div class="feature">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -114,25 +125,34 @@
       </div>
     </div>
 
-    <!-- 安装按钮 -->
     <div class="install-section">
-      {#if installing}
+      {#if working}
         <div class="progress-area">
           <Spinner size="lg" />
-          <p class="progress-text">{installProgress}</p>
+          <p class="progress-text">{progress}</p>
         </div>
-      {:else if installError}
+      {:else if errorText}
         <div class="error-area">
-          <p class="error-text">{installError}</p>
-          <Button variant="primary" size="lg" onclick={handleInstall}>
+          <p class="error-text">{errorText}</p>
+          <Button variant="primary" size="lg" onclick={handleEnsure}>
             {$t("retry")}
           </Button>
         </div>
       {:else}
-        <Button variant="primary" size="lg" onclick={handleInstall} class="install-btn">
-          {$t("installButton")}
+        <Button variant="primary" size="lg" onclick={handleEnsure} class="install-btn">
+          {#if phase === "ready_to_start" || phase === "starting" || hasLocalImage}
+            {$t("startButton")}
+          {:else}
+            {$t("installButton")}
+          {/if}
         </Button>
-        <p class="install-hint">{$t("installHint")}</p>
+        <p class="install-hint">
+          {#if hasLocalImage}
+            {$t("startHintOffline")}
+          {:else}
+            {$t("installHint")}
+          {/if}
+        </p>
       {/if}
     </div>
   </div>

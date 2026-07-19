@@ -19785,7 +19785,7 @@ apps:
           label:
             en: Container Name
             zh: 容器名称
-          default: libretranslate
+          default: rde-libretranslate
           required: true
           type: text
           env_key: CONTAINER_NAME

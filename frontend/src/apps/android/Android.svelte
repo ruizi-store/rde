@@ -8,6 +8,7 @@
   import { api } from "$shared/services/api";
   import { fileService, type FileInfo } from "$shared/services/files";
   import { ScrcpyClient, type ScrcpySession, type AudioStatus } from "./lib";
+  import { getAuthItem } from "$shared/utils/auth-storage";
 
   type APIResp = { success: boolean; data?: any; error?: string };
 
@@ -417,7 +418,9 @@
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
       const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${location.host}${ANDROID_WS_BASE}/ws/screen`;
+      const token = getAuthItem("auth_token");
+      const qs = token ? `?token=${encodeURIComponent(token)}` : "";
+      const wsUrl = `${protocol}//${location.host}${ANDROID_WS_BASE}/ws/screen${qs}`;
 
       scrcpyClient = new ScrcpyClient({
         onConnected: () => { mirrorConnected = true; },

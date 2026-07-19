@@ -165,6 +165,12 @@ func (s *Store) FindImageTar(imageRef string) (string, bool) {
 	return "", false
 }
 
+// HasImage 本地是否存在对应镜像 tar（尚未 docker load 也算有）
+func (s *Store) HasImage(imageRef string) bool {
+	_, ok := s.FindImageTar(imageRef)
+	return ok
+}
+
 // LoadImage 若本地存在镜像 tar，则 docker load；成功返回 true
 func (s *Store) LoadImage(imageRef string) (bool, error) {
 	tarPath, ok := s.FindImageTar(imageRef)

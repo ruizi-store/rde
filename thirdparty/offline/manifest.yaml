@@ -2,6 +2,7 @@
 # 安装后位于 /usr/share/rde/offline/manifest.yaml
 # 配置项 offline.dir 可覆盖根目录（默认 /usr/share/rde/offline）
 #
+# fulliso 构建会把真实 tar 合并进 images/，并覆盖本清单。
 # 准备示例：
 #   docker pull redroid/redroid:14.0.0-latest
 #   docker save -o images/redroid_redroid_14.0.0-latest.tar redroid/redroid:14.0.0-latest
@@ -10,7 +11,7 @@ version: "1"
 
 images:
   redroid/redroid:14.0.0-latest: images/redroid_redroid_14.0.0-latest.tar
-  tinylab/linux-lab: images/tinylab_linux-lab.tar
+  libretranslate/libretranslate:latest: images/libretranslate_libretranslate_latest.tar
 
 debs: {}
 

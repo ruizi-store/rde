@@ -79,10 +79,16 @@ func (w *InstallWizard) CheckEnvironment() *EnvironmentStatus {
 
 	status.BinderInstalled = w.checkBinderDKMSInstalled()
 
+	dockerHasImage := false
+	offlineHasImage := offline.Global().HasImage(w.config.DockerImage)
 	if status.DockerInstalled {
-		status.ImageExists = CheckDockerImageExists(w.config.DockerImage)
+		dockerHasImage = CheckDockerImageExists(w.config.DockerImage)
+		// UI「镜像」：Docker 已有或离线包可用均算具备
+		status.ImageExists = dockerHasImage || offlineHasImage
 		status.ContainerExists = CheckContainerExists(w.config.ContainerName)
 		status.ContainerRunning = CheckContainerRunning(w.config.ContainerName)
+	} else if offlineHasImage {
+		status.ImageExists = true
 	}
 
 	// 确定需要的步骤
@@ -104,7 +110,8 @@ func (w *InstallWizard) CheckEnvironment() *EnvironmentStatus {
 	if !status.DockerInstalled {
 		status.RequiredSteps = append(status.RequiredSteps, StepInstallDocker)
 	}
-	if !status.ImageExists {
+	// 尚未 load 进 Docker 时仍要走准备步骤（优先离线 load，再 pull）
+	if !dockerHasImage {
 		status.RequiredSteps = append(status.RequiredSteps, StepPullImage)
 	}
 	if !status.ContainerRunning && !status.ContainerExists {
@@ -112,9 +119,9 @@ func (w *InstallWizard) CheckEnvironment() *EnvironmentStatus {
 	}
 
 	status.IsReady = status.BinderLoaded && status.ADBInstalled && status.DockerInstalled &&
-		status.ImageExists && (status.ContainerRunning || status.ContainerExists)
+		dockerHasImage && (status.ContainerRunning || status.ContainerExists)
 	status.OnlyNeedStartContainer = status.BinderLoaded && status.ADBInstalled && status.DockerInstalled &&
-		status.ImageExists && status.ContainerExists && !status.ContainerRunning
+		dockerHasImage && status.ContainerExists && !status.ContainerRunning
 
 	return status
 }
@@ -195,8 +202,8 @@ func (w *InstallWizard) Start(ctx context.Context) error {
 			info.Title = "安装 Docker"
 			info.Description = "安装 Docker 容器运行时"
 		case StepPullImage:
-			info.Title = "拉取 Android 镜像"
-			info.Description = fmt.Sprintf("下载 %s 镜像", w.config.DockerImage)
+			info.Title = "准备 Android 镜像"
+			info.Description = fmt.Sprintf("离线加载或下载 %s", w.config.DockerImage)
 		case StepStartContainer:
 			info.Title = "启动容器"
 			info.Description = "启动 Android 容器实例"
@@ -371,13 +378,17 @@ func (w *InstallWizard) executeStep(ctx context.Context, step *StepInfo) error {
 		}
 
 	case StepPullImage:
+		// 1) 已在本地 Docker  2) 离线 tar load  3) 网络 pull
+		if CheckDockerImageExists(w.config.DockerImage) {
+			break
+		}
 		if loaded, err := offline.Global().LoadImage(w.config.DockerImage); err == nil && loaded {
 			break
 		} else if err != nil {
 			// 离线包损坏时继续尝试网络拉取
 		}
 		if err := runCmd("docker", "pull", w.config.DockerImage); err != nil {
-			return fmt.Errorf("镜像拉取失败（本地离线包与网络均不可用）: %w", err)
+			return fmt.Errorf("镜像准备失败（本地 Docker / 离线包 / 网络均不可用）: %w", err)
 		}
 
 	case StepStartContainer:

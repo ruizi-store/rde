@@ -10,3 +10,8 @@ export {
 } from "./notification-bubble.svelte";
 export { uiState } from "./ui-state.svelte";
 export { musicPlayer, isAudioFile, type Track, type PlayMode } from "./music-player.svelte";
+export {
+  fileClipboard,
+  type FileClipboardPayload,
+  type FileClipboardOperation,
+} from "./file-clipboard.svelte";

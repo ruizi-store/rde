@@ -12,6 +12,7 @@
     type UploadState,
   } from "$shared/services/chunked-upload";
   import { userStore } from "$shared/stores/user.svelte";
+  import { fileClipboard } from "$shared/stores/file-clipboard.svelte";
   import Icon from "@iconify/svelte";
   import LazyThumbnail from "$shared/components/LazyThumbnail.svelte";
   import { Checkbox, Button, Modal, Input, Alert, Progress } from "$shared/ui";
@@ -31,8 +32,9 @@
   let sortAsc = $state(true);
   let sidebarCollapsed = $state(false);
 
-  /* 剪贴板状态 */
-  let clipboard = $state<{ paths: string[]; operation: "copy" | "cut" } | null>(null);
+  /* 跨窗口共享剪贴板 */
+  const clipboard = $derived(fileClipboard.clipboard);
+  let lastClipboardRevision = 0;
 
   /* 弹窗状态 */
   let showRenameModal = $state(false);
@@ -72,6 +74,7 @@
   let dragCounter = $state(0); // 用于正确处理嵌套元素的拖拽
 
   /* 内部文件拖拽状态 */
+  const INTERNAL_DRAG_TYPE = "application/x-rde-files";
   let internalDragPaths = $state<string[]>([]); // 正在拖拽的文件路径
   let dropTargetFolder = $state<string | null>(null); // 拖拽目标文件夹
 
@@ -909,35 +912,38 @@
     }
   }
 
-  /* 复制到剪贴板 */
+  /* 复制到剪贴板（全局，供多窗口共享） */
   function copyToClipboard() {
     if (selectedPaths.size === 0) return;
-    clipboard = { paths: Array.from(selectedPaths), operation: "copy" };
+    fileClipboard.set(Array.from(selectedPaths), "copy");
     showNotification("info", $t("fileManager.notification.copied", { values: { n: selectedPaths.size } }));
   }
 
-  /* 剪切到剪贴板 */
+  /* 剪切到剪贴板（全局，供多窗口共享） */
   function cutToClipboard() {
     if (selectedPaths.size === 0) return;
-    clipboard = { paths: Array.from(selectedPaths), operation: "cut" };
+    fileClipboard.set(Array.from(selectedPaths), "cut");
     showNotification("info", $t("fileManager.notification.cut", { values: { n: selectedPaths.size } }));
   }
 
   /* 粘贴 */
   async function paste() {
-    if (!clipboard) return;
+    const clip = fileClipboard.clipboard;
+    if (!clip) return;
 
     try {
       const response: any = await fileService.copyMove(
-        clipboard.paths,
+        clip.paths,
         currentPath,
-        clipboard.operation === "cut",
+        clip.operation === "cut",
       );
 
       if (response.success === 200 || response.success === true) {
-        if (clipboard.operation === "cut") {
-          clipboard = null;
+        const sources = clip.operation === "cut" ? clip.paths : [];
+        if (clip.operation === "cut") {
+          fileClipboard.clear();
         }
+        fileClipboard.notifyChanged(sources, currentPath);
         refresh();
         showNotification("success", $t("fileManager.notification.pasteSuccess"));
       } else {
@@ -1014,6 +1020,7 @@
         showNotification("success", $t("fileManager.notification.moved", { values: { n: pathsToMove.length } }));
         showMoveToModal = false;
         selectedPaths = new Set();
+        fileClipboard.notifyChanged(pathsToMove, moveToPath);
         refresh();
       } else {
         showNotification("error", response.message || $t("fileManager.notification.moveFailed"));
@@ -1242,12 +1249,17 @@
     }
   }
 
-  /* 拖拽上传 - 改进版 */
+  /* 拖拽上传 / 内部跨窗口移动 */
   function handleDragEnter(e: DragEvent) {
     e.preventDefault();
     e.stopPropagation();
     dragCounter++;
-    if (e.dataTransfer?.types.includes("Files")) {
+    const types = e.dataTransfer?.types;
+    if (types?.includes(INTERNAL_DRAG_TYPE)) {
+      dropTargetFolder = currentPath;
+      return;
+    }
+    if (types?.includes("Files")) {
       isDragOver = true;
     }
   }
@@ -1255,9 +1267,13 @@
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = "copy";
+    if (!e.dataTransfer) return;
+    if (e.dataTransfer.types.includes(INTERNAL_DRAG_TYPE)) {
+      e.dataTransfer.dropEffect = "move";
+      dropTargetFolder = currentPath;
+      return;
     }
+    e.dataTransfer.dropEffect = "copy";
   }
 
   function handleDragLeave(e: DragEvent) {
@@ -1266,14 +1282,25 @@
     dragCounter--;
     if (dragCounter === 0) {
       isDragOver = false;
+      if (dropTargetFolder === currentPath) {
+        dropTargetFolder = null;
+      }
     }
   }
 
-  function handleDrop(e: DragEvent) {
+  async function handleDrop(e: DragEvent) {
     e.preventDefault();
     e.stopPropagation();
     isDragOver = false;
     dragCounter = 0;
+
+    // 内部文件拖拽：放到当前目录（跨窗口空白区域）
+    const internalData = e.dataTransfer?.getData(INTERNAL_DRAG_TYPE);
+    if (internalData) {
+      dropTargetFolder = null;
+      await moveInternalPaths(JSON.parse(internalData) as string[], currentPath);
+      return;
+    }
 
     if (!e.dataTransfer?.items.length) return;
 
@@ -1335,9 +1362,52 @@
     }
   }
 
+  /** 内部拖拽/跨窗口移动到目标目录 */
+  async function moveInternalPaths(paths: string[], targetPath: string, folderName?: string) {
+    if (!paths.length) return;
+    for (const p of paths) {
+      if (targetPath === p || targetPath.startsWith(p + "/")) {
+        showNotification("error", $t("fileManager.notification.cannotMoveToSelf"));
+        internalDragPaths = [];
+        return;
+      }
+    }
+    // 已在同一目录则无需移动
+    const alreadyHere = paths.every((p) => {
+      const i = p.lastIndexOf("/");
+      const parent = i <= 0 ? "/" : p.slice(0, i) || "/";
+      return parent === targetPath;
+    });
+    if (alreadyHere) {
+      internalDragPaths = [];
+      return;
+    }
+
+    try {
+      const response: any = await fileService.copyMove(paths, targetPath, true);
+      if (response.success === 200 || response.success === true) {
+        if (folderName) {
+          showNotification(
+            "success",
+            $t("fileManager.notification.movedTo", { values: { n: paths.length, folder: folderName } }),
+          );
+        } else {
+          showNotification("success", $t("fileManager.notification.moved", { values: { n: paths.length } }));
+        }
+        selectedPaths = new Set();
+        fileClipboard.notifyChanged(paths, targetPath);
+        refresh();
+      } else {
+        showNotification("error", response.message || $t("fileManager.notification.moveFailed"));
+      }
+    } catch {
+      showNotification("error", $t("fileManager.notification.moveFailed"));
+    } finally {
+      internalDragPaths = [];
+    }
+  }
+
   /* 内部文件拖拽 - 开始 */
-  const INTERNAL_DRAG_TYPE = "application/x-rde-files";
-  
   function handleFileDragStart(e: DragEvent, file: FileInfo) {
     // 如果拖拽的文件在选中集合中，移动所有选中文件；否则只移动单个文件
     if (selectedPaths.has(file.path)) {
@@ -1387,40 +1457,14 @@
   /* 内部文件拖拽 - 放置到文件夹 */
   async function handleFolderDrop(e: DragEvent, folder: FileInfo) {
     if (!folder.is_dir) return;
-    
-    // 检查是否为内部拖拽
+
     const data = e.dataTransfer?.getData(INTERNAL_DRAG_TYPE);
     if (!data) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
     dropTargetFolder = null;
-    
-    try {
-      const paths: string[] = JSON.parse(data);
-      
-      // 不能移动到自身或子目录
-      for (const p of paths) {
-        if (folder.path === p || folder.path.startsWith(p + "/")) {
-          showNotification("error", $t("fileManager.notification.cannotMoveToSelf"));
-          internalDragPaths = [];
-          return;
-        }
-      }
-      
-      const response: any = await fileService.copyMove(paths, folder.path, true);
-      if (response.success === 200 || response.success === true) {
-        showNotification("success", $t("fileManager.notification.movedTo", { values: { n: paths.length, folder: folder.name } }));
-        selectedPaths = new Set();
-        refresh();
-      } else {
-        showNotification("error", response.message || $t("fileManager.notification.moveFailed"));
-      }
-    } catch (err) {
-      showNotification("error", $t("fileManager.notification.moveFailed"));
-    } finally {
-      internalDragPaths = [];
-    }
+    await moveInternalPaths(JSON.parse(data) as string[], folder.path, folder.name);
   }
 
   /* 侧边栏拖拽放置 */
@@ -1442,36 +1486,11 @@
   async function handleSidebarDrop(e: DragEvent, targetPath: string) {
     const data = e.dataTransfer?.getData(INTERNAL_DRAG_TYPE);
     if (!data) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
     dropTargetFolder = null;
-    
-    try {
-      const paths: string[] = JSON.parse(data);
-      
-      // 不能移动到自身或子目录
-      for (const p of paths) {
-        if (targetPath === p || targetPath.startsWith(p + "/")) {
-          showNotification("error", $t("fileManager.notification.cannotMoveToSelf"));
-          internalDragPaths = [];
-          return;
-        }
-      }
-      
-      const response: any = await fileService.copyMove(paths, targetPath, true);
-      if (response.success === 200 || response.success === true) {
-        showNotification("success", $t("fileManager.notification.moved", { values: { n: paths.length } }));
-        selectedPaths = new Set();
-        refresh();
-      } else {
-        showNotification("error", response.message || $t("fileManager.notification.moveFailed"));
-      }
-    } catch (err) {
-      showNotification("error", $t("fileManager.notification.moveFailed"));
-    } finally {
-      internalDragPaths = [];
-    }
+    await moveInternalPaths(JSON.parse(data) as string[], targetPath);
   }
 
   /* 右键菜单 */
@@ -1490,8 +1509,10 @@
     contextMenu = null;
   }
 
-  /* 键盘快捷键 */
+  /* 键盘快捷键（仅活动窗口响应，避免多实例互相抢 Ctrl+X/C/V） */
   function handleKeydown(e: KeyboardEvent) {
+    if (windowManager.activeWindowId !== windowId) return;
+
     // 如果有模态框打开，或者焦点在输入框中，不处理快捷键
     const target = e.target as HTMLElement;
     if (
@@ -1705,6 +1726,16 @@
     loadFiles();
 
     windowManager.setTitle(windowId, $t("fileManager.titleWithPath", { values: { path: currentPath } }));
+  });
+
+  // 其他窗口 cut/粘贴/拖拽移动后，同步刷新本窗口列表
+  $effect(() => {
+    const rev = fileClipboard.revision;
+    if (rev === 0 || rev === lastClipboardRevision) return;
+    lastClipboardRevision = rev;
+    if (fileClipboard.shouldRefresh(currentPath)) {
+      refresh();
+    }
   });
 
   onDestroy(() => {

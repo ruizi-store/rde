@@ -4,6 +4,7 @@
   import { user } from "$shared/stores/user.svelte";
   import { authService } from "$shared/services/auth";
   import { systemService } from "$shared/services/system";
+  import { systemPower } from "$shared/stores/system-power.svelte";
   import { getAvatarUrl } from "$shared/utils/avatar";
   import { clearLocalDataAndReload } from "$shared/utils/instance";
   import Icon from "@iconify/svelte";
@@ -121,14 +122,35 @@
   async function executeAction() {
     if (!confirmAction) return;
 
+    const action = confirmAction;
     actionLoading = true;
     try {
-      switch (confirmAction) {
+      switch (action) {
         case "shutdown":
-          await systemService.shutdown();
+          systemPower.begin("shutdown");
+          showConfirmModal = false;
+          close();
+          try {
+            await systemService.shutdown();
+          } catch (err) {
+            if (await systemPower.isHostReachable()) {
+              systemPower.clear();
+              alert(err instanceof Error ? err.message : $t("desktop.launcher.actionFailed"));
+            }
+          }
           break;
         case "reboot":
-          await systemService.reboot();
+          systemPower.begin("reboot");
+          showConfirmModal = false;
+          close();
+          try {
+            await systemService.reboot();
+          } catch (err) {
+            if (await systemPower.isHostReachable()) {
+              systemPower.clear();
+              alert(err instanceof Error ? err.message : $t("desktop.launcher.actionFailed"));
+            }
+          }
           break;
         case "logout":
           await authService.logout();
@@ -140,12 +162,20 @@
           break;
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : $t("desktop.launcher.actionFailed"));
+      if (action === "shutdown" || action === "reboot") {
+        // 遮罩已显示；保留遮罩并由探测决定后续
+      } else {
+        alert(err instanceof Error ? err.message : $t("desktop.launcher.actionFailed"));
+      }
     } finally {
       actionLoading = false;
-      showConfirmModal = false;
-      confirmAction = null;
-      close();
+      if (action !== "shutdown" && action !== "reboot") {
+        showConfirmModal = false;
+        confirmAction = null;
+        close();
+      } else {
+        confirmAction = null;
+      }
     }
   }
 

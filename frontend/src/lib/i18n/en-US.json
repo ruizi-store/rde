@@ -467,6 +467,18 @@
       "rightClickToPin": "Right-click an app to pin it here",
       "recentlyUsed": "Recently Used",
       "recentAppsHint": "Recently used apps will appear here"
+    },
+    "powerOverlay": {
+      "rebootTitle": "System is rebooting…",
+      "rebootDesc": "Do not close this page. Service interruption is expected; the page will refresh when ready.",
+      "rebootOfflineTitle": "Rebooting…",
+      "rebootOfflineDesc": "Waiting for services to come back online.",
+      "rebootReadyTitle": "Services restored",
+      "rebootReadyDesc": "Refreshing the page…",
+      "shutdownTitle": "System is shutting down…",
+      "shutdownDesc": "Please wait. You can close this tab after shutdown completes.",
+      "shutdownDoneTitle": "System is offline",
+      "shutdownDoneDesc": "The server has shut down. Power it on again, then refresh this page."
     }
   },
   "search": {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/ruizi-store/rde/backend/pkg/offline"
 	"go.uber.org/zap"
@@ -19,9 +20,15 @@ import (
 
 const (
 	// Docker 镜像与容器名
+	// 官方镜像 ENTRYPOINT 为 /tools/lab/run，依赖 cloud-lab 工具挂载；
+	// RDE 无覆盖入口点 + 容器内克隆源码的方式独立运行。
 	DefaultImage      = "tinylab/linux-lab"
 	ContainerName     = "rde-linux-lab"
 	LabDirInContainer = "/labs/linux-lab"
+	LabVolumeName     = "rde-linux-lab-data"
+	LabRepoURL        = "https://github.com/tinyclub/linux-lab.git"
+	LabUnixUser       = "ubuntu"
+	LabUnixUID        = "1000"
 )
 
 // Service Linux Lab 容器服务
@@ -33,6 +40,10 @@ type Service struct {
 	building bool
 	booting  bool
 	setting  bool
+	// 当前构建元数据（供刷新后查询）
+	buildBoard  string
+	buildTarget string
+	currentJob  *BuildJob // 最近一次构建（含环形日志，供重连）
 }
 
 // NewService 创建服务
@@ -222,14 +233,39 @@ func (s *Service) Setup(progressChan chan<- ProgressEvent) {
 		progressChan <- ProgressEvent{Status: "running", Message: fmt.Sprintf("容器已创建: %s", id[:12])}
 	}
 
-	// 确保容器在运行
+	// 确保容器在运行（旧容器可能仍带损坏的 ENTRYPOINT，启动失败则重建）
 	if !running {
 		progressChan <- ProgressEvent{Status: "running", Message: "正在启动容器..."}
 		if err := s.cli.ContainerStart(ctx, id, types.ContainerStartOptions{}); err != nil {
-			progressChan <- ProgressEvent{Status: "failed", Message: fmt.Sprintf("启动容器失败: %v", err)}
-			return
+			s.logger.Warn("start linux-lab failed, recreating", zap.Error(err))
+			progressChan <- ProgressEvent{Status: "running", Message: "启动失败，正在重建容器（覆盖镜像 ENTRYPOINT）..."}
+			_ = s.RemoveContainer()
+			id, err = s.createContainer(ctx)
+			if err != nil {
+				progressChan <- ProgressEvent{Status: "failed", Message: fmt.Sprintf("重建容器失败: %v", err)}
+				return
+			}
+			if err := s.cli.ContainerStart(ctx, id, types.ContainerStartOptions{}); err != nil {
+				progressChan <- ProgressEvent{Status: "failed", Message: fmt.Sprintf("启动容器失败: %v", err)}
+				return
+			}
 		}
 	}
+
+	// 3. 准备 linux-lab 源码（镜像内 /labs 为空，开发板/构建依赖仓库）
+	progressChan <- ProgressEvent{Status: "running", Message: "正在检查 linux-lab 源码..."}
+	if err := s.ensureLabSource(ctx, progressChan); err != nil {
+		progressChan <- ProgressEvent{Status: "failed", Message: fmt.Sprintf("准备源码失败: %v", err)}
+		return
+	}
+
+	// 4. Cloud Lab 环境标记（Makefile 强制检查 /home/ubuntu/Desktop/lab.desktop）
+	progressChan <- ProgressEvent{Status: "running", Message: "正在配置 Cloud Lab 运行环境..."}
+	if err := s.ensureCloudLabEnv(ctx); err != nil {
+		progressChan <- ProgressEvent{Status: "failed", Message: fmt.Sprintf("配置运行环境失败: %v", err)}
+		return
+	}
+	progressChan <- ProgressEvent{Status: "running", Message: "✓ Cloud Lab 环境已就绪"}
 
 	progressChan <- ProgressEvent{Status: "completed", Message: "Linux Lab 容器已就绪"}
 	s.logger.Info("Linux Lab container ready", zap.String("container", id[:12]))
@@ -274,13 +310,21 @@ func (s *Service) pullImage(progressChan chan<- ProgressEvent) error {
 }
 
 func (s *Service) createContainer(ctx context.Context) (string, error) {
+	// 必须覆盖 ENTRYPOINT：镜像默认 /tools/lab/run 不存在于镜像内
+	// （官方用法会挂载 cloud-lab 的 tools/），否则 OCI 创建进程直接失败。
 	containerConfig := &containertypes.Config{
-		Image: s.image,
-		// 保持容器常驻运行，按需 docker exec 进去执行
-		Cmd: []string{"sleep", "infinity"},
+		Image:      s.image,
+		Entrypoint: []string{"sleep"},
+		Cmd:        []string{"infinity"},
+		Env: []string{
+			"UNIX_USER=" + LabUnixUser,
+			"UNIX_UID=" + LabUnixUID,
+			"WARN_ON_USER=0",
+		},
 		Labels: map[string]string{
 			"rde.app": "linux-lab",
 		},
+		WorkingDir: LabDirInContainer,
 	}
 
 	hostConfig := &containertypes.HostConfig{
@@ -288,6 +332,13 @@ func (s *Service) createContainer(ctx context.Context) (string, error) {
 		Privileged: true,
 		RestartPolicy: containertypes.RestartPolicy{
 			Name: "unless-stopped",
+		},
+		Mounts: []mount.Mount{
+			{
+				Type:   mount.TypeVolume,
+				Source: LabVolumeName,
+				Target: "/labs",
+			},
 		},
 	}
 
@@ -298,10 +349,62 @@ func (s *Service) createContainer(ctx context.Context) (string, error) {
 	return resp.ID, nil
 }
 
+// ensureLabSource 确保 /labs/linux-lab 存在（浅克隆，幂等）
+func (s *Service) ensureLabSource(ctx context.Context, progressChan chan<- ProgressEvent) error {
+	out, err := s.execInContainerAs(ctx, `test -f /labs/linux-lab/Makefile && echo ok`, "/", "0")
+	if err == nil && strings.Contains(out, "ok") {
+		progressChan <- ProgressEvent{Status: "running", Message: "✓ linux-lab 源码已就绪"}
+		return nil
+	}
+
+	progressChan <- ProgressEvent{Status: "running", Message: "正在克隆 linux-lab 源码（首次可能需要几分钟）..."}
+	// 清理半成品目录后浅克隆（workdir=/，因目标目录尚不存在；需 root）
+	cmd := fmt.Sprintf(`rm -rf /labs/linux-lab && mkdir -p /labs && git clone --depth 1 %s /labs/linux-lab`, LabRepoURL)
+	if _, err := s.execInContainerAs(ctx, cmd, "/", "0"); err != nil {
+		return fmt.Errorf("git clone: %w", err)
+	}
+	out, err = s.execInContainerAs(ctx, `test -f /labs/linux-lab/Makefile && test -d /labs/linux-lab/boards && echo ok`, "/", "0")
+	if err != nil || !strings.Contains(out, "ok") {
+		return fmt.Errorf("clone incomplete: missing Makefile/boards")
+	}
+	progressChan <- ProgressEvent{Status: "running", Message: "✓ linux-lab 源码克隆完成"}
+	return nil
+}
+
+// ensureCloudLabEnv 满足 linux-lab Makefile 对 Cloud Lab 的检测
+// 要求存在 /home/ubuntu/Desktop/lab.desktop，并以 ubuntu 用户运行 make。
+func (s *Service) ensureCloudLabEnv(ctx context.Context) error {
+	script := `
+set -e
+id -u ` + LabUnixUser + ` &>/dev/null || useradd --create-home --shell /bin/bash --user-group --groups adm,sudo ` + LabUnixUser + `
+mkdir -p /home/` + LabUnixUser + `/Desktop
+touch /home/` + LabUnixUser + `/Desktop/lab.desktop
+# Makefile 会 stat /.git/description 检查属主（警告项）
+mkdir -p /.git
+touch /.git/description
+chown -R ` + LabUnixUser + `:` + LabUnixUser + ` /home/` + LabUnixUser + ` /.git
+[ -d /labs/linux-lab ] && chown -R ` + LabUnixUser + `:` + LabUnixUser + ` /labs/linux-lab || true
+test -f /home/` + LabUnixUser + `/Desktop/lab.desktop
+`
+	// useradd/chown 需 root
+	_, err := s.execInContainerAs(ctx, script, "/", "0")
+	return err
+}
+
 // --- 容器内执行命令 ---
 
-// execInContainer 在容器中执行命令，返回完整输出
+// execInContainer 在容器中执行命令，返回完整输出（工作目录为 linux-lab，用户 ubuntu）
 func (s *Service) execInContainer(ctx context.Context, command string) (string, error) {
+	return s.execInContainerAs(ctx, command, LabDirInContainer, LabUnixUser)
+}
+
+// execInContainerAt 在容器指定工作目录执行命令（默认 ubuntu）
+func (s *Service) execInContainerAt(ctx context.Context, command, workDir string) (string, error) {
+	return s.execInContainerAs(ctx, command, workDir, LabUnixUser)
+}
+
+// execInContainerAs 在容器指定用户与工作目录执行命令
+func (s *Service) execInContainerAs(ctx context.Context, command, workDir, user string) (string, error) {
 	if s.cli == nil {
 		return "", fmt.Errorf("docker client not available")
 	}
@@ -311,12 +414,23 @@ func (s *Service) execInContainer(ctx context.Context, command string) (string, 
 		return "", fmt.Errorf("容器未运行")
 	}
 
+	if workDir == "" {
+		workDir = "/"
+	}
+
 	execConfig := types.ExecConfig{
+		User:         user,
 		Cmd:          []string{"/bin/bash", "-c", command},
 		AttachStdout: true,
 		AttachStderr: true,
 		Tty:          false,
-		WorkingDir:   LabDirInContainer,
+		WorkingDir:   workDir,
+		Env: []string{
+			"UNIX_USER=" + LabUnixUser,
+			"UNIX_UID=" + LabUnixUID,
+			"WARN_ON_USER=0",
+			"HOME=/home/" + LabUnixUser,
+		},
 	}
 
 	execResp, err := s.cli.ContainerExecCreate(ctx, id, execConfig)
@@ -358,11 +472,18 @@ func (s *Service) execInContainerStream(ctx context.Context, command string, pro
 	}
 
 	execConfig := types.ExecConfig{
+		User:         LabUnixUser,
 		Cmd:          []string{"/bin/bash", "-c", command},
 		AttachStdout: true,
 		AttachStderr: true,
 		Tty:          true, // TTY 让 make 输出实时刷新
 		WorkingDir:   LabDirInContainer,
+		Env: []string{
+			"UNIX_USER=" + LabUnixUser,
+			"UNIX_UID=" + LabUnixUID,
+			"WARN_ON_USER=0",
+			"HOME=/home/" + LabUnixUser,
+		},
 	}
 
 	execResp, err := s.cli.ContainerExecCreate(ctx, id, execConfig)
@@ -386,10 +507,10 @@ func (s *Service) execInContainerStream(ctx context.Context, command string, pro
 		default:
 		}
 		line := scanner.Text()
-		progressChan <- ProgressEvent{
+		sendProgress(progressChan, ProgressEvent{
 			Status: "running",
 			Line:   line,
-		}
+		})
 	}
 
 	// 检查退出码
@@ -493,35 +614,129 @@ func (s *Service) SwitchBoard(boardPath string) error {
 
 // --- 构建与执行 ---
 
-// IsBuilding 检查是否正在构建
+// IsBuilding 检查是否正在构建（含页面断开后仍在容器内跑的 make）
 func (s *Service) IsBuilding() bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.building
+	flag := s.building
+	job := s.currentJob
+	s.mu.Unlock()
+	if flag {
+		return true
+	}
+	if job != nil && !job.IsDone() {
+		return true
+	}
+	return s.containerHasMake()
 }
 
-// ExecMake 在容器内执行 make 命令
-func (s *Service) ExecMake(ctx context.Context, target string, board string, progressChan chan<- ProgressEvent) error {
-	defer close(progressChan)
-
+// CurrentJob 返回最近一次构建任务（可能已结束，仍可用于拉历史日志）
+func (s *Service) CurrentJob() *BuildJob {
 	s.mu.Lock()
-	if s.building {
-		s.mu.Unlock()
-		progressChan <- ProgressEvent{Status: "failed", Message: "已有构建任务正在运行"}
-		return fmt.Errorf("build already in progress")
+	defer s.mu.Unlock()
+	return s.currentJob
+}
+
+// BuildInfo 构建状态详情
+type BuildInfo struct {
+	Building bool
+	Board    string
+	Target   string
+	LastSeq  int64
+	Status   string // running|completed|failed|""
+	JobID    string
+}
+
+// GetBuildInfo 返回构建状态详情
+func (s *Service) GetBuildInfo() BuildInfo {
+	s.mu.Lock()
+	info := BuildInfo{
+		Building: s.building,
+		Board:    s.buildBoard,
+		Target:   s.buildTarget,
 	}
-	s.building = true
+	job := s.currentJob
 	s.mu.Unlock()
 
+	if job != nil {
+		info.Board = job.Board
+		info.Target = job.Target
+		info.LastSeq = job.LastSeq()
+		info.Status = job.Status()
+		info.JobID = job.ID
+		if !job.IsDone() {
+			info.Building = true
+		}
+	}
+	if !info.Building && s.containerHasMake() {
+		info.Building = true
+		if info.Status == "" {
+			info.Status = "running"
+		}
+	}
+	return info
+}
+
+// StartBuild 启动后台构建并返回任务（日志写入环形缓冲，可重连）
+func (s *Service) StartBuild(target, board string) (*BuildJob, error) {
+	if s.containerHasMake() {
+		return nil, fmt.Errorf("已有构建任务正在运行（可能在后台），请稍候再试")
+	}
+
+	s.mu.Lock()
+	if s.building || (s.currentJob != nil && !s.currentJob.IsDone()) {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("已有构建任务正在运行（可能在后台），请稍候再试")
+	}
+	job := newBuildJob(board, target, defaultLogCapacity)
+	s.building = true
+	s.buildBoard = board
+	s.buildTarget = target
+	s.currentJob = job
+	s.mu.Unlock()
+
+	go s.runMake(context.Background(), job, target, board)
+	return job, nil
+}
+
+// containerHasMake 检测容器内是否仍有 make 进程（页面刷新后 building 标志可能已清）
+func (s *Service) containerHasMake() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := s.execInContainerAs(ctx, `pgrep -af '^make |/usr/bin/make ' 2>/dev/null | grep -v pgrep | head -1`, "/", "0")
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(out) != ""
+}
+
+// sendProgress 非阻塞推送，避免页面断开后无人消费导致构建卡住
+func sendProgress(ch chan<- ProgressEvent, ev ProgressEvent) {
+	select {
+	case ch <- ev:
+	default:
+	}
+}
+
+// runMake 在容器内执行 make，日志写入 job（环形缓冲）
+func (s *Service) runMake(ctx context.Context, job *BuildJob, target, board string) {
 	defer func() {
 		s.mu.Lock()
 		s.building = false
+		// 保留 board/target/job，便于结束后短时间内查询
 		s.mu.Unlock()
+		if !job.IsDone() {
+			job.AppendEvent(ProgressEvent{Status: "failed", Message: "构建异常结束"})
+		}
 	}()
 
 	if !s.ContainerRunning() {
-		progressChan <- ProgressEvent{Status: "failed", Message: "容器未运行，请先初始化环境"}
-		return fmt.Errorf("container not running")
+		job.AppendEvent(ProgressEvent{Status: "failed", Message: "容器未运行，请先初始化环境"})
+		return
+	}
+
+	if err := s.ensureCloudLabEnv(ctx); err != nil {
+		job.AppendEvent(ProgressEvent{Status: "failed", Message: fmt.Sprintf("准备构建环境失败: %v", err)})
+		return
 	}
 
 	cmd := "make"
@@ -533,26 +748,65 @@ func (s *Service) ExecMake(ctx context.Context, target string, board string, pro
 	s.logger.Info("Executing make in container",
 		zap.String("target", target),
 		zap.String("board", board),
+		zap.String("user", LabUnixUser),
 		zap.String("cmd", cmd),
+		zap.String("job", job.ID),
 	)
 
-	progressChan <- ProgressEvent{
+	job.AppendEvent(ProgressEvent{
 		Status:  "running",
 		Message: fmt.Sprintf(">>> %s  (容器内执行)", cmd),
-	}
+	})
 
-	err := s.execInContainerStream(ctx, cmd, progressChan)
+	lineChan := make(chan ProgressEvent, 256)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for ev := range lineChan {
+			job.AppendEvent(ev)
+		}
+	}()
+
+	err := s.execInContainerStream(ctx, cmd, lineChan)
+	close(lineChan)
+	wg.Wait()
+
 	if err != nil {
-		progressChan <- ProgressEvent{
+		job.AppendEvent(ProgressEvent{
 			Status:  "failed",
 			Message: fmt.Sprintf("命令执行失败: %v", err),
-		}
+		})
+		return
+	}
+
+	job.AppendEvent(ProgressEvent{
+		Status:  "completed",
+		Message: "执行完成",
+	})
+}
+
+// ExecMake 在容器内执行 make（高级模式 /make）。
+// 与 StartBuild 共用互斥；日志同样写入 currentJob，可重连。
+func (s *Service) ExecMake(ctx context.Context, target string, board string, progressChan chan<- ProgressEvent) error {
+	defer close(progressChan)
+
+	job, err := s.StartBuild(target, board)
+	if err != nil {
+		sendProgress(progressChan, ProgressEvent{Status: "failed", Message: err.Error()})
 		return err
 	}
 
-	progressChan <- ProgressEvent{
-		Status:  "completed",
-		Message: "执行完成",
+	// StartBuild 已在后台跑；此处订阅并转发到 progressChan（兼容旧 SSE）
+	ch, cancel := job.Subscribe(0)
+	defer cancel()
+
+	for ev := range ch {
+		if ev.Done {
+			return nil
+		}
+		pe := ProgressEvent{Status: ev.Status, Message: ev.Message, Line: ev.Line}
+		sendProgress(progressChan, pe)
 	}
 	return nil
 }

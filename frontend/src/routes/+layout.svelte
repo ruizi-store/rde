@@ -6,6 +6,8 @@
   import { theme } from "$shared/stores/theme.svelte";
   import { initOfflineIcons } from "$shared/icons";
   import { ConfirmModal } from "$shared/ui";
+  import SystemPowerOverlay from "$shared/components/SystemPowerOverlay.svelte";
+  import { systemPower } from "$shared/stores/system-power.svelte";
   import { setUnauthorizedHandler } from "$shared/services/api";
   import { initI18n, isLoading } from "$lib/i18n";
   import { i18nStore } from "$lib/i18n/store";
@@ -33,6 +35,9 @@
   }
 
   onMount(async () => {
+    // 重启过程中刷新页面时恢复遮罩
+    await systemPower.restore();
+
     // 最先对账实例 ID，避免同 IP 换机沿用旧 localStorage
     try {
       await reconcileInstance();
@@ -65,4 +70,5 @@
 {#if i18nReady && instanceReady}
   {@render children()}
   <ConfirmModal />
+  <SystemPowerOverlay />
 {/if}

@@ -25,9 +25,9 @@ regions:
       url: "https://pypi.tuna.tsinghua.edu.cn/simple"
       trusted_host: "pypi.tuna.tsinghua.edu.cn"
     flatpak:
-      name: "上海交大"
-      url: "https://mirror.sjtu.edu.cn/flathub"
-      repo: "https://mirror.sjtu.edu.cn/flathub"
+      name: "中科大"
+      url: "https://mirrors.ustc.edu.cn/flathub"
+      repo: "https://mirrors.ustc.edu.cn/flathub"
     go:
       name: "goproxy.cn"
       url: "https://goproxy.cn"

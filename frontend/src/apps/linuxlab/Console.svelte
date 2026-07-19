@@ -103,9 +103,12 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
+    flex: 1;
     overflow: hidden;
     padding: 16px;
     gap: 12px;
+    box-sizing: border-box;
   }
 
   .empty-state {
@@ -167,8 +170,12 @@
   }
 
   .terminal-area {
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 120px;
+    overflow-x: hidden;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 10px;

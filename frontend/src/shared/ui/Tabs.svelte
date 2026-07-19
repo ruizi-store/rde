@@ -87,6 +87,7 @@
   .tabs-container {
     display: flex;
     flex-direction: column;
+    min-height: 0;
 
     &.full-width {
       .tabs-header {
@@ -226,6 +227,11 @@
 
   .tabs-content {
     padding: 16px 0;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   .tab-icon {

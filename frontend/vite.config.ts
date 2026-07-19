@@ -20,6 +20,7 @@ export default defineConfig({
         ws: true, // 支持 WebSocket 代理
       },
       "/ws": { target: "ws://localhost:3080", ws: true },
+      "/health": { target: "http://localhost:3080", changeOrigin: true },
     },
   },
 });

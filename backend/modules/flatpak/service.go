@@ -851,19 +851,23 @@ func (s *Service) initFlatpak(onProgress func(line string)) {
 	}
 
 	if !hasFlathub {
-		// 获取镜像地址
-		flatpakMirror := i18n.GetMirrorField("flatpak", "repo")
-		if flatpakMirror == "" {
-			flatpakMirror = "https://flathub.org/repo"
+		// 获取镜像地址（内容源）。USTC 等镜像不提供 flathub.flatpakrepo，
+		// 故用官方 .flatpakrepo 注册后再 remote-modify 到镜像 Url。
+		flatpakURL := i18n.GetMirrorField("flatpak", "url")
+		if flatpakURL == "" {
+			flatpakURL = i18n.GetMirrorField("flatpak", "repo")
 		}
-		onProgress(fmt.Sprintf("添加 Flathub remote（镜像: %s）...", flatpakMirror))
+		onProgress(fmt.Sprintf("添加 Flathub remote（镜像: %s）...", flatpakURL))
 		cmd := exec.Command("flatpak", "remote-add", "--if-not-exists", "flathub",
-			flatpakMirror+"/flathub.flatpakrepo")
+			"https://dl.flathub.org/repo/flathub.flatpakrepo")
 		if err := cmd.Run(); err != nil {
-			onProgress("⚠ 使用镜像失败，尝试官方源...")
+			onProgress("⚠ 官方 repo 文件获取失败，尝试 flathub.org...")
 			cmd = exec.Command("flatpak", "remote-add", "--if-not-exists", "flathub",
 				"https://flathub.org/repo/flathub.flatpakrepo")
 			cmd.Run()
+		}
+		if flatpakURL != "" && flatpakURL != "https://flathub.org/repo" && flatpakURL != "https://dl.flathub.org/repo" {
+			exec.Command("flatpak", "remote-modify", "--url="+flatpakURL, "flathub").Run()
 		}
 	} else {
 		// 配置镜像

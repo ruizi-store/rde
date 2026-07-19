@@ -26,6 +26,7 @@
   } from "$shared/ui";
   import { setupApi, type FactoryResetRequest } from "$shared/services/setup";
   import { systemService } from "$shared/services/system";
+  import { systemPower } from "$shared/stores/system-power.svelte";
   import { api } from "$shared/services/api";
   import { authService } from "$shared/services/auth";
   import { usersService, type User as ManagedUser, type CreateUserRequest } from "$shared/services/users";
@@ -719,19 +720,22 @@
 
   async function executePowerAction() {
     powerLoading = true;
+    const mode = powerAction === "restart" ? "reboot" : "shutdown";
+    systemPower.begin(mode);
+    showPowerConfirmModal = false;
     try {
-      if (powerAction === "restart") {
+      if (mode === "reboot") {
         await systemService.reboot();
-        toast.success($t("settingsPage.security.restartSuccess"));
       } else {
         await systemService.shutdown();
-        toast.success($t("settingsPage.security.shutdownSuccess"));
       }
     } catch (e: any) {
-      toast.error(e.message || $t("settingsPage.security.powerError"));
+      if (await systemPower.isHostReachable()) {
+        systemPower.clear();
+        toast.error(e?.message || $t("settingsPage.security.powerError"));
+      }
     } finally {
       powerLoading = false;
-      showPowerConfirmModal = false;
     }
   }
 

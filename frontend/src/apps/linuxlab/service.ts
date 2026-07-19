@@ -103,6 +103,15 @@ export async function getBuildStatus(): Promise<BuildStatus> {
   return api.get<BuildStatus>(`${BASE}/build/status`);
 }
 
+/** 重连构建日志（历史 + 实时 SSE） */
+export function streamBuildLogs(
+  since: number,
+  onProgress: (event: ProgressEvent) => void,
+  onDone: () => void,
+): AbortController {
+  return sseRequest(`${BASE}/build/logs?since=${since}`, "GET", null, onProgress, onDone);
+}
+
 /** 停止虚拟开发板 */
 export async function stopBoot(): Promise<void> {
   await api.delete(`${BASE}/boot`);

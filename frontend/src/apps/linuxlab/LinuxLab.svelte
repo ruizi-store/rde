@@ -361,6 +361,24 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 0;
+  }
+
+  /* Tabs 需占满剩余高度，才能让构建/控制台日志区域出现滚动条 */
+  .content :global(.tabs-container) {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .content :global(.tabs-content) {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
   }
 
   /* ===== Setup 屏幕 ===== */

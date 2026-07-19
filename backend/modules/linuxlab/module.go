@@ -67,6 +67,7 @@ func (m *Module) RegisterRoutes(router *gin.RouterGroup) {
 
 		rg.POST("/build", handler.Build)
 		rg.GET("/build/status", handler.GetBuildStatus)
+		rg.GET("/build/logs", handler.StreamBuildLogs)
 
 		rg.POST("/boot", handler.Boot)
 		rg.DELETE("/boot", handler.StopBoot)

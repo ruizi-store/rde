@@ -34,6 +34,7 @@ export interface ProgressEvent {
   status: "running" | "completed" | "failed";
   message?: string;
   line?: string;
+  seq?: number;
 }
 
 /** 构建目标 */
@@ -43,6 +44,12 @@ export type BuildTarget = "kernel" | "kernel-build" | "modules" | "modules-insta
 export interface BuildStatus {
   building: boolean;
   running: boolean;
+  board?: string;
+  target?: string;
+  last_seq?: number;
+  status?: string;
+  job_id?: string;
+  logs_available?: boolean;
 }
 
 /** 架构信息 */

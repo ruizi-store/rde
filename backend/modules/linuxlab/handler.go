@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -109,7 +110,7 @@ func (h *Handler) SwitchBoard(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "切换成功", "board": req.Board})
 }
 
-// Build 触发构建（SSE 流式输出）
+// Build 触发构建（SSE 流式输出；断开后任务继续，可用 /build/logs 重连）
 // POST /linuxlab/build
 func (h *Handler) Build(c *gin.Context) {
 	var req BuildRequest
@@ -139,36 +140,90 @@ func (h *Handler) Build(c *gin.Context) {
 		return
 	}
 
+	job, err := h.service.StartBuild(target, req.Board)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+
+	h.streamBuildJob(c, job, 0)
+}
+
+// StreamBuildLogs 重连构建日志（历史 + 实时）
+// GET /linuxlab/build/logs?since=0
+func (h *Handler) StreamBuildLogs(c *gin.Context) {
+	job := h.service.CurrentJob()
+	if job == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "没有可重连的构建任务"})
+		return
+	}
+
+	since := int64(0)
+	if q := c.Query("since"); q != "" {
+		if v, err := strconv.ParseInt(q, 10, 64); err == nil && v >= 0 {
+			since = v
+		}
+	}
+
+	h.streamBuildJob(c, job, since)
+}
+
+// streamBuildJob 将 job 日志以 SSE 推送；客户端断开不影响构建
+func (h *Handler) streamBuildJob(c *gin.Context, job *BuildJob, since int64) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 
-	progressChan := make(chan ProgressEvent, 100)
-
-	ctx, cancel := context.WithCancel(c.Request.Context())
+	ch, cancel := job.Subscribe(since)
 	defer cancel()
 
-	go func() {
-		h.service.ExecMake(ctx, target, req.Board, progressChan)
-	}()
+	clientGone := c.Request.Context().Done()
+	lastSeq := since
 
 	c.Stream(func(w io.Writer) bool {
-		if event, ok := <-progressChan; ok {
-			data, _ := json.Marshal(event)
+		select {
+		case <-clientGone:
+			return false
+		case ev, ok := <-ch:
+			if !ok {
+				fmt.Fprintf(w, "event: done\ndata: {\"status\":\"done\"}\n\n")
+				return false
+			}
+			if ev.Done {
+				data, _ := json.Marshal(gin.H{"status": "done", "build_status": ev.Status})
+				fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
+				return false
+			}
+			if ev.Seq > 0 && ev.Seq <= lastSeq {
+				return true // 去重
+			}
+			if ev.Seq > lastSeq {
+				lastSeq = ev.Seq
+			}
+			payload := ProgressEvent{Status: ev.Status, Message: ev.Message, Line: ev.Line}
+			data, _ := json.Marshal(struct {
+				ProgressEvent
+				Seq int64 `json:"seq,omitempty"`
+			}{ProgressEvent: payload, Seq: ev.Seq})
 			fmt.Fprintf(w, "event: progress\ndata: %s\n\n", data)
 			return true
 		}
-		fmt.Fprintf(w, "event: done\ndata: {\"status\":\"done\"}\n\n")
-		return false
 	})
 }
 
 // GetBuildStatus 获取构建状态
 // GET /linuxlab/build/status
 func (h *Handler) GetBuildStatus(c *gin.Context) {
+	info := h.service.GetBuildInfo()
 	c.JSON(http.StatusOK, gin.H{
-		"building": h.service.IsBuilding(),
-		"running":  h.service.IsRunning(),
+		"building":        info.Building,
+		"running":         h.service.IsRunning(),
+		"board":           info.Board,
+		"target":          info.Target,
+		"last_seq":        info.LastSeq,
+		"status":          info.Status,
+		"job_id":          info.JobID,
+		"logs_available":  info.JobID != "",
 	})
 }
 

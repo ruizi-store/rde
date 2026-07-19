@@ -1,3 +1,11 @@
+rde (0.2.4) unstable; urgency=medium
+
+  * feat(linuxlab): 构建日志环形缓冲，刷新后可重连恢复历史与实时输出
+  * feat(desktop): 关机/重启全屏遮罩与健康探测，避免前端「假活」
+  * fix(ui): Linux Lab / Tabs 日志区域滚动条可正常拖动
+
+ -- liduanjun <duanjunzi@gmail.com>  Sun, 19 Jul 2026 19:57:06 +0800
+
 rde (0.2.3) unstable; urgency=medium
 
   * feat(docker): 已安装应用展示端口与打开入口，移除无意义桌面图标

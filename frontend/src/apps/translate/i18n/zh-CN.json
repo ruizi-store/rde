@@ -21,7 +21,7 @@
   "installButton": "启动翻译服务",
   "startButton": "启动服务",
   "installHint": "若无本地镜像，可能需要联网下载（约 2–5 分钟）",
-  "startHintOffline": "已检测到离线/本地镜像，无需联网",
+  "startHintOffline": "已检测到离线镜像与语言模型，无需联网",
   "starting": "正在启动翻译服务…",
   "loadingModels": "正在加载语言模型，请稍候…",
   "configuring": "正在配置服务…",

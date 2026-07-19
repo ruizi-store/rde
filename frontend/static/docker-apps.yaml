@@ -19778,8 +19778,8 @@ apps:
                 environment:
                     - LT_LOAD_ONLY=${LT_LANGUAGES}
       description:
-        en: Free and Open Source Machine Translation API, entirely self-hosted
-        zh: 免费开源的机器翻译 API，完全自托管的离线翻译服务
+        en: "Managed by RDE Translate app — prefer Desktop → Translate. Installing here may conflict on port 5000."
+        zh: "已由「翻译」应用托管，请优先使用桌面翻译 App。此处再安装可能与 :5000 端口冲突。"
       form:
         - key: CONTAINER_NAME
           label:
@@ -19815,6 +19815,7 @@ apps:
       tags:
         - ai
         - translate
+        - system
       title:
         en: LibreTranslate
         zh: LibreTranslate

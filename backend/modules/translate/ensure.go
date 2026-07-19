@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -51,9 +53,15 @@ func dockerContainerRunning(name string) bool {
 }
 
 func findExistingContainer() (name string, running bool) {
+	// 优先复用已在运行的容器，避免 Created 的标准名抢占端口导致 ensure 失败
+	for _, n := range knownContainerNames {
+		if dockerContainerRunning(n) {
+			return n, true
+		}
+	}
 	for _, n := range knownContainerNames {
 		if dockerContainerExists(n) {
-			return n, dockerContainerRunning(n)
+			return n, false
 		}
 	}
 	return "", false
@@ -110,7 +118,8 @@ func (s *Service) enrichStatus(status *ServiceStatus) *ServiceStatus {
 	status.Image = DefaultImage
 	status.Container = DefaultContainerName
 	status.ImageReady = dockerAvailable() && dockerImageExists(DefaultImage)
-	status.OfflineReady = offline.Global().HasImage(DefaultImage)
+	status.OfflineReady = offline.Global().HasImage(DefaultImage) ||
+		offline.Global().HasModels(offline.LibreTranslateModelsKey)
 
 	name, running := findExistingContainer()
 	if name != "" {
@@ -174,6 +183,20 @@ func (s *Service) EnsureService(wait time.Duration) *EnsureResult {
 		return result
 	}
 
+	// 镜像 + 离线 en/zh 模型（避免 Booting 阶段外网下载卡住）
+	if err := s.ensureImage(result); err != nil {
+		result.Status = "failed"
+		result.Phase = PhaseError
+		result.Message = err.Error()
+		return result
+	}
+	if err := s.seedOfflineModels(); err != nil {
+		s.logger.Warn("seed libretranslate models failed", zap.Error(err))
+	}
+
+	// 双容器清理：只保留一个可用实例
+	s.reconcileContainers()
+
 	// 1) 复用已有容器（含旧名 libretranslate）
 	if name, running := findExistingContainer(); name != "" {
 		s.logger.Info("reusing libretranslate container", zap.String("name", name), zap.Bool("running", running))
@@ -188,21 +211,20 @@ func (s *Service) EnsureService(wait time.Duration) *EnsureResult {
 		if s.waitUntilReady(wait, result) {
 			return result
 		}
+		// 长时间 Booting（模型下载卡住）时：再灌一次离线模型并重启
+		_ = s.seedOfflineModels()
+		s.logger.Warn("libretranslate still not ready, restarting container", zap.String("name", name))
+		_ = exec.Command("docker", "restart", name).Run()
+		if s.waitUntilReady(wait, result) {
+			return result
+		}
 		result.Status = "starting"
 		result.Phase = PhaseStarting
 		result.Message = "容器已启动，语言模型仍在加载，请稍候…"
 		return result
 	}
 
-	// 2) 准备镜像：本地 → 离线 tar → pull
-	if err := s.ensureImage(result); err != nil {
-		result.Status = "failed"
-		result.Phase = PhaseError
-		result.Message = err.Error()
-		return result
-	}
-
-	// 3) 端口被非本服务占用
+	// 2) 端口被非本服务占用
 	if hostPortOpen(DefaultHostPort) && !s.httpReady() {
 		result.Status = "failed"
 		result.Phase = PhaseError
@@ -210,8 +232,9 @@ func (s *Service) EnsureService(wait time.Duration) *EnsureResult {
 		return result
 	}
 
-	// 4) 创建标准容器（与 ISO bootstrap 同名）
+	// 3) 创建标准容器（与 ISO bootstrap 同名）
 	_ = exec.Command("docker", "volume", "create", DefaultVolumeName).Run()
+	_ = s.seedOfflineModels()
 	args := []string{
 		"run", "-d",
 		"--name", DefaultContainerName,
@@ -257,6 +280,56 @@ func (s *Service) ensureImage(result *EnsureResult) error {
 		return fmt.Errorf("镜像准备失败（本地 / 离线包 / 网络均不可用）: %v (%s)", err, strings.TrimSpace(string(out)))
 	}
 	result.Message = "已从网络拉取镜像"
+	return nil
+}
+
+// reconcileContainers 避免 rde-libretranslate(Created) 与 libretranslate(Running) 抢端口
+func (s *Service) reconcileContainers() {
+	stdExists := dockerContainerExists(DefaultContainerName)
+	stdRun := dockerContainerRunning(DefaultContainerName)
+	legExists := dockerContainerExists(LegacyContainerName)
+	legRun := dockerContainerRunning(LegacyContainerName)
+
+	switch {
+	case stdRun && legExists:
+		s.logger.Info("removing conflicting legacy libretranslate container")
+		_ = exec.Command("docker", "rm", "-f", LegacyContainerName).Run()
+	case legRun && stdExists && !stdRun:
+		s.logger.Info("removing unused standard container that blocks port reuse")
+		_ = exec.Command("docker", "rm", "-f", DefaultContainerName).Run()
+	case !stdRun && !legRun && stdExists && legExists:
+		// 都未运行：保留标准名，删旧名
+		_ = exec.Command("docker", "rm", "-f", LegacyContainerName).Run()
+	}
+}
+
+// seedOfflineModels 将离线 Argos en/zh 包解压进 docker volume（幂等）
+func (s *Service) seedOfflineModels() error {
+	tarPath, ok := offline.Global().FindModelTar(offline.LibreTranslateModelsKey)
+	if !ok {
+		return nil
+	}
+	_ = exec.Command("docker", "volume", "create", DefaultVolumeName).Run()
+
+	mpOut, err := exec.Command("docker", "volume", "inspect", "-f", "{{.Mountpoint}}", DefaultVolumeName).Output()
+	if err != nil {
+		return fmt.Errorf("inspect volume: %w", err)
+	}
+	mountpoint := strings.TrimSpace(string(mpOut))
+	if mountpoint == "" {
+		return fmt.Errorf("empty volume mountpoint")
+	}
+
+	pkgMarker := filepath.Join(mountpoint, "share", "argos-translate", "packages", "translate-en_zh-1_9", "metadata.json")
+	if st, err := os.Stat(pkgMarker); err == nil && !st.IsDir() {
+		return nil
+	}
+
+	s.logger.Info("seeding libretranslate offline models", zap.String("tar", tarPath), zap.String("volume", DefaultVolumeName))
+	cmd := exec.Command("tar", "xf", tarPath, "-C", mountpoint)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("extract models: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
 	return nil
 }
 

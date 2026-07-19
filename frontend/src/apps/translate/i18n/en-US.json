@@ -21,7 +21,7 @@
   "installButton": "Start Translation Service",
   "startButton": "Start Service",
   "installHint": "Without a local image, a download may be required (about 2–5 minutes)",
-  "startHintOffline": "Offline/local image detected — no network required",
+  "startHintOffline": "Offline image and language models detected — no network required",
   "starting": "Starting translation service…",
   "loadingModels": "Loading language models, please wait…",
   "configuring": "Configuring service…",

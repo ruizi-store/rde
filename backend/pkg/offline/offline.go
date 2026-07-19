@@ -4,6 +4,7 @@
 //
 //	{dir}/manifest.yaml
 //	{dir}/images/*.tar[.gz]
+//	{dir}/models/*.tar          # 如 LibreTranslate en/zh Argos 数据包
 //	{dir}/debs/*.deb
 //	{dir}/drivers/*
 package offline
@@ -21,10 +22,14 @@ import (
 
 const DefaultDir = "/usr/share/rde/offline"
 
+// 预置模型逻辑名（与 ISO / manifest 一致）
+const LibreTranslateModelsKey = "libretranslate-en-zh"
+
 // Manifest 描述可离线安装的资源
 type Manifest struct {
 	Version string            `yaml:"version"`
 	Images  map[string]string `yaml:"images"`  // 逻辑名或镜像引用 -> 相对路径
+	Models  map[string]string `yaml:"models"`  // 逻辑名 -> 相对路径（volume 内容 tar）
 	Debs    map[string]string `yaml:"debs"`    // 包名 -> 相对路径
 	Drivers map[string]string `yaml:"drivers"` // 驱动名 -> 相对路径
 }
@@ -85,6 +90,7 @@ func (s *Store) Reload() error {
 		s.manifest = &Manifest{
 			Version: "1",
 			Images:  map[string]string{},
+			Models:  map[string]string{},
 			Debs:    map[string]string{},
 			Drivers: map[string]string{},
 		}
@@ -100,6 +106,9 @@ func (s *Store) Reload() error {
 	}
 	if m.Images == nil {
 		m.Images = map[string]string{}
+	}
+	if m.Models == nil {
+		m.Models = map[string]string{}
 	}
 	if m.Debs == nil {
 		m.Debs = map[string]string{}
@@ -168,6 +177,37 @@ func (s *Store) FindImageTar(imageRef string) (string, bool) {
 // HasImage 本地是否存在对应镜像 tar（尚未 docker load 也算有）
 func (s *Store) HasImage(imageRef string) bool {
 	_, ok := s.FindImageTar(imageRef)
+	return ok
+}
+
+// FindModelTar 查找预置模型/数据包 tar（按逻辑名）
+func (s *Store) FindModelTar(key string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if key == "" {
+		return "", false
+	}
+	if s.manifest != nil {
+		if rel, ok := s.manifest.Models[key]; ok {
+			p := s.resolve(rel)
+			if st, err := os.Stat(p); err == nil && !st.IsDir() {
+				return p, true
+			}
+		}
+	}
+	// 约定路径回退
+	for _, name := range []string{key + ".tar", key + ".tar.gz", key + ".tgz"} {
+		p := filepath.Join(s.Dir(), "models", name)
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p, true
+		}
+	}
+	return "", false
+}
+
+// HasModels 本地是否存在预置模型 tar
+func (s *Store) HasModels(key string) bool {
+	_, ok := s.FindModelTar(key)
 	return ok
 }
 

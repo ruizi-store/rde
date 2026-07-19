@@ -103,10 +103,44 @@ export async function getStatus(): Promise<ServiceStatus> {
 
 /**
  * 确保翻译服务已启动（复用容器 / 离线镜像，不走 Docker Store 安装）
+ * 旧后端无 /ensure 时降级为轮询 /status，避免 UI 只显示 "not found"
  */
 export async function ensureService(waitSec = 20): Promise<EnsureResult> {
-  const response = await api.post<EnsureResult>(`/translate/ensure?wait=${waitSec}`);
-  return response;
+  try {
+    return await api.post<EnsureResult>(`/translate/ensure?wait=${waitSec}`);
+  } catch (e: unknown) {
+    const status = (e as { status?: number })?.status;
+    const message = (e as { message?: string })?.message || "";
+    if (status !== 404 && !/not found/i.test(message)) {
+      throw e;
+    }
+    // 兼容旧包：无 ensure 路由时轮询 status
+    const deadline = Date.now() + Math.max(waitSec, 5) * 1000;
+    while (Date.now() < deadline) {
+      const st = await getStatus().catch(() => null);
+      if (st?.available) {
+        return {
+          status: "success",
+          available: true,
+          phase: "ready",
+          message: st.message || "翻译服务已就绪",
+        };
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    const st = await getStatus().catch(() => null);
+    if (st?.available) {
+      return { status: "success", available: true, phase: "ready", message: st.message };
+    }
+    return {
+      status: "failed",
+      available: false,
+      phase: st?.phase || "error",
+      message:
+        st?.message ||
+        "当前系统版本缺少翻译启动接口，请升级 RDE 或等待离线引导完成后再试",
+    };
+  }
 }
 
 /**

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,8 +16,8 @@ import (
 )
 
 const (
-	// DefaultLibreTranslateURL LibreTranslate 默认地址
-	DefaultLibreTranslateURL = "http://localhost:5000"
+	// DefaultLibreTranslateURL LibreTranslate 默认地址（用 127.0.0.1 避免 localhost 优先走 IPv6）
+	DefaultLibreTranslateURL = "http://127.0.0.1:5000"
 
 	// 默认超时时间
 	defaultTimeout = 30 * time.Second
@@ -44,11 +46,33 @@ func NewService(logger *zap.Logger) *Service {
 	}
 }
 
-// SetServiceURL 设置服务地址
-func (s *Service) SetServiceURL(url string) {
+// SetServiceURL 设置服务地址（localhost 归一为 127.0.0.1，避免优先走 IPv6）
+func (s *Service) SetServiceURL(raw string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.serviceURL = url
+	s.serviceURL = normalizeServiceURL(raw)
+}
+
+func normalizeServiceURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return DefaultLibreTranslateURL
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return strings.Replace(raw, "localhost", "127.0.0.1", 1)
+	}
+	host := u.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		port := u.Port()
+		if port == "" {
+			u.Host = "127.0.0.1"
+		} else {
+			u.Host = "127.0.0.1:" + port
+		}
+		return u.String()
+	}
+	return raw
 }
 
 // GetServiceURL 获取服务地址

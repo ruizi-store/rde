@@ -2,12 +2,14 @@
 package files
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -69,6 +71,17 @@ func serverError(c *gin.Context, msg string) {
 		Success: 500,
 		Message: msg,
 	})
+}
+
+// uploadTempError 将磁盘满等错误转成可读提示
+func uploadTempError(err error) string {
+	if err == nil {
+		return "upload failed"
+	}
+	if errors.Is(err, syscall.ENOSPC) || strings.Contains(strings.ToLower(err.Error()), "no space") {
+		return "上传临时空间不足（请检查 /var/cache/rde/uploads 所在磁盘），无法继续分片上传"
+	}
+	return err.Error()
 }
 
 // getPathContext 从 gin 上下文获取虚拟路径解析上下文
@@ -1060,13 +1073,15 @@ func (h *Handler) UploadChunk(c *gin.Context) {
 
 	out, err := os.Create(chunkPath)
 	if err != nil {
-		serverError(c, err.Error())
+		serverError(c, uploadTempError(err))
 		return
 	}
 	defer out.Close()
 
 	if _, err := io.Copy(out, file); err != nil {
-		serverError(c, err.Error())
+		_ = out.Close()
+		_ = os.Remove(chunkPath)
+		serverError(c, uploadTempError(err))
 		return
 	}
 

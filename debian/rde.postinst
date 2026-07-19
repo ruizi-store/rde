@@ -107,6 +107,7 @@ EOF
     mkdir -p /var/log/rde
     mkdir -p /var/run/rde
     mkdir -p /var/cache/rde
+    mkdir -p /var/cache/rde/uploads
     mkdir -p "${CONF_PATH}"
 
     chown -R "${RDE_USER}:${RDE_USER}" /var/lib/rde

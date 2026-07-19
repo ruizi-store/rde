@@ -37,5 +37,9 @@ JWTSecret =
 # LibreTranslate 地址（务必用 127.0.0.1，避免 localhost 走 IPv6）
 # service_url = http://127.0.0.1:5000
 
+[files]
+# 分片上传临时目录（须在数据盘；勿用 /tmp，tmpfs 会在大文件上传时写满）
+# upload_temp_dir = /var/cache/rde/uploads
+
 [common]
 RuntimePath=/var/run/rde

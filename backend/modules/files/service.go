@@ -36,14 +36,19 @@ var (
 	ErrInvalidOperation = errors.New("invalid operation type")
 )
 
+// DefaultUploadTempDir 分片上传临时根目录。
+// 不可使用 os.TempDir()（常为 tmpfs，大文件会很快写满导致 500）。
+const DefaultUploadTempDir = "/var/cache/rde/uploads"
+
 // Service 文件管理服务
 type Service struct {
-	logger       *zap.Logger
-	rootPaths    []string // 允许访问的根路径列表
-	operations   sync.Map // 存储进行中的操作
-	opQueue      []string // 操作队列
-	opMutex      sync.Mutex
-	mountChecker MountChecker // 检查挂载点的接口
+	logger        *zap.Logger
+	rootPaths     []string // 允许访问的根路径列表
+	operations    sync.Map // 存储进行中的操作
+	opQueue       []string // 操作队列
+	opMutex       sync.Mutex
+	mountChecker  MountChecker // 检查挂载点的接口
+	uploadTempDir string       // 分片上传临时根目录
 }
 
 // MountChecker 挂载点检查器接口
@@ -65,15 +70,32 @@ func NewService(logger *zap.Logger, rootPaths []string) *Service {
 		logger = zap.NewNop()
 	}
 	return &Service{
-		logger:       logger,
-		rootPaths:    rootPaths,
-		mountChecker: &defaultMountChecker{},
+		logger:        logger,
+		rootPaths:     rootPaths,
+		mountChecker:  &defaultMountChecker{},
+		uploadTempDir: DefaultUploadTempDir,
 	}
 }
 
 // SetMountChecker 设置挂载检查器
 func (s *Service) SetMountChecker(mc MountChecker) {
 	s.mountChecker = mc
+}
+
+// SetUploadTempDir 设置分片上传临时根目录
+func (s *Service) SetUploadTempDir(dir string) {
+	if dir == "" {
+		return
+	}
+	s.uploadTempDir = dir
+}
+
+// UploadTempDir 返回分片上传临时根目录
+func (s *Service) UploadTempDir() string {
+	if s.uploadTempDir == "" {
+		return DefaultUploadTempDir
+	}
+	return s.uploadTempDir
 }
 
 // validatePath 验证路径安全性
@@ -880,9 +902,22 @@ func (s *Service) GetUploadTempDir(destDir, filename string, totalChunks int) st
 	return filepath.Join(destDir, ".temp", fmt.Sprintf("%s%d", hashStr, totalChunks))
 }
 
-// GetUploadTempDirByID 根据上传ID获取临时目录
+// GetUploadTempDirByID 根据上传ID获取临时目录（落在数据盘，避免 tmpfs）
 func (s *Service) GetUploadTempDirByID(uploadId string) string {
-	return filepath.Join(os.TempDir(), "rde-upload", uploadId)
+	return filepath.Join(s.UploadTempDir(), uploadId)
+}
+
+// EnsureUploadTempDir 确保上传临时根目录存在
+func (s *Service) EnsureUploadTempDir() error {
+	return os.MkdirAll(s.UploadTempDir(), 0755)
+}
+
+// CleanupLegacyUploadTemp 清理旧版写在 /tmp/rde-upload 的残留分片
+func (s *Service) CleanupLegacyUploadTemp() {
+	legacy := filepath.Join(os.TempDir(), "rde-upload")
+	if err := os.RemoveAll(legacy); err != nil && !os.IsNotExist(err) {
+		s.logger.Warn("failed to cleanup legacy upload temp", zap.String("path", legacy), zap.Error(err))
+	}
 }
 
 // GenerateUploadID 生成上传ID

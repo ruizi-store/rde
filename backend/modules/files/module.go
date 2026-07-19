@@ -69,6 +69,17 @@ func (m *Module) Init(ctx *module.Context) error {
 	// 创建服务
 	m.service = NewService(ctx.Logger, rootPaths)
 
+	// 分片上传临时目录：默认落在 /var/cache/rde/uploads（数据盘），勿用 /tmp(tmpfs)
+	uploadTempDir := ctx.Config.GetString("files.upload_temp_dir")
+	if uploadTempDir == "" {
+		uploadTempDir = DefaultUploadTempDir
+	}
+	m.service.SetUploadTempDir(uploadTempDir)
+	if err := m.service.EnsureUploadTempDir(); err != nil {
+		ctx.Logger.Warn("failed to create upload temp dir",
+			zap.String("dir", uploadTempDir), zap.Error(err))
+	}
+
 	// 创建缩略图服务
 	m.thumbnails = NewThumbnailService(ctx.Logger, thumbnailCacheDir)
 
@@ -80,13 +91,15 @@ func (m *Module) Init(ctx *module.Context) error {
 
 	ctx.Logger.Info("files module initialized",
 		zap.Strings("root_paths", rootPaths),
-		zap.String("thumbnail_cache_dir", thumbnailCacheDir))
+		zap.String("thumbnail_cache_dir", thumbnailCacheDir),
+		zap.String("upload_temp_dir", uploadTempDir))
 
 	return nil
 }
 
 // Start 启动模块
 func (m *Module) Start() error {
+	m.service.CleanupLegacyUploadTemp()
 	m.ctx.Logger.Info("files module started")
 	return nil
 }

@@ -1,3 +1,15 @@
+rde (0.2.3) unstable; urgency=medium
+
+  * feat(docker): 已安装应用展示端口与打开入口，移除无意义桌面图标
+  * fix(flatpak): 国内默认源改用中科大，修复交大镜像 SSL [60]
+  * fix(translate): 离线模型灌入后修正 volume 属主，避免容器崩溃重启
+  * fix(translate): 离线预置 en/zh 模型并加固 ensure / 离线优先启动
+  * fix(files): 分片上传改用数据盘临时目录；修复多文件窗口剪切与拖拽
+  * fix(android): 投屏 WebSocket 附带 JWT，修复鉴权导致黑屏
+  * fix(web): 用安装实例 ID 对账，消除同 IP 换机残留前端缓存
+
+ -- liduanjun <duanjunzi@gmail.com>  Sun, 19 Jul 2026 19:09:34 +0800
+
 rde (0.2.2) unstable; urgency=medium
 
   * fix(android): 离线包优先准备镜像（本地 Docker → offline tar → pull）

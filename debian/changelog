@@ -1,3 +1,12 @@
+rde (0.2.1) unstable; urgency=medium
+
+  * fix(deb): thirdparty/offline 安装到 /usr/share/rde/offline
+  * feat: 离线资源框架（Docker 镜像优先本地加载）
+  * feat: 内置 EmulatorJS / KasmVNC / Iconify，减少运行时联网
+  * feat: AI / VM / Android / Linux Lab 等能力并入核心模块
+
+ -- liduanjun <duanjunzi@gmail.com>  Sun, 19 Jul 2026 09:10:00 +0800
+
 rde (0.2.0) unstable; urgency=medium
 
   * fix: flatpak 应用若干bug

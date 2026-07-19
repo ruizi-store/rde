@@ -321,14 +321,24 @@ func (s *Service) seedOfflineModels() error {
 	}
 
 	pkgMarker := filepath.Join(mountpoint, "share", "argos-translate", "packages", "translate-en_zh-1_9", "metadata.json")
+	already := false
 	if st, err := os.Stat(pkgMarker); err == nil && !st.IsDir() {
-		return nil
+		already = true
 	}
 
-	s.logger.Info("seeding libretranslate offline models", zap.String("tar", tarPath), zap.String("volume", DefaultVolumeName))
-	cmd := exec.Command("tar", "xf", tarPath, "-C", mountpoint)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("extract models: %w (%s)", err, strings.TrimSpace(string(out)))
+	if !already {
+		s.logger.Info("seeding libretranslate offline models", zap.String("tar", tarPath), zap.String("volume", DefaultVolumeName))
+		cmd := exec.Command("tar", "xf", tarPath, "-C", mountpoint)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("extract models: %w (%s)", err, strings.TrimSpace(string(out)))
+		}
+	}
+
+	// 镜像内用户 libretranslate=1032:nogroup；root 解压会导致无法创建 cache 而 Restarting
+	_ = os.MkdirAll(filepath.Join(mountpoint, "cache"), 0o755)
+	if out, err := exec.Command("chown", "-R", "1032:65534", mountpoint).CombinedOutput(); err != nil {
+		s.logger.Warn("chown libretranslate volume failed",
+			zap.Error(err), zap.String("output", strings.TrimSpace(string(out))))
 	}
 	return nil
 }

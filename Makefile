@@ -1,6 +1,6 @@
 # RDE Makefile
 
-.PHONY: help dev stop deb deb-arm64 deb-all setup deploy clean
+.PHONY: help dev stop deb deb-arm64 deb-all docker setup deploy clean
 
 .DEFAULT_GOAL := help
 
@@ -46,6 +46,7 @@ help:
 	@echo "  make deb     - 构建 DEB 安装包 (默认 amd64)"
 	@echo "  make deb-arm64 - 构建 ARM64 DEB 安装包"
 	@echo "  make deb-all - 构建 amd64 + arm64 DEB 安装包"
+	@echo "  make docker  - 构建 Docker 镜像 (rde:$(VERSION) + rde:latest)"
 	@echo "  make deploy  - 构建并部署到远程服务器"
 	@echo "  make setup   - 安装开发环境 (Go + Node + pnpm)"
 	@echo ""
@@ -125,6 +126,21 @@ deploy:
 	echo "$(GREEN)安装中...$(RESET)"; \
 	ssh -p $(DEPLOY_PORT) $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo dpkg -i /tmp/rde.deb && sudo systemctl restart rde && rm /tmp/rde.deb"; \
 	echo "$(GREEN)✓ 部署完成$(RESET)"
+
+#==============================================================================
+# Docker 镜像
+#==============================================================================
+
+docker:
+	@echo "$(CYAN)构建 Docker 镜像 (版本 $(VERSION))...$(RESET)"
+	docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg GOPROXY=https://goproxy.cn,direct \
+		-t $(PACKAGE_NAME):$(VERSION) \
+		-t $(PACKAGE_NAME):latest \
+		.
+	@echo "$(GREEN)✓ Docker 镜像已生成$(RESET)"
+	@docker images $(PACKAGE_NAME) --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | head -3
 
 #==============================================================================
 # 环境安装

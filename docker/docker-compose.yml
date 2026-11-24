@@ -1,0 +1,44 @@
+# RDE 容器化部署示例
+#
+# 用法:
+#   cd docker && docker compose up -d
+#   浏览器访问 http://<服务器IP>:3080 进入安装向导
+#
+# 安全提示:
+#   挂载 /var/run/docker.sock 等于赋予容器宿主机 root 级权限（可创建特权容器）。
+#   仅在可信环境使用；面向公网部署时请置于反向代理 + TLS 之后，并启用强口令/2FA。
+
+services:
+  rde:
+    image: rde:latest          # 或 registry.example.com/ruizi/rde:latest
+    build: ..
+    container_name: rde
+    restart: unless-stopped
+    ports:
+      - "3080:3080"            # 宿主机端口改动只改左侧；容器内端口用 RDE_PORT
+    environment:
+      TZ: Asia/Shanghai
+      RDE_PORT: "3080"
+      # ---- 模块开关（按需调整；两项都留空 = 启用全部模块）----
+      # 精简 profile（推荐：不含需要宿主机内核/硬件能力的模块）
+      RDE_MODULES_DISABLED: "retrogame,linuxlab,android,vm,flatpak,samba,ssh,download,sync,translate"
+      # 白名单模式（与黑名单二选一，优先级更高）:
+      # RDE_MODULES: "files,docker,terminal,ai,backup,photos,cloudbackup"
+    volumes:
+      # 数据目录：两侧路径必须一致（docker-apps 生成的 bind mount 按宿主机路径解析）
+      - /var/lib/rde:/var/lib/rde
+      # Docker API（Docker 应用商店 / bot 工作台容器）
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:3080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ---- 可选：模型服务（本地推理）----
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   restart: unless-stopped
+  #   volumes:
+  #     - /var/lib/rde/ollama:/root/.ollama
+  #   # GPU: deploy.resources.reservations.devices 或 nvidia-container-toolkit

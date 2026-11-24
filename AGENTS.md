@@ -69,8 +69,23 @@ cd frontend && pnpm dev --port 5175
 backend/     Go API（Gin），模块在 backend/modules/
 frontend/    SvelteKit + Tailwind v4 + Vite
 debian/      DEB 打包配置
-Makefile     setup / dev / stop / deb
+docker/      Docker 镜像交付（entrypoint、compose、部署文档）
+docs/        产品路线（docs/ROADMAP.md：带电脑的 Bot 方向）
+Makefile     setup / dev / stop / deb / docker
 ```
+
+## Docker 形态（与 DEB 并存）
+
+```bash
+make docker    # 构建镜像 rde:<版本> + rde:latest（走 goproxy.cn）
+cd docker && docker compose up -d   # 数据目录 /var/lib/rde，挂载 docker.sock
+```
+
+- 构建三阶段：node:20 → golang:1.25 → debian:bookworm-slim；前端构建产物在 `frontend/build/`。
+- **模块开关**（`backend/core/bootstrap/bootstrap.go`）：环境变量 `RDE_MODULES`（白名单）/ `RDE_MODULES_DISABLED`（黑名单），控制 13 个可选模块；核心 10 模块始终加载。
+- **容器探测**（`backend/pkg/container`）：优先读 `RDE_CONTAINER=1`（镜像内已设置）；setup 检查跳过 systemd，system 模块禁用宿主机关机。
+- **路径约定**：`/var/lib/rde` 宿主机与容器内必须同路径（docker-apps 生成的 compose bind mount 按宿主机解析）。
+- daemon 无法直连 docker.io 时：预拉 `docker.m.daocloud.io/library/*` 基础镜像并 `docker tag` 成标准名。
 
 ## 常见问题
 

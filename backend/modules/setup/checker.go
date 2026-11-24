@@ -11,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ruizi-store/rde/backend/pkg/container"
+
 	"go.uber.org/zap"
 )
 
@@ -57,6 +59,13 @@ func (c *Checker) CheckSystem() (*SystemCheckResult, error) {
 
 // checkDependencies 检查系统依赖
 func (c *Checker) checkDependencies() []DependencyCheck {
+	// 容器形态（Docker 镜像）中没有 systemd：RDE 自身即服务单元，
+	// 服务管理类检查不适用，跳过 systemctl 必需项。
+	systemdRequired := !container.InContainer()
+	if !systemdRequired {
+		c.logger.Info("Running inside a container, skipping systemd requirement")
+	}
+
 	// 定义需要检查的依赖
 	// 注意：docker, xpra, scrcpy 等已移至套件系统，由套件自行管理依赖
 	deps := []struct {
@@ -65,7 +74,7 @@ func (c *Checker) checkDependencies() []DependencyCheck {
 		args     []string
 		required bool
 	}{
-		{"systemd", "systemctl", []string{"--version"}, true}, // Core 服务管理必需
+		{"systemd", "systemctl", []string{"--version"}, systemdRequired}, // 仅宿主机形态必需
 	}
 
 	results := make([]DependencyCheck, 0, len(deps))

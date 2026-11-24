@@ -18,6 +18,7 @@ import (
 	"github.com/ruizi-store/rde/backend/common"
 	"github.com/ruizi-store/rde/backend/core/module"
 	"github.com/ruizi-store/rde/backend/model"
+	"github.com/ruizi-store/rde/backend/pkg/container"
 	"github.com/ruizi-store/rde/backend/pkg/instance"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
@@ -452,6 +453,10 @@ func (s *Service) GetTopProcesses(ctx context.Context, limit int, sortBy string)
 }
 
 // Reboot 重启系统
+//
+// 容器形态下没有"重启整机"的概念：宿主机不受 RDE 容器管辖，
+// 此时 reboot 仅终止自身进程，交由容器运行时（restart: unless-stopped）拉起，
+// 达到"重启 RDE 服务"的等效语义。
 func (s *Service) Reboot(ctx context.Context) error {
 	s.logger.Info("System reboot requested")
 
@@ -460,11 +465,24 @@ func (s *Service) Reboot(ctx context.Context) error {
 		"time": time.Now().Format(time.RFC3339),
 	})
 
+	if container.InContainer() {
+		s.logger.Info("Running in container: exiting process; container runtime will restart it")
+		go func() {
+			// 等响应写出后再退出
+			time.Sleep(500 * time.Millisecond)
+			os.Exit(0)
+		}()
+		return nil
+	}
+
 	cmd := exec.Command("reboot")
 	return cmd.Run()
 }
 
 // Shutdown 关机
+//
+// 容器形态下不允许关宿主机（RDE 不拥有整台机器）：停止自身进程并等待
+// 人工介入（容器以 no restart 策略运行时即表现为服务停止）。
 func (s *Service) Shutdown(ctx context.Context) error {
 	s.logger.Info("System shutdown requested")
 
@@ -472,6 +490,10 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	s.publishEvent("system.shutdown", map[string]interface{}{
 		"time": time.Now().Format(time.RFC3339),
 	})
+
+	if container.InContainer() {
+		return fmt.Errorf("容器形态不支持关机：请在宿主机上执行 docker stop rde")
+	}
 
 	cmd := exec.Command("shutdown", "-h", "now")
 	return cmd.Run()

@@ -54,15 +54,15 @@ import (
 
 // App 代表应用实例
 type App struct {
-	DB           *gorm.DB
-	dbMgr        *database.Manager
-	Config       *config.Config
-	EventBus     *event.Bus
-	Registry     *module.Registry
-	Logger       *zap.Logger
-	Router           *gin.Engine
-	TokenManager     *auth.TokenManager
-	tokenBlacklist   *auth.PersistentBlacklist
+	DB             *gorm.DB
+	dbMgr          *database.Manager
+	Config         *config.Config
+	EventBus       *event.Bus
+	Registry       *module.Registry
+	Logger         *zap.Logger
+	Router         *gin.Engine
+	TokenManager   *auth.TokenManager
+	tokenBlacklist *auth.PersistentBlacklist
 
 	// 核心模块快捷访问
 	Setup        *setup.Module
@@ -288,6 +288,11 @@ func (a *eventBusAdapter) Unsubscribe(eventType string, handler module.EventHand
 }
 
 // registerModules 注册所有功能模块
+//
+// 模块开关：
+//   - 核心模块（setup/users/files/system/notification/sudo/terminal/docker/ai/backup）始终注册；
+//   - 其余为可选模块，可通过环境变量 RDE_MODULES（白名单，逗号分隔）或
+//     RDE_MODULES_DISABLED（黑名单，逗号分隔）控制；两者均未设置时全部注册（向后兼容）。
 func (app *App) registerModules() error {
 	// 创建核心模块实例
 	app.Setup = setup.NewModule()
@@ -298,23 +303,10 @@ func (app *App) registerModules() error {
 	app.Sudo = sudo.NewModule().(*sudo.Module)
 	app.Terminal = terminal.New()
 	app.Docker = docker.New()
-	app.Samba = samba.New()
-	app.SSH = ssh.New()
-	app.Sync = sync.New()
-	app.Download = download.New()
-	app.Flatpak = flatpak.New()
-	app.Retrogame = retrogame.New()
-	app.Photos = photos.New()
-	app.Video = video.New()
 	app.Backup = backup.New()
-	app.LinuxLab = linuxlab.New()
 
 	// 新增模块（原插件）
 	app.AI = ai.New()
-	app.Android = android.New()
-	app.CloudBackup = cloudbackup.New()
-	app.VM = vm.New()
-	app.Translate = translate.New()
 
 	// 核心模块（始终加载）
 	coreModules := []module.Module{
@@ -326,26 +318,110 @@ func (app *App) registerModules() error {
 		app.Sudo,
 		app.Terminal,
 		app.Docker,
-		app.Samba,
-		app.SSH,
-		app.Sync,
-		app.Download,
-		app.Flatpak,
-		app.Retrogame,
-		app.Photos,
-		app.Video,
 		app.Backup,
-		app.LinuxLab,
-		// 新增模块（原插件）
 		app.AI,
-		app.Android,
-		app.CloudBackup,
-		app.VM,
-		app.Translate,
 	}
 
-	// 注册核心模块
-	for _, m := range coreModules {
+	// 可选模块（依赖均为核心模块，可安全禁用）
+	type optionalModule struct {
+		id       string
+		instance module.Module
+	}
+	optionalModules := []optionalModule{
+		{"samba", samba.New()},
+		{"ssh", ssh.New()},
+		{"sync", sync.New()},
+		{"download", download.New()},
+		{"flatpak", flatpak.New()},
+		{"retrogame", retrogame.New()},
+		{"photos", photos.New()},
+		{"video", video.New()},
+		{"linuxlab", linuxlab.New()},
+		{"android", android.New()},
+		{"cloudbackup", cloudbackup.New()},
+		{"vm", vm.New()},
+		{"translate", translate.New()},
+	}
+
+	// 同步 App 上的字段引用（保持既有 API 兼容）
+	for _, om := range optionalModules {
+		switch om.id {
+		case "samba":
+			app.Samba = om.instance.(*samba.Module)
+		case "ssh":
+			app.SSH = om.instance.(*ssh.Module)
+		case "sync":
+			app.Sync = om.instance.(*sync.Module)
+		case "download":
+			app.Download = om.instance.(*download.Module)
+		case "flatpak":
+			app.Flatpak = om.instance.(*flatpak.Module)
+		case "retrogame":
+			app.Retrogame = om.instance.(*retrogame.Module)
+		case "photos":
+			app.Photos = om.instance.(*photos.Module)
+		case "video":
+			app.Video = om.instance.(*video.Module)
+		case "linuxlab":
+			app.LinuxLab = om.instance.(*linuxlab.Module)
+		case "android":
+			app.Android = om.instance.(*android.Module)
+		case "cloudbackup":
+			app.CloudBackup = om.instance.(*cloudbackup.Module)
+		case "vm":
+			app.VM = om.instance.(*vm.Module)
+		case "translate":
+			app.Translate = om.instance.(*translate.Module)
+		}
+	}
+
+	// 解析模块开关
+	optionalIDs := make([]string, 0, len(optionalModules))
+	for _, om := range optionalModules {
+		optionalIDs = append(optionalIDs, om.id)
+	}
+	enabled := parseModuleFilter(optionalIDs)
+
+	all := coreModules
+	for _, om := range optionalModules {
+		if enabled[om.id] {
+			all = append(all, om.instance)
+		} else {
+			app.Logger.Info("Optional module disabled by configuration", zap.String("id", om.id))
+			// 禁用时清空 App 字段，避免调用方误用
+			switch om.id {
+			case "samba":
+				app.Samba = nil
+			case "ssh":
+				app.SSH = nil
+			case "sync":
+				app.Sync = nil
+			case "download":
+				app.Download = nil
+			case "flatpak":
+				app.Flatpak = nil
+			case "retrogame":
+				app.Retrogame = nil
+			case "photos":
+				app.Photos = nil
+			case "video":
+				app.Video = nil
+			case "linuxlab":
+				app.LinuxLab = nil
+			case "android":
+				app.Android = nil
+			case "cloudbackup":
+				app.CloudBackup = nil
+			case "vm":
+				app.VM = nil
+			case "translate":
+				app.Translate = nil
+			}
+		}
+	}
+
+	// 注册模块
+	for _, m := range all {
 		if err := app.Registry.Register(m); err != nil {
 			return fmt.Errorf("failed to register core module %s: %w", m.ID(), err)
 		}
@@ -353,6 +429,43 @@ func (app *App) registerModules() error {
 	}
 
 	return nil
+}
+
+// parseModuleFilter 依据环境变量解析可选模块启用表
+//
+// 规则（按优先级）：
+//  1. RDE_MODULES 非空：白名单模式，仅返回清单中的可选模块（核心模块不受影响）；
+//  2. RDE_MODULES_DISABLED 非空：黑名单模式，返回除清单外的全部可选模块；
+//  3. 均未设置：全部启用（向后兼容）。
+func parseModuleFilter(optionalIDs []string) map[string]bool {
+	enabled := make(map[string]bool, len(optionalIDs))
+	for _, id := range optionalIDs {
+		enabled[id] = true
+	}
+
+	if allow := strings.TrimSpace(os.Getenv("RDE_MODULES")); allow != "" {
+		for _, id := range optionalIDs {
+			enabled[id] = false
+		}
+		for _, name := range strings.Split(allow, ",") {
+			name = strings.TrimSpace(strings.ToLower(name))
+			if name != "" {
+				enabled[name] = true
+			}
+		}
+		return enabled
+	}
+
+	if deny := strings.TrimSpace(os.Getenv("RDE_MODULES_DISABLED")); deny != "" {
+		for _, name := range strings.Split(deny, ",") {
+			name = strings.TrimSpace(strings.ToLower(name))
+			if name != "" {
+				enabled[name] = false
+			}
+		}
+	}
+
+	return enabled
 }
 
 // Start 启动应用

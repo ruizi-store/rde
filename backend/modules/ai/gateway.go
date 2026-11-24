@@ -65,8 +65,8 @@ func NewGatewayService(logger *zap.Logger, dataDir string, aiService *Service, s
 
 func (gs *GatewayService) loadConfig() {
 	gs.config = &GatewayConfig{
-		Enabled: false,
-		Wecom:   WecomConfig{Enabled: false},
+		Enabled:  false,
+		Wecom:    WecomConfig{Enabled: false},
 		Telegram: TelegramConfig{Enabled: false},
 		Webhook: WebhookConfig{
 			Enabled: false,
@@ -205,18 +205,21 @@ func (gs *GatewayService) HandleMessage(ctx context.Context, msg IncomingMessage
 func (gs *GatewayService) checkSecurity(msg IncomingMessage) error {
 	security := &gs.config.Security
 
-	if len(security.AllowedUsers) > 0 {
-		userKey := fmt.Sprintf("%s:%s", msg.Platform, msg.UserID)
-		allowed := false
-		for _, u := range security.AllowedUsers {
-			if u == userKey || u == msg.UserID {
-				allowed = true
-				break
-			}
+	// 默认拒绝：未配置白名单时不允许任何外部消息触发工具调用
+	if len(security.AllowedUsers) == 0 {
+		return fmt.Errorf("网关未配置允许的用户白名单，已拒绝消息（请在网关设置中配置 AllowedUsers）")
+	}
+
+	userKey := fmt.Sprintf("%s:%s", msg.Platform, msg.UserID)
+	allowed := false
+	for _, u := range security.AllowedUsers {
+		if u == userKey || u == msg.UserID {
+			allowed = true
+			break
 		}
-		if !allowed {
-			return fmt.Errorf("用户未授权")
-		}
+	}
+	if !allowed {
+		return fmt.Errorf("用户未授权")
 	}
 
 	if security.DailyLimit > 0 {

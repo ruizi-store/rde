@@ -10,6 +10,53 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestParseModuleFilter(t *testing.T) {
+	ids := []string{"samba", "ssh", "sync", "download", "flatpak", "vm", "translate"}
+
+	t.Run("默认全部启用", func(t *testing.T) {
+		t.Setenv("RDE_MODULES", "")
+		t.Setenv("RDE_MODULES_DISABLED", "")
+		enabled := parseModuleFilter(ids)
+		for _, id := range ids {
+			assert.True(t, enabled[id], "module %s should be enabled by default", id)
+		}
+	})
+
+	t.Run("白名单模式仅启用清单内模块", func(t *testing.T) {
+		t.Setenv("RDE_MODULES", "samba, vm")
+		enabled := parseModuleFilter(ids)
+		assert.True(t, enabled["samba"])
+		assert.True(t, enabled["vm"])
+		assert.False(t, enabled["ssh"])
+		assert.False(t, enabled["translate"])
+	})
+
+	t.Run("黑名单模式禁用清单内模块", func(t *testing.T) {
+		t.Setenv("RDE_MODULES", "")
+		t.Setenv("RDE_MODULES_DISABLED", "flatpak,retrogame")
+		enabled := parseModuleFilter(ids)
+		assert.False(t, enabled["flatpak"])
+		assert.False(t, enabled["retrogame"])
+		assert.True(t, enabled["samba"])
+		assert.True(t, enabled["vm"])
+	})
+
+	t.Run("白名单优先于黑名单", func(t *testing.T) {
+		t.Setenv("RDE_MODULES", "vm")
+		t.Setenv("RDE_MODULES_DISABLED", "vm")
+		enabled := parseModuleFilter(ids)
+		assert.True(t, enabled["vm"], "allowlist should take precedence")
+		assert.False(t, enabled["samba"])
+	})
+
+	t.Run("未知模块 ID 不影响结果", func(t *testing.T) {
+		t.Setenv("RDE_MODULES", "samba, nonexistent-module")
+		enabled := parseModuleFilter(ids)
+		assert.True(t, enabled["samba"])
+		assert.False(t, enabled["ssh"])
+	})
+}
+
 func setupTestApp(t *testing.T) (*App, func()) {
 	tmpDir, err := os.MkdirTemp("", "bootstrap-test-*")
 	require.NoError(t, err)

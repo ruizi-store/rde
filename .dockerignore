@@ -1,0 +1,22 @@
+.git
+.github
+.pids
+outputs
+debian
+thirdparty
+docs
+*.md
+!frontend/README.md
+
+# 构建产物
+backend/rde
+backend/rde-backend
+frontend/build
+frontend/node_modules
+frontend/.svelte-kit
+frontend/static/emulatorjs
+
+# 本地环境
+.env
+.env.*
+*.log

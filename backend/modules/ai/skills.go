@@ -299,17 +299,17 @@ func (s *SkillsService) SearchFiles(path, pattern, fileType string, minSizeMB, l
 
 // SystemInfo 系统信息
 type SystemInfo struct {
-	Hostname    string  `json:"hostname"`
-	OS          string  `json:"os"`
-	Kernel      string  `json:"kernel"`
-	Arch        string  `json:"arch"`
-	CPUCores    int     `json:"cpu_cores"`
-	CPUModel    string  `json:"cpu_model"`
-	MemTotal    string  `json:"mem_total"`
-	MemUsed     string  `json:"mem_used"`
-	MemPercent  float64 `json:"mem_percent"`
-	Uptime      string  `json:"uptime"`
-	LoadAvg     string  `json:"load_avg"`
+	Hostname   string  `json:"hostname"`
+	OS         string  `json:"os"`
+	Kernel     string  `json:"kernel"`
+	Arch       string  `json:"arch"`
+	CPUCores   int     `json:"cpu_cores"`
+	CPUModel   string  `json:"cpu_model"`
+	MemTotal   string  `json:"mem_total"`
+	MemUsed    string  `json:"mem_used"`
+	MemPercent float64 `json:"mem_percent"`
+	Uptime     string  `json:"uptime"`
+	LoadAvg    string  `json:"load_avg"`
 }
 
 // GetSystemInfo 获取系统信息
@@ -1391,7 +1391,19 @@ type ScriptExecutionResult struct {
 	Duration string `json:"duration"`
 }
 
+// scriptExecutors 返回脚本允许使用的解释器及白名单
+func scriptExecutors() map[string]string {
+	return map[string]string{
+		".sh": "bash",
+		".py": "python3",
+		".js": "node",
+	}
+}
+
 // ExecuteScript 执行用户脚本（有安全限制）
+//
+// 安全边界说明：黑名单关键字过滤只是纵深防御的一层，不构成真正的安全边界。
+// 真正的隔离必须在专用沙箱（bot 工作台容器）中执行，控制面进程不应运行用户脚本。
 func (s *SkillsService) ExecuteScript(script, language string, timeout int) (*ScriptExecutionResult, error) {
 	if timeout <= 0 {
 		timeout = 30
@@ -1432,7 +1444,13 @@ func (s *SkillsService) ExecuteScript(script, language string, timeout int) (*Sc
 	case "node", "js", "javascript":
 		ext, interpreter = ".js", "node"
 	default:
-		ext, interpreter = ".sh", "bash"
+		// 未知语言一律拒绝，避免被当作 bash 执行
+		return nil, fmt.Errorf("不支持的语言 '%s'，仅支持 Bash/Python/Node.js", language)
+	}
+
+	// 双保险：解释器必须在白名单内，防止后续维护中引入任意命令
+	if scriptExecutors()[ext] != interpreter {
+		return nil, fmt.Errorf("非法解释器 '%s'", interpreter)
 	}
 
 	tmpFile, err := os.CreateTemp("", "ai-script-*"+ext)

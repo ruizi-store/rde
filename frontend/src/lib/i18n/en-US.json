@@ -361,7 +361,9 @@
       "music": "Music Player",
       "backup": "Backup Manager",
       "docker": "Docker Apps",
-      "notification": "Notifications"
+      "notification": "Notifications",
+      "ai": "AI Assistant",
+      "bot": "Bot Workbench"
     }
   },
   "errors": {

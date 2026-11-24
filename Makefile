@@ -1,6 +1,6 @@
 # RDE Makefile
 
-.PHONY: help dev stop deb deb-arm64 deb-all docker setup deploy clean
+.PHONY: help dev stop deb deb-arm64 deb-all docker bot-desktop setup deploy clean
 
 .DEFAULT_GOAL := help
 
@@ -140,6 +140,20 @@ docker:
 		-t $(PACKAGE_NAME):latest \
 		.
 	@echo "$(GREEN)✓ Docker 镜像已生成$(RESET)"
+
+# Bot 工作台沙箱镜像（Debian + KasmVNC + Chromium）
+BOT_IMAGE ?= rde/bot-desktop
+
+bot-desktop:
+	@echo "$(CYAN)构建 Bot 工作台沙箱镜像...$(RESET)"
+	docker build \
+		-f docker/bot-desktop/Dockerfile \
+		--build-arg HTTP_PROXY=$(HTTP_PROXY) \
+		--build-arg HTTPS_PROXY=$(HTTPS_PROXY) \
+		-t $(BOT_IMAGE):latest \
+		.
+	@echo "$(GREEN)✓ Bot 沙箱镜像已生成: $(BOT_IMAGE):latest$(RESET)"
+	@echo "$(CYAN)提示: Bot 创建时默认使用 $(BOT_IMAGE):latest，可在创建表单中指定其他镜像$(RESET)"
 	@docker images $(PACKAGE_NAME) --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | head -3
 
 #==============================================================================

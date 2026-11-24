@@ -70,6 +70,38 @@ docker build \
 
 `/var/lib/rde` 在宿主机与容器内**必须同路径**。原因：Docker 应用商店把生成的 `docker-compose.yml` 写在数据目录下、交给宿主机 Docker 执行，其中的 bind mount 路径按宿主机文件系统解析。两侧同路径可免去路径翻译（后续如需不同路径，将引入 `RDE_HOST_DATA_DIR` 映射）。
 
+## Bot 工作台（P2）
+
+产品方向：自托管的"带电脑的 AI 同事"。每个 Bot 拥有一台持久沙箱电脑（独立容器），成员在 Web 桌面围观/接管，后续经企微/飞书/钉钉/Telegram 派活。
+
+### 架构
+
+```
+RDE 容器（控制面, JWT 鉴权）
+  └─ bot 模块 ──Docker API──> rde-bot-<id> 容器（Debian+KasmVNC+Chromium）
+                └─ /var/lib/rde/bots/<id>/workspace ↔ /workspace（bind mount）
+                └─ rde-bot-net 网络：控制面直连沙箱 KasmVNC (:6901) 反向代理
+```
+
+- 控制面进程**不执行**用户脚本；工具调用走沙箱容器 exec（超时 300s / 输出 64KB 截断）。
+- 三级可见性：`viewer`（状态）→ `member`（预览串流）→ `admin`（接管，互斥锁 + 30 分钟过期）。
+- 串流走 `/api/v1/bots/<id>/vnc/`（KasmVNC 自带 web 客户端，iframe + `?token=` 认证）。
+
+### 使用
+
+```bash
+# 1. 构建沙箱镜像（仓库根目录）
+make bot-desktop    # → rde/bot-desktop:latest
+
+# 2. 启动 RDE（compose 已加入 rde-bot-net 网络）
+cd docker && docker compose up -d
+
+# 3. Web 界面：创建 Bot → 「启动沙箱」→ 「工作台」标签页围观/接管
+#    「工具」标签页可在沙箱内执行 Bash/Python 脚本
+```
+
+沙箱镜像默认 `rde/bot-desktop:latest`（KasmVNC deb 来自 `thirdparty/kasmvnc`，amd64/arm64 双架构）。创建 Bot 时可指定其他镜像。
+
 ## 数据与升级
 
 - 所有状态（SQLite、配置、JWT 密钥、应用数据）都在 `/var/lib/rde` 卷中。
@@ -95,4 +127,4 @@ docker build \
 
 - 挂载 `docker.sock` ≈ 宿主机 root 权限。不要把 RDE 暴露到不受信网络；公网访问务必走反向代理 + TLS + 强认证。
 - AI 网关（Telegram/企微等）在未配置 `AllowedUsers` 白名单时默认拒绝所有消息。
-- `execute_script` 等工具仅应运行在 Bot 沙箱工作台中（规划中），控制面进程内执行仅为过渡方案。
+- Bot 沙箱内的 VNC 无认证（`SecurityTypes None`），安全边界来自 `rde-bot-net` 网络隔离 + 控制面代理鉴权——不要把 6901 端口发布到宿主机。

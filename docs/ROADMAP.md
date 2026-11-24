@@ -40,13 +40,15 @@
 - Makefile `make docker` ✅
 - 后续：CI 加 buildx 多架构构建并推镜像仓库；setup 向导在容器模式跳过 netplan/挂载/PAM/端口选择（`setup/service.go` 中按 `/proc/1/cgroup` 或 env 探测容器环境）。
 
-### P2 — Bot 工作台（最小可用）
-- 新模块 `modules/bot`：Bot 的 CRUD（名字/职责/模型/渠道绑定/成员可见性）。
-- Bot 沙箱容器：`docker` 模块已有 client 封装，直接复用；镜象 `rde/bot-desktop`（Debian + Chromium + KasmVNC，参考 flatpak 模块已内置的 KasmVNC 离线 deb）。
-- 三级可见性（Grok Bot 的设计）：状态（图标点亮）/ 预览（侧栏串流）/ 接管（全屏操作后交还）。
-- 工具调用走沙箱 exec（复用 `execute_script` 的超时/输出截断逻辑，但执行目标改为容器）。
+### P2 — Bot 工作台（最小可用 ✅ 2026-11）
+- 新模块 `modules/bot`：Bot 的 CRUD（名字/职责/模型/成员可见性），接管互斥锁。✅
+- Bot 沙箱容器：复用 `docker` 模块 client；镜像 `rde/bot-desktop`（Debian trixie + Chromium + KasmVNC，
+  KasmVNC deb 来自 `thirdparty/kasmvnc`，`make bot-desktop` 构建）。✅
+- 三级可见性：状态（图标点亮）/ 预览（iframe 围观 KasmVNC 串流）/ 接管（互斥 + 30 分钟过期）。✅
+- 工具调用走沙箱 exec（`ExecWithTimeout`：超时 300s 上限 / 输出 64KB 截断；控制面不执行用户脚本）。✅
+- 网络拓扑：`rde-bot-net` bridge 网络，控制面容器与沙箱同网段（compose 已配置）。✅
 
-### P3 — 技能与渠道
+### P3 — 技能与渠道（下一步）
 - 技能文件化：`/var/lib/rde/skills/<name>/SKILL.md`（对齐 agent skills 生态格式），替代 `skills.go` 中硬编码的 22 个 NAS 工具；兼容 MCP（stdio/HTTP）。
 - 渠道扩展：飞书、钉钉（企微/TG 已有底子）。
 - 调度与主动汇报：把 `gateway_alerts.go` 的推送通道泛化为 cron 触发 skill 执行 + 结果推送。

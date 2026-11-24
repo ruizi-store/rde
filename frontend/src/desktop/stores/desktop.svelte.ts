@@ -185,6 +185,7 @@ class DesktopStore {
       // 第三列：工具
       { id: "12", name: "备份管理", icon: "/icons/backup.svg", appId: "backup", x: 2, y: 0, },
       { id: "26", name: "AI 助手", icon: "/icons/ai.svg", appId: "ai", x: 2, y: 1, },
+      { id: "30", name: "Bot 工作台", icon: "/icons/bot.svg", appId: "bot", x: 2, y: 2, },
     ];
   }
 
@@ -249,6 +250,7 @@ class DesktopStore {
           const newIcons: { appId: string; name: string; icon: string }[] = [
             { appId: "terminal", name: "终端", icon: "/icons/terminal.svg" },
             { appId: "ai", name: "AI 助手", icon: "/icons/ai.svg" },
+            { appId: "bot", name: "Bot 工作台", icon: "/icons/bot.svg" },
           ];
           for (const ni of newIcons) {
             if (!this.icons.some((i) => i.appId === ni.appId)) {

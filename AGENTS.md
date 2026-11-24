@@ -82,7 +82,8 @@ cd docker && docker compose up -d   # 数据目录 /var/lib/rde，挂载 docker.
 ```
 
 - 构建三阶段：node:20 → golang:1.25 → debian:bookworm-slim；前端构建产物在 `frontend/build/`。
-- **模块开关**（`backend/core/bootstrap/bootstrap.go`）：环境变量 `RDE_MODULES`（白名单）/ `RDE_MODULES_DISABLED`（黑名单），控制 3 个可选模块（ssh/sync/cloudbackup）；核心 10 模块始终加载。
+- **模块开关**（`backend/core/bootstrap/bootstrap.go`）：环境变量 `RDE_MODULES`（白名单）/ `RDE_MODULES_DISABLED`（黑名单），控制 3 个可选模块（ssh/sync/cloudbackup）；核心 11 模块始终加载（含 bot）。
+- **Bot 工作台**（`backend/modules/bot` + `docker/bot-desktop/`）：数字员工 CRUD、沙箱容器生命周期、KasmVNC 串流代理、沙箱 exec；`make bot-desktop` 构建沙箱镜像（Debian+KasmVNC+Chromium）。
 - **容器探测**（`backend/pkg/container`）：优先读 `RDE_CONTAINER=1`（镜像内已设置）；setup 检查跳过 systemd，system 模块禁用宿主机关机。
 - **路径约定**：`/var/lib/rde` 宿主机与容器内必须同路径（docker-apps 生成的 compose bind mount 按宿主机解析）。
 - daemon 无法直连 docker.io 时：预拉 `docker.m.daocloud.io/library/*` 基础镜像并 `docker tag` 成标准名。

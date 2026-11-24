@@ -26,6 +26,8 @@ services:
       - /var/lib/rde:/var/lib/rde
       # Docker API（Docker 应用商店 / bot 工作台容器）
       - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - rde-bot-net             # Bot 沙箱网络（控制面直连沙箱串流）
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:3080/health"]
       interval: 30s
@@ -39,3 +41,10 @@ services:
   #   volumes:
   #     - /var/lib/rde/ollama:/root/.ollama
   #   # GPU: deploy.resources.reservations.devices 或 nvidia-container-toolkit
+
+# Bot 沙箱网络（RDE 容器与 bot 工作台容器同网段，控制面直连 KasmVNC 串流）
+# bot 模块首次创建沙箱时也会自动创建该网络
+networks:
+  rde-bot-net:
+    name: rde-bot-net
+    driver: bridge

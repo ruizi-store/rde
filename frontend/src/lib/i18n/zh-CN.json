@@ -361,7 +361,9 @@
       "music": "音乐播放器",
       "backup": "备份管理",
       "docker": "Docker 应用",
-      "notification": "通知"
+      "notification": "通知",
+      "ai": "AI 助手",
+      "bot": "Bot 工作台"
     }
   },
   "errors": {

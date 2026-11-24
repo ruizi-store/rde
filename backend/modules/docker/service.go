@@ -15,6 +15,7 @@ import (
 	containertypes "github.com/docker/docker/api/types/container"
 	networktypes "github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 	"github.com/ruizi-store/rde/backend/pkg/offline"
 	"go.uber.org/zap"
@@ -313,8 +314,15 @@ func (s *Service) CreateContainer(ctx context.Context, config *ContainerConfig) 
 		hostConfig.Devices = devices
 	}
 
-	// 网络配置
+	// 网络配置（容器加入指定网络，如 bot 工作台网络 rde-bot-net）
 	networkConfig := &networktypes.NetworkingConfig{}
+	if len(config.Networks) > 0 {
+		endpoints := make(map[string]*networktypes.EndpointSettings, len(config.Networks))
+		for _, n := range config.Networks {
+			endpoints[n] = &networktypes.EndpointSettings{}
+		}
+		networkConfig.EndpointsConfig = endpoints
+	}
 
 	resp, err := s.client.ContainerCreate(ctx, containerConfig, hostConfig, networkConfig, nil, config.Name)
 	if err != nil {
@@ -520,6 +528,133 @@ func (s *Service) ExecInContainer(ctx context.Context, containerID string, comma
 	}
 
 	return output.String(), nil
+}
+
+// limitWriter 输出限长 writer（超出上限丢弃内容并标记截断）
+type limitWriter struct {
+	buf       []byte
+	max       int
+	truncated bool
+}
+
+func (w *limitWriter) Write(p []byte) (int, error) {
+	if len(w.buf)+len(p) > w.max {
+		n := w.max - len(w.buf)
+		if n > 0 {
+			w.buf = append(w.buf, p[:n]...)
+		}
+		w.truncated = true
+	} else {
+		w.buf = append(w.buf, p...)
+	}
+	// 必须返回 len(p)，否则 stdcopy 视为写错误而中断
+	return len(p), nil
+}
+
+// ExecResult 沙箱内命令执行结果
+type ExecResult struct {
+	ExitCode  int           `json:"exit_code"`
+	Output    string        `json:"output"`
+	Truncated bool          `json:"truncated"`
+	Duration  time.Duration `json:"-"`
+}
+
+// ExecWithTimeout 在容器内执行命令（带超时与输出截断）
+// 供 bot 沙箱工具调用使用：超时上限 300s，输出上限 maxOutput 字节。
+func (s *Service) ExecWithTimeout(ctx context.Context, containerID string, cmd []string, timeoutSec, maxOutput int) (*ExecResult, error) {
+	if s.client == nil {
+		return nil, errors.New("docker client not available")
+	}
+	if timeoutSec <= 0 {
+		timeoutSec = 30
+	}
+	if timeoutSec > 300 {
+		timeoutSec = 300
+	}
+	if maxOutput <= 0 {
+		maxOutput = 64 * 1024
+	}
+
+	execConfig := types.ExecConfig{
+		Cmd:          cmd,
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          false,
+	}
+	execResp, err := s.client.ContainerExecCreate(ctx, containerID, execConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create exec: %w", err)
+	}
+
+	attachResp, err := s.client.ContainerExecAttach(ctx, execResp.ID, types.ExecStartCheck{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to attach exec: %w", err)
+	}
+	defer attachResp.Close()
+
+	result := &ExecResult{}
+	startTime := time.Now()
+
+	// stdcopy 解复用 stdout/stderr（docker exec 输出带 8 字节流头）
+	out := &limitWriter{max: maxOutput}
+	done := make(chan error, 1)
+	go func() {
+		_, err := stdcopy.StdCopy(out, out, attachResp.Reader)
+		done <- err
+	}()
+
+	execCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+	defer cancel()
+
+	var execErr error
+	select {
+	case <-execCtx.Done():
+		execErr = fmt.Errorf("执行超时（%ds）", timeoutSec)
+		// defer 中的 attachResp.Close() 会中断读取 goroutine
+	case <-done:
+	}
+
+	result.Duration = time.Since(startTime)
+	result.Output = string(out.buf)
+	result.Truncated = out.truncated
+
+	// 获取退出码（超时场景跳过）
+	if execErr == nil {
+		inspect, err := s.client.ContainerExecInspect(ctx, execResp.ID)
+		if err == nil {
+			result.ExitCode = inspect.ExitCode
+		}
+	}
+
+	return result, execErr
+}
+
+// GetContainerNetworkIP 获取容器在指定网络中的 IP（bot 串流代理直连用）
+func (s *Service) GetContainerNetworkIP(ctx context.Context, containerID, networkName string) (string, error) {
+	if s.client == nil {
+		return "", errors.New("docker client not available")
+	}
+	inspect, err := s.client.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return "", err
+	}
+	if networkName == "" {
+		// 未指定网络时取第一个
+		for _, ep := range inspect.NetworkSettings.Networks {
+			if ep.IPAddress != "" {
+				return ep.IPAddress, nil
+			}
+		}
+		return "", errors.New("container has no network IP")
+	}
+	ep, ok := inspect.NetworkSettings.Networks[networkName]
+	if !ok {
+		return "", fmt.Errorf("container not attached to network %s", networkName)
+	}
+	if ep.IPAddress == "" {
+		return "", fmt.Errorf("container has no IP on network %s", networkName)
+	}
+	return ep.IPAddress, nil
 }
 
 // ListNetworks 列出网络

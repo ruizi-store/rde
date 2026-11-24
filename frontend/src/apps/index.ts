@@ -110,6 +110,19 @@ export function registerApps() {
       source: "module",
       category: "tools" as StartMenuCategory,
     },
+    {
+      id: "bot",
+      name: "Bot 工作台",
+      icon: "/icons/bot.svg",
+      component: () => import("$apps/bot/Bot.svelte"),
+      defaultWidth: 1000,
+      defaultHeight: 700,
+      minWidth: 750,
+      minHeight: 500,
+      singleton: true,
+      source: "module",
+      category: "tools" as StartMenuCategory,
+    },
 
   ]);
 }

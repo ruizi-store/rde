@@ -12,6 +12,8 @@ const APP_NAME_KEYS: Record<string, string> = {
   "backup": "apps.names.backup",
   "docker": "apps.names.docker",
   "notification": "apps.names.notification",
+  "ai": "apps.names.ai",
+  "bot": "apps.names.bot",
 };
 
 /**

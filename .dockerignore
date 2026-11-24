@@ -4,6 +4,8 @@
 outputs
 debian
 thirdparty
+# bot 工作台镜像需要 KasmVNC 离线 deb
+!thirdparty/kasmvnc
 docs
 *.md
 !frontend/README.md

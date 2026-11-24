@@ -26,6 +26,7 @@ import (
 	// 导入核心模块
 	"github.com/ruizi-store/rde/backend/modules/ai"
 	"github.com/ruizi-store/rde/backend/modules/backup"
+	"github.com/ruizi-store/rde/backend/modules/bot"
 	"github.com/ruizi-store/rde/backend/modules/cloudbackup"
 	"github.com/ruizi-store/rde/backend/modules/docker"
 	"github.com/ruizi-store/rde/backend/modules/files"
@@ -69,6 +70,7 @@ type App struct {
 
 	// 新增模块（原插件）
 	AI          *ai.Module
+	Bot         *bot.Module
 	CloudBackup *cloudbackup.Module
 }
 
@@ -287,6 +289,7 @@ func (app *App) registerModules() error {
 
 	// 新增模块（原插件）
 	app.AI = ai.New()
+	app.Bot = bot.New()
 
 	// 核心模块（始终加载）
 	coreModules := []module.Module{
@@ -300,6 +303,7 @@ func (app *App) registerModules() error {
 		app.Docker,
 		app.Backup,
 		app.AI,
+		app.Bot,
 	}
 
 	// 可选模块（依赖均为核心模块，可安全禁用）

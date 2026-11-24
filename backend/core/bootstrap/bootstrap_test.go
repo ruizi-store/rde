@@ -110,9 +110,10 @@ func TestApp_Start(t *testing.T) {
 	err := app.Start()
 	require.NoError(t, err)
 
-	// 验证已注册模块数量（含原插件迁移后的内置模块）
+	// 验证已注册模块数量（核心 11 模块 + 可选 3 模块）
 	modules := app.Registry.GetAll()
-	assert.Len(t, modules, 23)
+	assert.Len(t, modules, 14)
+	assert.NotNil(t, app.GetModule("bot"), "bot module should be registered")
 
 	// 验证路由器已配置
 	router := app.GetRouter()

@@ -176,10 +176,11 @@ type HardwareSupport struct {
 
 // SetupStatus 初始化状态
 type SetupStatus struct {
-	Completed      bool  `json:"completed"`
-	CurrentStep    int   `json:"current_step"`
-	CompletedSteps []int `json:"completed_steps"`
-	CanSkipSetup   bool  `json:"can_skip_setup"`
+	Completed      bool   `json:"completed"`
+	CurrentStep    int    `json:"current_step"`
+	CompletedSteps []int  `json:"completed_steps"`
+	CanSkipSetup   bool   `json:"can_skip_setup"`
+	AuthMode       string `json:"auth_mode"` // none（免登录）/ local（账号登录）
 }
 
 // SetupSettings 初始化设置（存储在数据库中）

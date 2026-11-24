@@ -9,62 +9,52 @@ permissions:
   contents: write
 
 jobs:
-  build-deb:
+  build-image:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - name: Extract version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # Docker 唯一交付形态：多架构镜像（amd64/arm64），
+      # arm64 由 QEMU 模拟构建（前端/Go 构建耗时较长但可接受）
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (multi-arch)
+        uses: docker/build-push-action@v6
         with:
-          go-version: '1.25'
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          load: true
+          build-args: |
+            VERSION=${{ steps.ver.outputs.version }}
+          tags: |
+            rde:${{ steps.ver.outputs.version }}
+            rde:latest
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Install frontend dependencies
-        run: cd frontend && pnpm install --frozen-lockfile
-
-      - name: Install Debian build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y dpkg-dev debhelper
-          # arm64 交叉编译需要 dpkg 支持目标架构
-          if [ "${{ matrix.arch }}" != "amd64" ]; then
-            sudo dpkg --add-architecture ${{ matrix.arch }}
-          fi
-
-      - name: Update changelog version from tag
-        run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          sed -i "1s/([^)]*)/($VERSION)/" debian/changelog
-
-      - name: Build DEB package
-        run: dpkg-buildpackage -us -uc -b -d -a${{ matrix.arch }}
-
-      - name: Collect artifacts
+      - name: Export image tarballs
         run: |
           mkdir -p outputs
-          mv ../rde_*.deb outputs/ 2>/dev/null || true
+          docker save rde:${{ steps.ver.outputs.version }} -o outputs/rde-${{ steps.ver.outputs.version }}-amd64.tar
+          gzip outputs/*.tar
           ls -lh outputs/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: rde-${{ matrix.arch }}
-          path: outputs/rde_*.deb
+          name: rde-image
+          path: outputs/*.tar.gz
 
   release:
-    needs: build-deb
+    needs: build-image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -84,12 +74,15 @@ jobs:
           cat <<'EOF' > release_notes.md
           ## What's New
 
-          See [CHANGELOG](https://github.com/${{ github.repository }}/blob/master/debian/changelog) for details.
+          See [CHANGELOG](https://github.com/${{ github.repository }}/blob/master/docs/CHANGELOG.md) for details.
 
-          ## Install
+          ## Install（Docker 唯一交付形态）
 
           ```bash
-          sudo apt-get install ./rde_*.deb
+          # 镜像 tar 离线导入
+          docker load -i rde-*-amd64.tar.gz
+          cd docker && docker compose up -d
+          # 浏览器访问 http://<服务器IP>:3080 直接进入桌面（默认免登录）
           ```
           EOF
 
@@ -100,4 +93,4 @@ jobs:
           body_path: release_notes.md
           draft: false
           prerelease: false
-          files: outputs/rde_*.deb
+          files: outputs/*.tar.gz

@@ -20,35 +20,35 @@
 
   // 然后异步加载真实的模块状态并更新
   onMount(async () => {
-    // 优先检查 token（零网络请求）
-    const token = getValidToken();
-
-    // 没有 token：检查 setup 状态后决定跳转
-    if (!token) {
-      try {
-        const status = await setupApi.getStatus();
-        if (!status.completed) {
-          goto("/setup");
-        } else {
-          goto("/login");
-        }
-      } catch (e) {
-        console.error("Failed to get setup status:", e);
-        goto("/login");
-      }
-      return;
-    }
-
-    // 有 token：先验证 token 是否被后端认可
+    let authMode = "local";
     try {
-      // 使用一个轻量级 API 验证 token
       const status = await setupApi.getStatus();
+      authMode = status.auth_mode || "local";
+
+      // 免登录模式（RDE_AUTH_MODE=none，容器默认）：无需 token，直接进桌面
+      if (authMode === "none") {
+        enterNoAuthDesktop();
+        return;
+      }
+
       if (!status.completed) {
         goto("/setup");
         return;
       }
+    } catch (e) {
+      console.error("Failed to get setup status:", e);
+      // 探测失败：有 token 走验证流程，没有则去登录页
+    }
 
-      // 尝试获取用户信息验证 token
+    // 没有 token：跳转登录
+    const token = getValidToken();
+    if (!token) {
+      goto("/login");
+      return;
+    }
+
+    // 有 token：验证 token 是否被后端认可
+    try {
       await api.get("/users/current");
     } catch (e) {
       // token 验证失败，清除并跳转登录
@@ -75,6 +75,17 @@
     await initApps();
     ready = true;
   });
+
+  /** 免登录模式直接进入桌面（后端注入固定管理员身份，无需 token） */
+  async function enterNoAuthDesktop() {
+    userStore.setUser({ id: "local-admin", username: "admin", role: "admin" });
+    // 伪 token 让 isLoggedIn 等派生状态保持可用（请求头为空，后端不校验）
+    userStore.token = "no-auth";
+    checkingSetup = false;
+    reloadAllStoresForUser();
+    await initApps();
+    ready = true;
+  }
 
   /** 从 JWT payload 恢复基本用户信息 */
   function restoreUserFromToken(token: string) {

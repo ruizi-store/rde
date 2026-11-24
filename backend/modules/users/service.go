@@ -130,7 +130,8 @@ func (s *Service) CreateUser(req *CreateUserRequest) error {
 	}
 
 	if user.Role == "" {
-		user.Role = RoleAdmin
+		// 默认普通用户；管理员只能由 setup 向导 / CreateAdmin 显式创建
+		user.Role = RoleUser
 	}
 	if user.Nickname == "" {
 		user.Nickname = user.Username

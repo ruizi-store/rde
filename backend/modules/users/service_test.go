@@ -138,22 +138,24 @@ func TestService_DeleteUser(t *testing.T) {
 	db := setupTestDB(t)
 	svc := NewService(db, zap.NewNop())
 
-	// 创建普通用户
-	err := svc.CreateUser(&CreateUserRequest{
-		Username: "normaluser",
-		Password: "password123",
-	})
-	require.NoError(t, err)
+	// 创建两个用户（最后一个用户不可删除是产品规则）
+	for _, name := range []string{"normaluser", "anotheruser"} {
+		err := svc.CreateUser(&CreateUserRequest{
+			Username: name,
+			Password: "password123",
+		})
+		require.NoError(t, err)
+	}
 
 	user, _ := svc.GetUserByUsername("normaluser")
 
 	// 删除普通用户
-	err = svc.DeleteUser(user.ID)
-	require.NoError(t, err)
+	deleteErr := svc.DeleteUser(user.ID)
+	require.NoError(t, deleteErr)
 
 	// 确认已删除
-	_, err = svc.GetUserByID(user.ID)
-	assert.Equal(t, ErrUserNotFound, err)
+	_, getErr := svc.GetUserByID(user.ID)
+	assert.Equal(t, ErrUserNotFound, getErr)
 }
 
 func TestService_CannotDeleteOnlyAdmin(t *testing.T) {

@@ -61,20 +61,21 @@ cd frontend && pnpm dev --port 5175
 - Setup API：`curl -s http://localhost:3080/api/v1/setup/status`
 - 经 Vite 代理：`curl -s http://localhost:5175/api/v1/setup/status`
 
-首次运行时 setup 未完成（`completed: false`），需通过向导创建管理员账号。
+首次运行时 setup 未完成（`completed: false`），需通过向导创建管理员账号（仅 `RDE_AUTH_MODE=local`）。
+
+**免登录模式（默认）**：`RDE_AUTH_MODE` 未设置或 `none` 时起服务即用——setup 自动标记完成，前端直接进桌面，无需注册账号。`make dev` / 容器均为该默认。需向导+登录时设 `RDE_AUTH_MODE=local`。
 
 ## 目录结构
 
 ```
 backend/     Go API（Gin），模块在 backend/modules/
 frontend/    SvelteKit + Tailwind v4 + Vite
-debian/      DEB 打包配置
-docker/      Docker 镜像交付（entrypoint、compose、部署文档）
-docs/        产品路线（docs/ROADMAP.md：带电脑的 Bot 方向）
-Makefile     setup / dev / stop / deb / docker
+docker/      Docker 镜像交付（entrypoint、compose、部署文档）——唯一交付形态
+docs/        产品路线（docs/ROADMAP.md：带电脑的 Bot 方向）与版本历史（docs/CHANGELOG.md）
+Makefile     setup / dev / stop / docker / bot-desktop
 ```
 
-## Docker 形态（与 DEB 并存）
+## Docker 形态（唯一交付形态，DEB 已移除）
 
 ```bash
 make docker    # 构建镜像 rde:<版本> + rde:latest（走 goproxy.cn）

@@ -38,7 +38,9 @@
 - 模块开关：`RDE_MODULES` / `RDE_MODULES_DISABLED`（`core/bootstrap/bootstrap.go`，含单元测试）✅
 - Dockerfile（多阶段：node20 + go1.25 + debian-slim）、`docker/entrypoint.sh`、`docker/docker-compose.yml`、`docker/README.md` ✅（构建验证中）
 - Makefile `make docker` ✅
-- 后续：CI 加 buildx 多架构构建并推镜像仓库；setup 向导在容器模式跳过 netplan/挂载/PAM/端口选择（`setup/service.go` 中按 `/proc/1/cgroup` 或 env 探测容器环境）。
+- ~~后续：setup 向导在容器模式跳过 netplan/挂载/PAM/端口选择~~ ✅ 2026-11（0.6.0）：免登录模式 `RDE_AUTH_MODE=none`（默认）
+  直接跳过整个向导与账号注册，起容器即用；`local` 模式保留向导+登录。DEB 交付已移除，Docker 镜像为唯一交付形态。
+- 后续：CI 加 buildx 多架构构建并推镜像仓库。
 
 ### P2 — Bot 工作台（最小可用 ✅ 2026-11）
 - 新模块 `modules/bot`：Bot 的 CRUD（名字/职责/模型/成员可见性），接管互斥锁。✅

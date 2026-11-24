@@ -442,10 +442,33 @@ func (app *App) Start() error {
 		return fmt.Errorf("failed to start modules: %w", err)
 	}
 
+	// 1.5 免登录模式（RDE_AUTH_MODE=none，默认）：跳过安装向导，
+	// 幂等标记 setup 完成，前端起容器即进桌面
+	if auth.ResolveAuthMode() == auth.AuthModeNone && app.Setup != nil {
+		if app.Setup.NeedsSetup() {
+			if err := app.Setup.MarkCompleted(); err != nil {
+				app.Logger.Warn("Failed to auto-complete setup in no-auth mode", zap.Error(err))
+			} else {
+				app.Logger.Info("Setup auto-completed (no-auth mode, wizard skipped)")
+			}
+		}
+	}
+
 	// 2. 注册模块路由
 	apiV1 := app.Router.Group("/api/v1")
 
 	// JWT 认证：WebSocket / 媒体请通过 ?token= 或 Cookie 传递（不再全局跳过 WS / photos）
+	//
+	// 免登录模式（RDE_AUTH_MODE=none，默认）：注入固定管理员身份，不校验 token；
+	// IM 网关外部回调端点自带鉴权，不受影响。local 模式恢复完整 JWT 流程。
+	if auth.ResolveAuthMode() == auth.AuthModeNone {
+		app.Logger.Info("Auth mode: none (no-login, single-user)")
+		apiV1.Use(auth.NoneMiddleware())
+		app.Registry.RegisterRoutes(apiV1)
+		app.registerCoreRoutes()
+		return app.registerStaticRoutes()
+	}
+
 	authMiddleware := auth.MiddlewareWithConfig(app.TokenManager, &auth.MiddlewareConfig{
 		Skipper: func(c *gin.Context) bool {
 			path := c.Request.URL.Path
@@ -502,6 +525,13 @@ func (app *App) Start() error {
 	app.registerStaticFiles()
 
 	app.Logger.Info("RDE application started successfully")
+	return nil
+}
+
+// registerStaticRoutes 免登录模式下的路由收尾（与 JWT 路径对称）
+func (app *App) registerStaticRoutes() error {
+	app.registerStaticFiles()
+	app.Logger.Info("RDE application started successfully (no-auth mode)")
 	return nil
 }
 

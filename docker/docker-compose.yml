@@ -2,11 +2,13 @@
 #
 # 用法:
 #   cd docker && docker compose up -d
-#   浏览器访问 http://<服务器IP>:3080 进入安装向导
+#   浏览器访问 http://<服务器IP>:3080 直接进入桌面（默认免登录，无需注册）
 #
 # 安全提示:
 #   挂载 /var/run/docker.sock 等于赋予容器宿主机 root 级权限（可创建特权容器）。
-#   仅在可信环境使用；面向公网部署时请置于反向代理 + TLS 之后，并启用强口令/2FA。
+#   默认免登录模式（RDE_AUTH_MODE=none）适合内网/反向代理之后的自托管场景；
+#   需要账号体系时把 RDE_AUTH_MODE 改为 local（安装向导 + 登录恢复）。
+#   面向公网部署时请置于反向代理 + TLS 之后。
 
 services:
   rde:
@@ -19,6 +21,8 @@ services:
     environment:
       TZ: Asia/Shanghai
       RDE_PORT: "3080"
+      # ---- 认证模式：none=免登录单用户（默认）；local=账号登录（向导+密码）----
+      RDE_AUTH_MODE: none
       # ---- 模块开关（可选模块仅 ssh/sync/cloudbackup；两项都留空 = 启用全部）----
       RDE_MODULES_DISABLED: ""
     volumes:

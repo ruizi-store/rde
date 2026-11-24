@@ -1,3 +1,18 @@
+rde (0.6.0) unstable; urgency=medium
+
+  * feat(auth): 免登录单用户模式 RDE_AUTH_MODE=none（默认）——起容器即进桌面，
+    无需安装向导/注册账号；none 模式下 setup 幂等自动完成、JWT 中间件替换为
+    固定管理员身份注入（审计字段与 RequireAdmin 照常工作）；
+    设 RDE_AUTH_MODE=local 恢复向导+登录；/setup/status 新增 auth_mode 字段
+  * feat(frontend): 根路由/登录页按 auth_mode 自动路由——none 直接进桌面，
+    local 走原向导/登录流程
+  * feat(docker): compose 显式 RDE_AUTH_MODE 配置与免登录部署说明
+  * chore(delivery): 移除 DEB 交付（debian/ 删除），Docker 镜像为唯一交付形态；
+    版本历史迁移至 docs/CHANGELOG.md；Makefile 去掉 deb/deploy 目标
+  * main.go：none 模式视为已初始化（端口决策读配置）
+
+ -- RDE Maintainers <maintainers@rde.local>  Tue, 24 Nov 2026 21:00:00 +0800
+
 rde (0.5.0) unstable; urgency=medium
 
   * feat(bot): 高风险操作人工审批——bots_approvals 表 + request_approval 工具，

@@ -1,7 +1,9 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
+  import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { authService } from "$shared/services/auth";
+  import { setupApi } from "$shared/services/setup";
   import { user } from "$shared/stores/user.svelte";
   import { setAuthItem } from "$shared/utils/auth-storage";
   import { clearLocalDataAndReload } from "$shared/utils/instance";
@@ -12,6 +14,18 @@
   let loading = $state(false);
   let error = $state("");
   let showPassword = $state(false);
+
+  // 免登录模式无需登录，直接进桌面
+  onMount(async () => {
+    try {
+      const status = await setupApi.getStatus();
+      if (status.auth_mode === "none") {
+        goto("/");
+      }
+    } catch {
+      // 探测失败时保留登录页
+    }
+  });
 
   // 2FA 状态
   let show2FA = $state(false);

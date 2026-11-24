@@ -79,6 +79,7 @@ func (s *Service) GetStatus() (*SetupStatus, error) {
 		CurrentStep:    settings.CurrentStep,
 		CompletedSteps: s.parseCompletedSteps(settings.CompletedSteps),
 		CanSkipSetup:   false,
+		AuthMode:       auth.ResolveAuthMode(),
 	}
 
 	return status, nil

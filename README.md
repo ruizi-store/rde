@@ -27,28 +27,23 @@ RDE（瑞子云桌面）是一个开源的 Web 桌面环境，将 Linux 服务�
 - **备份与恢复**：支持本地、WebDAV、S3、SFTP 等多种备份目标。
 - **Web 终端**：浏览器内完整的 Linux 终端（含 SSH/SFTP 远程连接）。
 - **AI 助手**：智能对话、语音交互、企业微信/Telegram 网关集成。
-- **Docker 部署**：官方镜像 + docker compose 单容器交付（见 `docker/README.md`）。
+- **Docker 部署**：官方镜像 + docker compose 单容器交付，**默认免登录**（见 `docker/README.md`）。
 - **离线资源**：支持将 Docker 镜像 tar、依赖 deb 等预先放入 `/usr/share/rde/offline`，断网环境优先本地加载。
 
 > 路线：产品正转向"带电脑的 AI Bot"（每个 Bot 一台持久沙箱电脑，小团队经 IM 派活），详见 `docs/ROADMAP.md`。
 
 ## 快速开始
 
-### Docker 部署（推荐）
+### Docker 部署（唯一官方形态）
 
 ```bash
 git clone https://github.com/ruizi-store/rde.git
 cd rde/docker && docker compose up -d
 ```
 
-### DEB 安装（Debian / Ubuntu）
+访问 `http://服务器IP:3080` **直接进入桌面，无需注册账号**（默认 `RDE_AUTH_MODE=none` 免登录单用户模式，适合内网/反向代理之后的自托管场景）。
 
-```bash
-wget https://github.com/ruizi-store/rde/releases/latest/download/rde_amd64.deb
-sudo apt install ./rde_amd64.deb
-```
-
-安装后访问 `http://服务器IP:80` 即可使用。
+需要账号体系时在 compose 里设置 `RDE_AUTH_MODE=local`，重启后走安装向导 + 登录。
 
 ### 开发环境
 
@@ -56,19 +51,18 @@ sudo apt install ./rde_amd64.deb
 git clone https://github.com/ruizi-store/rde.git
 cd rde
 
-# 前后端一键启动
+# 前后端一键启动（免登录模式）
 make dev
 
 # 或分别启动
-cd backend && go run .        # 后端 :80
-cd frontend && pnpm dev       # 前端 :5173
+cd backend && go run .        # 后端
+cd frontend && pnpm dev       # 前端
 ```
 
 ### 构建
 
 ```bash
-make deb     # 构建 DEB 安装包
-make docker  # 构建 Docker 镜像
+make docker  # 构建 Docker 镜像 (rde:<版本> + rde:latest)
 ```
 
 ## 项目架构
@@ -86,8 +80,7 @@ rde/
 │       ├── apps/            #   应用 UI
 │       └── lib/             #   组件库
 ├── docker/                  # Docker 镜像交付（Dockerfile/compose/entrypoint）
-├── debian/                  # DEB 打包配置
-└── docs/                    # 产品路线（ROADMAP.md）
+└── docs/                    # 产品路线（ROADMAP.md）与版本历史（CHANGELOG.md）
 ```
 
 ## 技术栈

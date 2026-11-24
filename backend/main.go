@@ -19,6 +19,7 @@ import (
 
 	"github.com/glebarez/sqlite"
 	"github.com/ruizi-store/rde/backend/common"
+	"github.com/ruizi-store/rde/backend/core/auth"
 	"github.com/ruizi-store/rde/backend/core/bootstrap"
 
 	"go.uber.org/zap"
@@ -60,9 +61,9 @@ func main() {
 		dbPath = filepath.Join(*dataFlag, "db", "rde.db")
 	}
 
-	// 决定端口：未初始化用默认 3080，已初始化读配置文件
+	// 决定端口：免登录模式或已初始化读配置文件，未初始化用默认 3080
 	port := DEFAULT_PORT
-	if isSetupCompleted(dbPath) {
+	if auth.IsAuthNone() || isSetupCompleted(dbPath) {
 		port = getPortFromConfig(*configFlag)
 	}
 	if *portFlag != "" {

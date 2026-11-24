@@ -11,7 +11,8 @@ docker build -t rde:latest .
 # 启动（见 docker/docker-compose.yml）
 cd docker && docker compose up -d
 
-# 浏览器访问 http://<服务器IP>:3080 完成安装向导
+# 浏览器访问 http://<服务器IP>:3080 直接进入桌面（默认免登录 RDE_AUTH_MODE=none，无需注册账号；
+# 需要账号体系时在 compose 中改为 local，走安装向导 + 登录）
 ```
 
 国内网络构建加速（二选一）：

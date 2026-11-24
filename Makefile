@@ -1,6 +1,6 @@
 # RDE Makefile
 
-.PHONY: help dev stop deb deb-arm64 deb-all docker bot-desktop setup deploy clean
+.PHONY: help dev stop docker bot-desktop setup clean
 
 .DEFAULT_GOAL := help
 
@@ -11,9 +11,8 @@ YELLOW := \033[33m
 RED := \033[31m
 RESET := \033[0m
 
-# 版本号
-VERSION := $(shell head -1 debian/changelog 2>/dev/null | grep -oP '\(\K[^)-]+' || echo "0.4.16")
-ARCH ?= amd64
+# 版本号（唯一交付形态为 Docker 镜像；版本历史见 docs/CHANGELOG.md）
+VERSION := $(shell head -1 docs/CHANGELOG.md 2>/dev/null | grep -oP '\(\K[^)-]+' || echo "0.6.0")
 PACKAGE_NAME := rde
 
 # 目录
@@ -41,13 +40,10 @@ help:
 	@echo ""
 	@echo "$(CYAN)RDE 开发工具$(RESET)"
 	@echo ""
-	@echo "  make dev     - 启动开发环境 (前端 5175 + 后端 3080)"
+	@echo "  make dev     - 启动开发环境 (前端 5175 + 后端 3080，默认免登录)"
 	@echo "  make stop    - 停止开发服务器"
-	@echo "  make deb     - 构建 DEB 安装包 (默认 amd64)"
-	@echo "  make deb-arm64 - 构建 ARM64 DEB 安装包"
-	@echo "  make deb-all - 构建 amd64 + arm64 DEB 安装包"
 	@echo "  make docker  - 构建 Docker 镜像 (rde:$(VERSION) + rde:latest)"
-	@echo "  make deploy  - 构建并部署到远程服务器"
+	@echo "  make bot-desktop - 构建 Bot 沙箱镜像"
 	@echo "  make setup   - 安装开发环境 (Go + Node + pnpm)"
 	@echo ""
 	@echo "$(YELLOW)版本: $(VERSION)$(RESET)"
@@ -93,42 +89,7 @@ stop:
 	@echo "$(GREEN)✓ 已停止$(RESET)"
 
 #==============================================================================
-# 构建
-#==============================================================================
-
-deb:
-	@echo "$(CYAN)构建 DEB 包 (版本 $(VERSION), 架构 $(ARCH))...$(RESET)"
-	@mkdir -p $(OUTPUT_DIR)
-	dpkg-buildpackage -us -uc -b -d -a$(ARCH)
-	@mv ../$(PACKAGE_NAME)_*.deb $(OUTPUT_DIR)/ 2>/dev/null || true
-	@mv ../$(PACKAGE_NAME)_*.buildinfo $(OUTPUT_DIR)/ 2>/dev/null || true
-	@mv ../$(PACKAGE_NAME)_*.changes $(OUTPUT_DIR)/ 2>/dev/null || true
-	@echo "$(GREEN)✓ DEB 包已生成$(RESET)"
-	@ls -lh $(OUTPUT_DIR)/$(PACKAGE_NAME)_*.deb
-
-deb-arm64:
-	@$(MAKE) deb ARCH=arm64
-
-deb-all:
-	@$(MAKE) deb ARCH=amd64
-	@$(MAKE) deb ARCH=arm64
-
-#==============================================================================
-# 部署
-#==============================================================================
-
-deploy:
-	@echo "$(CYAN)构建并部署到 $(DEPLOY_USER)@$(DEPLOY_HOST):$(DEPLOY_PORT)...$(RESET)"
-	@$(MAKE) deb ARCH=amd64
-	@DEB_FILE=$$(ls -t $(OUTPUT_DIR)/$(PACKAGE_NAME)_*.deb | head -1); \
-	echo "$(GREEN)上传 $$DEB_FILE ...$(RESET)"; \
-	scp -P $(DEPLOY_PORT) "$$DEB_FILE" $(DEPLOY_USER)@$(DEPLOY_HOST):/tmp/rde.deb; \
-	echo "$(GREEN)安装中...$(RESET)"; \
-	ssh -p $(DEPLOY_PORT) $(DEPLOY_USER)@$(DEPLOY_HOST) "sudo dpkg -i /tmp/rde.deb && sudo systemctl restart rde && rm /tmp/rde.deb"; \
-	echo "$(GREEN)✓ 部署完成$(RESET)"
-
-#==============================================================================
-# Docker 镜像
+# Docker 镜像（唯一交付形态）
 #==============================================================================
 
 docker:

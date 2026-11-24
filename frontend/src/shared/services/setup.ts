@@ -5,6 +5,8 @@ export interface SetupStatus {
   current_step: number;
   completed_steps: number[];
   can_skip_setup: boolean;
+  /** none=免登录（起容器即用）；local=账号登录 */
+  auth_mode: string;
 }
 
 export interface DependencyCheck {

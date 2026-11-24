@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,8 +42,16 @@ type GatewayService struct {
 	// P3：按渠道解析绑定的 Bot（bot 模块注入）
 	botResolver BotResolver
 
+	// P4：审批管理（/approve /deny 命令路由）
+	approvals ApprovalManager
+
 	ctx    context.Context
 	cancel context.CancelFunc
+}
+
+// setApprovalManager 设置网关的审批管理器
+func (gs *GatewayService) setApprovalManager(am ApprovalManager) {
+	gs.approvals = am
 }
 
 // NewGatewayService 创建网关服务
@@ -191,6 +200,11 @@ func (gs *GatewayService) HandleMessage(ctx context.Context, msg IncomingMessage
 	// P3：按渠道解析绑定的 Bot（Bot.Channels 匹配 platform + chat_id/user_id）
 	bot := gs.resolveBotForSession(msg, session)
 
+	// P4：审批命令（/approve|/deny <id>，只对绑定 Bot 的会话生效）
+	if response := gs.handleApprovalCommand(msg, session); response != nil {
+		return response, nil
+	}
+
 	if response := gs.handleSpecialCommand(msg, session); response != nil {
 		return response, nil
 	}
@@ -274,6 +288,45 @@ func (gs *GatewayService) getOrCreateSession(msg IncomingMessage) *GatewaySessio
 	}
 	gs.sessions[key] = session
 	return session
+}
+
+// handleApprovalCommand 处理 /approve|/deny <id> 审批命令（绑定了 Bot 的会话）
+// 返回 nil 表示不是审批命令（继续正常流程）
+func (gs *GatewayService) handleApprovalCommand(msg IncomingMessage, session *GatewaySession) *OutgoingMessage {
+	if gs.approvals == nil || session.BotID == "" {
+		return nil
+	}
+
+	text := strings.TrimSpace(msg.Text)
+	approvalID := 0
+	approve := false
+	switch {
+	case strings.HasPrefix(text, "/approve "), strings.HasPrefix(text, "/agree "):
+		approve = true
+		_, _ = fmt.Sscanf(text, "/approve %d", &approvalID)
+		if approvalID == 0 {
+			_, _ = fmt.Sscanf(text, "/agree %d", &approvalID)
+		}
+	case strings.HasPrefix(text, "/deny "), strings.HasPrefix(text, "/reject "):
+		_, _ = fmt.Sscanf(text, "/deny %d", &approvalID)
+		if approvalID == 0 {
+			_, _ = fmt.Sscanf(text, "/reject %d", &approvalID)
+		}
+	default:
+		return nil
+	}
+	if approvalID <= 0 {
+		return &OutgoingMessage{Platform: msg.Platform, ChatID: msg.ChatID, UserID: msg.UserID,
+			Text: "用法：/approve <编号> 或 /deny <编号>"}
+	}
+
+	reply, err := gs.approvals.DecideApproval(session.BotID, uint(approvalID), approve, msg.UserID)
+	if err != nil {
+		return &OutgoingMessage{Platform: msg.Platform, ChatID: msg.ChatID, UserID: msg.UserID,
+			Text: "❌ " + err.Error()}
+	}
+	return &OutgoingMessage{Platform: msg.Platform, ChatID: msg.ChatID, UserID: msg.UserID,
+		Text: reply, ReplyToMsgID: msg.MessageID}
 }
 
 func (gs *GatewayService) handleSpecialCommand(msg IncomingMessage, session *GatewaySession) *OutgoingMessage {

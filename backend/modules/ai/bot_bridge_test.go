@@ -186,6 +186,102 @@ func (f *fakeMemoryProvider) SearchMemory(botID, query string, limit int) ([]Mem
 	return f.items, nil
 }
 
+func TestExecuteBotTool_Approval(t *testing.T) {
+	svc := setupTestService(t)
+	ctx := context.Background()
+
+	// 未注入 → 工具不可用
+	result, isBot := svc.executeBotTool(ctx, "request_approval", `{"action":"删文件"}`, "bot-1")
+	assert.True(t, isBot)
+	assert.Contains(t, result, "approval manager unavailable")
+
+	am := &fakeApprovalManager{approved: true}
+	svc.setApprovalManager(am)
+
+	// 正常路径
+	result, isBot = svc.executeBotTool(ctx, "request_approval", `{"action":"删除 /data","reason":"清理","timeout":30}`, "bot-1")
+	require.True(t, isBot)
+	assert.Contains(t, result, `"approved":true`)
+	assert.Equal(t, "删除 /data", am.action)
+	assert.Equal(t, "清理", am.reason)
+	assert.Equal(t, 30, am.timeout)
+
+	// 缺 action
+	result, isBot = svc.executeBotTool(ctx, "request_approval", `{"reason":"r"}`, "bot-1")
+	require.True(t, isBot)
+	assert.Contains(t, result, "missing action")
+
+	// 拒绝
+	am.approved = false
+	am.message = "用户拒绝"
+	result, _ = svc.executeBotTool(ctx, "request_approval", `{"action":"x"}`, "bot-1")
+	assert.Contains(t, result, `"approved":false`)
+	assert.Contains(t, result, "用户拒绝")
+}
+
+// fakeApprovalManager 模拟审批管理
+type fakeApprovalManager struct {
+	approved   bool
+	message    string
+	err        error
+	action     string
+	reason     string
+	timeout    int
+}
+
+func (f *fakeApprovalManager) RequestApproval(ctx context.Context, botID, action, reason string, timeoutSec int) (bool, string, error) {
+	f.action, f.reason, f.timeout = action, reason, timeoutSec
+	if f.err != nil {
+		return false, "", f.err
+	}
+	if f.approved {
+		return true, "已批准", nil
+	}
+	return false, f.message, nil
+}
+
+func (f *fakeApprovalManager) DecideApproval(botID string, approvalID uint, approve bool, byUser string) (string, error) {
+	return "已处理", nil
+}
+
+func TestGateway_ApprovalCommand(t *testing.T) {
+	logger := zap.NewNop()
+	gs := NewGatewayService(logger, t.TempDir(), setupTestService(t), nil)
+
+	msg := IncomingMessage{Platform: "webhook", ChatID: "c1", UserID: "u1"}
+	session := gs.getOrCreateSession(msg)
+
+	// 未绑定 Bot → 命令走正常流程
+	assert.Nil(t, gs.handleApprovalCommand(msg, session))
+
+	// 绑定 Bot 后（无注入 manager → 仍 nil）
+	session.BotID = "b1"
+	assert.Nil(t, gs.handleApprovalCommand(msg, session))
+
+	am := &fakeApprovalManager{}
+	gs.setApprovalManager(am)
+
+	// 非审批命令
+	normalMsg := IncomingMessage{Platform: "webhook", ChatID: "c1", UserID: "u1", Text: "你好"}
+	assert.Nil(t, gs.handleApprovalCommand(normalMsg, session))
+
+	// 格式错误的命令（非数字编号）
+	badMsg := IncomingMessage{Platform: "webhook", ChatID: "c1", UserID: "u1", Text: "/approve abc"}
+	resp := gs.handleApprovalCommand(badMsg, session)
+	require.NotNil(t, resp)
+	assert.Contains(t, resp.Text, "用法")
+
+	// 正确命令
+	okMsg := IncomingMessage{Platform: "webhook", ChatID: "c1", UserID: "u1", Text: "/approve 5"}
+	resp = gs.handleApprovalCommand(okMsg, session)
+	require.NotNil(t, resp)
+	assert.Contains(t, resp.Text, "已处理")
+
+	denyMsg := IncomingMessage{Platform: "webhook", ChatID: "c1", UserID: "u1", Text: "/deny 5"}
+	resp = gs.handleApprovalCommand(denyMsg, session)
+	require.NotNil(t, resp)
+}
+
 func TestBuildBotSystemPrompt(t *testing.T) {
 	svc := setupTestService(t)
 

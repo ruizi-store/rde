@@ -1,3 +1,16 @@
+rde (0.5.0) unstable; urgency=medium
+
+  * feat(bot): 高风险操作人工审批——bots_approvals 表 + request_approval 工具，
+    LLM 执行敏感操作前先请示；审批请求推送 Bot 绑定渠道（IM 回复 /approve|/deny <id>）
+    并出现在 Web 审批标签页；工具阻塞等待（waiter + 2s 兜底轮询，默认 120s 上限 300s），
+    拒绝/超时即放弃执行；已处理审批不可重复决定
+  * feat(ai): ApprovalManager 桥接接口与网关 /approve /deny 命令路由（只对绑定 Bot 的会话生效）；
+    system prompt 补审批行为指引；Bot 工具调用轮数上限 5 → 12（审批链路更长）
+  * feat(frontend): Bot 详情新增「审批」标签页（待审/全部过滤、状态徽章、批准/拒绝）
+  * feat(api): GET /bots/:id/approvals、POST /bots/:id/approvals/:aid/decide
+
+ -- RDE Maintainers <maintainers@rde.local>  Tue, 24 Nov 2026 20:00:00 +0800
+
 rde (0.4.0) unstable; urgency=medium
 
   * feat(bot): Bot 长期记忆——bots_memories 表 + save_memory/search_memory 工具

@@ -15,11 +15,12 @@ type Handler struct {
 	skills    *SkillService
 	memory    *MemoryService
 	schedules *ScheduleService
+	approvals *ApprovalService
 }
 
 // NewHandler 创建处理器
-func NewHandler(service *Service, proxy *StreamProxy, skills *SkillService, memory *MemoryService, schedules *ScheduleService) *Handler {
-	return &Handler{service: service, proxy: proxy, skills: skills, memory: memory, schedules: schedules}
+func NewHandler(service *Service, proxy *StreamProxy, skills *SkillService, memory *MemoryService, schedules *ScheduleService, approvals *ApprovalService) *Handler {
+	return &Handler{service: service, proxy: proxy, skills: skills, memory: memory, schedules: schedules, approvals: approvals}
 }
 
 // RegisterRoutes 注册路由
@@ -55,6 +56,9 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		g.PUT("/:id/schedules/:sid", h.UpdateSchedule)
 		g.DELETE("/:id/schedules/:sid", h.DeleteSchedule)
 		g.POST("/:id/schedules/:sid/run", h.RunScheduleNow)
+
+		g.GET("/:id/approvals", h.ListApprovals)
+		g.POST("/:id/approvals/:aid/decide", h.DecideApproval)
 
 		g.POST("/:id/takeover", h.Takeover)
 		g.POST("/:id/release", h.Release)
@@ -512,4 +516,43 @@ func (h *Handler) RunScheduleNow(c *gin.Context) {
 		return
 	}
 	ok(c, result)
+}
+
+// ---------- 审批（P4：高风险操作人工确认） ----------
+
+// ListApprovals 审批列表（?status=pending 过滤）
+func (h *Handler) ListApprovals(c *gin.Context) {
+	approvals, err := h.approvals.List(c.Param("id"), c.Query("status"), 100)
+	if err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	ok(c, approvals)
+}
+
+// DecideApproval 决定审批（approve=true 批准）
+func (h *Handler) DecideApproval(c *gin.Context) {
+	aid := 0
+	if _, err := fmt.Sscanf(c.Param("aid"), "%d", &aid); err != nil || aid <= 0 {
+		fail(c, 400, "无效审批 ID")
+		return
+	}
+	var req struct {
+		Approve bool `json:"approve"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+	userID, username, _ := currentUser(c)
+	by := username
+	if by == "" {
+		by = userID
+	}
+	reply, err := h.approvals.DecideApproval(c.Param("id"), uint(aid), req.Approve, by)
+	if err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	ok(c, reply)
 }

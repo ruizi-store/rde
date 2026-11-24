@@ -12,8 +12,9 @@
     getBotChannels, setBotChannels, listSkills, reloadSkills,
     listMemories, deleteMemory, listSchedules, createSchedule,
     updateSchedule, deleteSchedule, runScheduleNow,
+    listApprovals, decideApproval,
     botStreamUrl, type Bot, type BotMember, type ExecResult,
-    type BotChannel, type SkillMeta, type BotMemory, type BotSchedule,
+    type BotChannel, type SkillMeta, type BotMemory, type BotSchedule, type BotApproval,
   } from "$shared/services/bot";
 
   // ==================== 状态 ====================
@@ -58,6 +59,10 @@
   let scheduleForm = $state({ name: "", cron: "0 9 * * *", prompt: "", enabled: true });
   let scheduleRunning = $state(false);
 
+  // 审批（P4）
+  let approvals = $state<BotApproval[]>([]);
+  let approvalFilter = $state("pending");
+
   // 创建弹窗
   let showCreate = $state(false);
   let createForm = $state({ name: "", description: "", model: "", image: "" });
@@ -76,6 +81,7 @@
     ...(detail?.my_role === "admin" ? [{ id: "channels", label: "渠道" }] : []),
     { id: "skills", label: "技能" },
     ...(detail?.my_role === "admin" ? [{ id: "schedules", label: "日程" }] : []),
+    ...(detail?.my_role === "admin" ? [{ id: "approvals", label: "审批" }] : []),
     ...(detail?.my_role === "admin" ? [{ id: "memories", label: "记忆" }] : []),
     { id: "logs", label: "日志" },
   ]);
@@ -109,6 +115,8 @@
       loadMemories(id);
     } else if (tab === "schedules" && id && detail?.my_role === "admin") {
       loadSchedules(id);
+    } else if (tab === "approvals" && id && detail?.my_role === "admin") {
+      loadApprovals(id);
     }
   });
 
@@ -455,6 +463,46 @@
       showToast(e instanceof Error ? e.message : "执行失败", "error");
     } finally {
       scheduleRunning = false;
+    }
+  }
+
+  // 审批（P4）
+  async function loadApprovals(id: string) {
+    try {
+      approvals = await listApprovals(id, approvalFilter === "all" ? "" : approvalFilter);
+    } catch {
+      approvals = [];
+    }
+  }
+
+  async function handleDecide(a: BotApproval, approve: boolean) {
+    const d = detail;
+    if (!d) return;
+    try {
+      const reply = await decideApproval(d.id, a.id, approve);
+      showToast(reply || "已处理", "success");
+      await loadApprovals(d.id);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "操作失败", "error");
+    }
+  }
+
+  function approvalStatusText(status: string): string {
+    switch (status) {
+      case "pending": return "待审批";
+      case "approved": return "已批准";
+      case "denied": return "已拒绝";
+      case "expired": return "已超时";
+      default: return status;
+    }
+  }
+
+  function approvalStatusColor(status: string): string {
+    switch (status) {
+      case "pending": return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300";
+      case "approved": return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
+      case "denied": return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
+      default: return "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400";
     }
   }
 
@@ -882,6 +930,70 @@
                               <tr>
                                 <td colspan="5" class="px-3 py-4 text-center text-xs text-gray-400">
                                   暂无日程；创建一条让 Bot 定时主动汇报（如每天 9 点发日报）
+                                </td>
+                              </tr>
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  {/if}
+
+                  <!-- 审批（P4：高风险操作人工确认） -->
+                  {#if tab === "approvals"}
+                    <div class="space-y-3 text-sm">
+                      <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">Bot 执行高风险操作前的审批请求；可在 Web 直接决定，或在绑定的 IM 渠道回复 /approve /deny</span>
+                        <div class="flex items-center gap-2">
+                          <select
+                            class="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                            bind:value={approvalFilter}
+                            onchange={() => { const d = detail; if (d) loadApprovals(d.id); }}
+                          >
+                            <option value="pending">待审批</option>
+                            <option value="all">全部</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                        <table class="w-full">
+                          <thead class="bg-gray-50 text-left text-xs text-gray-500 dark:bg-gray-800">
+                            <tr><th class="px-3 py-2">#</th><th class="px-3 py-2">操作</th><th class="px-3 py-2">状态</th><th class="px-3 py-2">发起时间</th><th class="px-3 py-2">决定</th><th class="px-3 py-2"></th></tr>
+                          </thead>
+                          <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800">
+                            {#each approvals as a (a.id)}
+                              <tr>
+                                <td class="px-3 py-2 font-mono text-xs text-gray-400">{a.id}</td>
+                                <td class="px-3 py-2">
+                                  <div class="font-medium text-gray-700 dark:text-gray-200">{a.action}</div>
+                                  {#if a.reason}
+                                    <div class="max-w-xs truncate text-xs text-gray-400" title={a.reason}>{a.reason}</div>
+                                  {/if}
+                                </td>
+                                <td class="px-3 py-2">
+                                  <span class="inline-flex rounded-full px-2 py-0.5 text-xs {approvalStatusColor(a.status)}">{approvalStatusText(a.status)}</span>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-gray-500">{new Date(a.created_at).toLocaleString()}</td>
+                                <td class="px-3 py-2 text-xs">
+                                  {#if a.decided_by}
+                                    <span class="text-gray-500">{a.decided_by}{a.decided_at ? ` · ${new Date(a.decided_at).toLocaleString()}` : ""}</span>
+                                  {:else}
+                                    <span class="text-gray-400">—</span>
+                                  {/if}
+                                </td>
+                                <td class="px-3 py-2 text-right">
+                                  {#if a.status === "pending"}
+                                    <div class="flex justify-end gap-2">
+                                      <button class="text-xs text-green-600 hover:underline" onclick={() => handleDecide(a, true)}>批准</button>
+                                      <button class="text-xs text-red-500 hover:underline" onclick={() => handleDecide(a, false)}>拒绝</button>
+                                    </div>
+                                  {/if}
+                                </td>
+                              </tr>
+                            {:else}
+                              <tr>
+                                <td colspan="6" class="px-3 py-4 text-center text-xs text-gray-400">
+                                  {approvalFilter === "pending" ? "暂无待审批项；Bot 的高风险操作会先请求确认" : "暂无审批记录"}
                                 </td>
                               </tr>
                             {/each}

@@ -19,14 +19,15 @@ const (
 
 // Module bot 模块（实现 module.Module 接口）
 type Module struct {
-	ctx       *module.Context
-	service   *Service
-	handler   *Handler
-	proxy     *StreamProxy
-	skills    *SkillService
-	memory    *MemoryService
-	schedules *ScheduleService
-	aiMod     *ai.Module
+	ctx        *module.Context
+	service    *Service
+	handler    *Handler
+	proxy      *StreamProxy
+	skills     *SkillService
+	memory     *MemoryService
+	schedules  *ScheduleService
+	approvals  *ApprovalService
+	aiMod      *ai.Module
 }
 
 // New 创建模块实例
@@ -52,7 +53,7 @@ func (m *Module) Dependencies() []string {
 func (m *Module) Init(ctx *module.Context) error {
 	m.ctx = ctx
 
-	if err := ctx.DB.AutoMigrate(&Bot{}, &BotMember{}, &BotMemory{}, &BotSchedule{}); err != nil {
+	if err := ctx.DB.AutoMigrate(&Bot{}, &BotMember{}, &BotMemory{}, &BotSchedule{}, &BotApproval{}); err != nil {
 		return err
 	}
 
@@ -76,8 +77,9 @@ func (m *Module) Init(ctx *module.Context) error {
 	m.skills = NewSkillService(ctx.Logger, dataDir)
 	m.memory = NewMemoryService(ctx.DB)
 	m.schedules = NewScheduleService(ctx.DB, ctx.Logger, m.service)
+	m.approvals = NewApprovalService(ctx.DB, m.service, ctx.Logger)
 	m.proxy = NewStreamProxy(m.service, ctx.Logger)
-	m.handler = NewHandler(m.service, m.proxy, m.skills, m.memory, m.schedules)
+	m.handler = NewHandler(m.service, m.proxy, m.skills, m.memory, m.schedules, m.approvals)
 
 	// P3/P4：向 ai 模块注入桥接（依赖方向 bot → ai；拓扑序 ai 先初始化）
 	if am := ctx.GetModule("ai"); am != nil {
@@ -91,6 +93,9 @@ func (m *Module) Init(ctx *module.Context) error {
 			)
 			// P4：调度服务注入 ai 任务执行与渠道推送
 			m.schedules.SetAIRunner(aiMod.RunBotTask, aiMod.SendToChannel)
+			// P4：审批服务注入（工具执行 + /approve /deny 命令路由）
+			m.approvals.SetNotifier(aiMod.SendToChannel)
+			aiMod.SetApprovalManager(m.approvals)
 		}
 	}
 

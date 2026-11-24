@@ -79,6 +79,19 @@ export interface BotSchedule {
   last_error?: string;
 }
 
+// 审批记录（与后端 modules/bot/approvals.go 对齐）
+export interface BotApproval {
+  id: number;
+  bot_id: string;
+  action: string;
+  reason: string;
+  status: "pending" | "approved" | "denied" | "expired";
+  requested_by: string;
+  decided_by: string;
+  decided_at?: string;
+  created_at: string;
+}
+
 // 列出可见的 bot
 export async function listBots(): Promise<Bot[]> {
   const res = await api.get<Bot[]>("/bots");
@@ -186,6 +199,14 @@ export async function deleteSchedule(id: string, sid: number): Promise<void> {
 }
 export async function runScheduleNow(id: string, sid: number): Promise<string> {
   return api.post<string>(`/bots/${id}/schedules/${sid}/run`, {});
+}
+
+// 审批（P4：高风险操作人工确认）
+export async function listApprovals(id: string, status = ""): Promise<BotApproval[]> {
+  return api.get<BotApproval[]>(`/bots/${id}/approvals${status ? `?status=${status}` : ""}`);
+}
+export async function decideApproval(id: string, aid: number, approve: boolean): Promise<string> {
+  return api.post<string>(`/bots/${id}/approvals/${aid}/decide`, { approve });
 }
 
 // 接管 / 交还

@@ -34,10 +34,11 @@ type Service struct {
 	saveDirty     bool
 
 	// P3 Bot 桥接（bot 模块注入；见 bot_bridge.go）
-	botExecutor SandboxExecutor
-	botResolver BotResolver
-	botSkills   SkillProvider
-	botMemory   MemoryProvider
+	botExecutor  SandboxExecutor
+	botResolver  BotResolver
+	botSkills    SkillProvider
+	botMemory    MemoryProvider
+	botApprovals ApprovalManager
 }
 
 // NewService 创建服务实例
@@ -1053,6 +1054,7 @@ func (s *Service) buildBotSystemPrompt(bot *BotInfo) string {
 	b.WriteString("你可以通过工具使用你的沙箱电脑：先 list_skills 查看技能清单，需要时 get_skill 读取技能指令，" +
 		"然后用 execute_script 在沙箱内执行 bash/python 脚本完成任务，或 run_skill 运行技能预置脚本。\n" +
 		"你拥有长期记忆：任务开始前先 search_memory 查相关记忆，重要结论/偏好/待办用 save_memory 保存。\n" +
+		"高风险操作（删除文件、对外发送、不可逆变更）必须先 request_approval 获得批准，被拒绝或超时就不要执行。\n" +
 		"执行结果只在沙箱内部生效。回复使用中文，保持简洁，任务完成后说明关键结果。\n")
 
 	if s.botSkills != nil {
@@ -1077,7 +1079,7 @@ func (s *Service) chatWithToolsLoop(ctx context.Context, provider *ProviderConfi
 		tools = append(tools, botToolsDefinitions()...)
 	}
 
-	for i := 0; i < 5; i++ { // 最多 5 轮工具调用
+	for i := 0; i < 12; i++ { // 最多 12 轮工具调用（含审批阻塞轮，Bot 链路比普通对话长）
 		reqBody := OpenAIChatRequestWithTools{
 			Model:    model,
 			Messages: messages,

@@ -72,6 +72,17 @@ type MemoryProvider interface {
 	SearchMemory(botID, query string, limit int) ([]MemoryItem, error)
 }
 
+// ApprovalManager Bot 审批管理（由 bot 模块注入）
+// LLM 高风险操作前调用 request_approval；用户经 IM 命令（/approve /deny）
+// 或 Web UI 决定，工具阻塞轮询直到出结果或超时。
+type ApprovalManager interface {
+	// RequestApproval 发起审批并等待结果（推送通知到 Bot 绑定渠道）
+	// 返回是否批准与给 LLM 的说明
+	RequestApproval(ctx context.Context, botID, action, reason string, timeoutSec int) (approved bool, message string, err error)
+	// DecideApproval 用户决定（approve=true 批准）；返回确认文案
+	DecideApproval(botID string, approvalID uint, approve bool, byUser string) (string, error)
+}
+
 // botBridge ai 模块持有的桥接实现集合
 type botBridge struct {
 	executor SandboxExecutor
@@ -85,6 +96,20 @@ func (m *Module) SetBotBridge(executor SandboxExecutor, resolver BotResolver, sk
 	m.service.setBotBridge(executor, resolver, skills, memory)
 	m.gateway.setBotBridge(resolver)
 	m.ctx.Logger.Info("bot bridge injected into ai module")
+}
+
+// SetApprovalManager 注入审批管理器（bot.Module Init 调用）
+func (m *Module) SetApprovalManager(am ApprovalManager) {
+	m.service.setApprovalManager(am)
+	m.gateway.setApprovalManager(am)
+	m.ctx.Logger.Info("approval manager injected into ai module")
+}
+
+// setApprovalManager 设置 service 的审批管理器
+func (s *Service) setApprovalManager(am ApprovalManager) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.botApprovals = am
 }
 
 // setBotBridge 设置 service 的桥接引用
@@ -174,6 +199,15 @@ func botToolsDefinitions() []ToolDefinition {
 				"query": map[string]interface{}{"type": "string", "description": "关键词（空则返回最近的记忆）"},
 			}},
 		}},
+		{Type: "function", Function: FunctionDef{
+			Name:        "request_approval",
+			Description: "请求人工审批高风险操作（如删除文件、对外发送消息、花钱）。审批请求会推送给 Bot 的管理者，等待期间请勿做其他事，批准后再继续执行。",
+			Parameters: map[string]interface{}{"type": "object", "properties": map[string]interface{}{
+				"action":  map[string]interface{}{"type": "string", "description": "要执行的操作（具体、可判断）"},
+				"reason":  map[string]interface{}{"type": "string", "description": "为什么需要做这个操作"},
+				"timeout": map[string]interface{}{"type": "integer", "description": "等待超时秒数，默认 120，上限 300"},
+			}, "required": []string{"action", "reason"}},
+		}},
 	}
 }
 
@@ -198,8 +232,14 @@ func (s *Service) executeBotTool(ctx context.Context, name, argsJSON, botID stri
 		Key      string `json:"key"`
 		Content  string `json:"content"`
 		Query    string `json:"query"`
+		Action   string `json:"action"`
+		Reason   string `json:"reason"`
 	}
 	_ = jsonUnmarshalLoose(argsJSON, &args)
+
+	s.mu.RLock()
+	approvals := s.botApprovals
+	s.mu.RUnlock()
 
 	switch name {
 	case "save_memory":
@@ -224,6 +264,26 @@ func (s *Service) executeBotTool(ctx context.Context, name, argsJSON, botID stri
 			return marshalToolResult(map[string]interface{}{"success": false, "error": err.Error()}), true
 		}
 		return marshalToolResult(map[string]interface{}{"success": true, "data": items}), true
+
+	case "request_approval":
+		if approvals == nil {
+			return `{"success": false, "error": "approval manager unavailable"}`, true
+		}
+		if args.Action == "" {
+			return `{"success": false, "error": "missing action"}`, true
+		}
+		if args.Timeout <= 0 || args.Timeout > 300 {
+			args.Timeout = 120
+		}
+		approved, message, err := approvals.RequestApproval(ctx, botID, args.Action, args.Reason, args.Timeout)
+		if err != nil {
+			return marshalToolResult(map[string]interface{}{"success": false, "error": err.Error()}), true
+		}
+		return marshalToolResult(map[string]interface{}{
+			"success":  true,
+			"approved": approved,
+			"message":  message,
+		}), true
 	}
 
 	// 以下工具依赖沙箱执行器

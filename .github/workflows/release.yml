@@ -68,11 +68,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download all artifacts
+      - name: Download image artifacts
         uses: actions/download-artifact@v4
         with:
           path: outputs
+          pattern: rde-image-*
           merge-multiple: true
+
+      - name: Verify artifacts
+        run: |
+          ls -lh outputs/
+          # 两架构的镜像 tar 必须齐（排除 buildx .dockerbuild 调试产物）
+          test -f outputs/rde-*.tar.gz
+          [ "$(ls outputs/*.tar.gz | wc -l)" = "2" ]
 
       - name: Generate release notes
         id: notes

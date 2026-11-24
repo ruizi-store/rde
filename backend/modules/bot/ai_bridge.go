@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ruizi-store/rde/backend/modules/ai"
 	"go.uber.org/zap"
@@ -124,4 +125,31 @@ func (r *botChannelResolver) ResolveBotByChannel(platform, chatID, userID string
 		Model:       b.Model,
 		ProviderID:  b.ProviderID,
 	}
+}
+
+// botMemoryProvider 实现 ai.MemoryProvider（包装 MemoryService）
+type botMemoryProvider struct {
+	svc *MemoryService
+}
+
+// SaveMemory 保存记忆
+func (m *botMemoryProvider) SaveMemory(botID, key, content string) error {
+	return m.svc.SaveMemory(botID, key, content)
+}
+
+// SearchMemory 检索记忆并转换为 ai.MemoryItem
+func (m *botMemoryProvider) SearchMemory(botID, query string, limit int) ([]ai.MemoryItem, error) {
+	items, err := m.svc.SearchMemory(botID, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]ai.MemoryItem, 0, len(items))
+	for _, it := range items {
+		result = append(result, ai.MemoryItem{
+			Key:       it.Key,
+			Content:   it.Content,
+			UpdatedAt: it.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+	return result, nil
 }

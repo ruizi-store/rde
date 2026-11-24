@@ -80,7 +80,7 @@ func TestExecuteBotTool(t *testing.T) {
 	assert.False(t, isBot)
 	assert.Empty(t, result)
 
-	svc.setBotBridge(executor, nil, provider)
+	svc.setBotBridge(executor, nil, provider, nil)
 
 	// 无 BotID → 不路由
 	_, isBot = svc.executeBotTool(context.Background(), "execute_script", "{}", "")
@@ -128,6 +128,64 @@ func TestExecuteBotTool(t *testing.T) {
 	assert.False(t, isBot)
 }
 
+func TestExecuteBotTool_Memory(t *testing.T) {
+	svc := setupTestService(t)
+	memory := &fakeMemoryProvider{}
+	ctx := context.Background()
+
+	// 未注入 memory → 工具仍属 Bot 工具但报告不可用
+	result, isBot := svc.executeBotTool(ctx, "save_memory", `{"key":"k","content":"v"}`, "bot-1")
+	assert.True(t, isBot)
+	assert.Contains(t, result, "memory provider unavailable")
+
+	svc.setBotBridge(nil, nil, nil, memory)
+
+	// save_memory
+	result, isBot = svc.executeBotTool(ctx, "save_memory", `{"key":"偏好","content":"简洁回复"}`, "bot-1")
+	require.True(t, isBot)
+	assert.Contains(t, result, `"key":"偏好"`)
+	assert.Equal(t, "偏好", memory.savedKey)
+	assert.Equal(t, "简洁回复", memory.savedContent)
+
+	// 缺参数
+	result, isBot = svc.executeBotTool(ctx, "save_memory", `{"key":"k"}`, "bot-1")
+	require.True(t, isBot)
+	assert.Contains(t, result, "missing")
+
+	// search_memory
+	result, isBot = svc.executeBotTool(ctx, "search_memory", `{"query":"偏好"}`, "bot-1")
+	require.True(t, isBot)
+	assert.Contains(t, result, "简洁回复")
+	assert.Equal(t, "偏好", memory.searchQuery)
+
+	// 无 BotID → 不路由
+	_, isBot = svc.executeBotTool(ctx, "search_memory", `{"query":"x"}`, "")
+	assert.False(t, isBot)
+}
+
+// fakeMemoryProvider 模拟记忆提供方
+type fakeMemoryProvider struct {
+	savedKey      string
+	savedContent  string
+	searchQuery   string
+	items         []MemoryItem
+	saveErr       error
+}
+
+func (f *fakeMemoryProvider) SaveMemory(botID, key, content string) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.savedKey, f.savedContent = key, content
+	f.items = append(f.items, MemoryItem{Key: key, Content: content, UpdatedAt: "now"})
+	return nil
+}
+
+func (f *fakeMemoryProvider) SearchMemory(botID, query string, limit int) ([]MemoryItem, error) {
+	f.searchQuery = query
+	return f.items, nil
+}
+
 func TestBuildBotSystemPrompt(t *testing.T) {
 	svc := setupTestService(t)
 
@@ -139,7 +197,7 @@ func TestBuildBotSystemPrompt(t *testing.T) {
 	assert.Contains(t, prompt, "execute_script")
 
 	// 有技能提供方 → 注入技能索引
-	svc.setBotBridge(nil, nil, &fakeSkillProvider{skills: map[string]string{"hello": "x"}})
+	svc.setBotBridge(nil, nil, &fakeSkillProvider{skills: map[string]string{"hello": "x"}}, nil)
 	prompt = svc.buildBotSystemPrompt(bot)
 	assert.Contains(t, prompt, "hello")
 	assert.Contains(t, prompt, "get_skill")

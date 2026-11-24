@@ -10,8 +10,10 @@
     startBot, stopBot, restartBot, getBotLogs, execInBot,
     getBotMembers, setBotMembers, takeoverBot, releaseBot,
     getBotChannels, setBotChannels, listSkills, reloadSkills,
+    listMemories, deleteMemory, listSchedules, createSchedule,
+    updateSchedule, deleteSchedule, runScheduleNow,
     botStreamUrl, type Bot, type BotMember, type ExecResult,
-    type BotChannel, type SkillMeta,
+    type BotChannel, type SkillMeta, type BotMemory, type BotSchedule,
   } from "$shared/services/bot";
 
   // ==================== 状态 ====================
@@ -46,6 +48,16 @@
   // 技能清单（P3）
   let skills = $state<SkillMeta[]>([]);
 
+  // 记忆（P4）
+  let memories = $state<BotMemory[]>([]);
+  let memoryQuery = $state("");
+
+  // 日程（P4）
+  let schedules = $state<BotSchedule[]>([]);
+  let showAddSchedule = $state(false);
+  let scheduleForm = $state({ name: "", cron: "0 9 * * *", prompt: "", enabled: true });
+  let scheduleRunning = $state(false);
+
   // 创建弹窗
   let showCreate = $state(false);
   let createForm = $state({ name: "", description: "", model: "", image: "" });
@@ -63,6 +75,8 @@
     ...(detail?.my_role === "admin" ? [{ id: "members", label: "成员" }] : []),
     ...(detail?.my_role === "admin" ? [{ id: "channels", label: "渠道" }] : []),
     { id: "skills", label: "技能" },
+    ...(detail?.my_role === "admin" ? [{ id: "schedules", label: "日程" }] : []),
+    ...(detail?.my_role === "admin" ? [{ id: "memories", label: "记忆" }] : []),
     { id: "logs", label: "日志" },
   ]);
 
@@ -91,6 +105,10 @@
       loadChannels(id);
     } else if (tab === "skills") {
       loadSkills();
+    } else if (tab === "memories" && id) {
+      loadMemories(id);
+    } else if (tab === "schedules" && id && detail?.my_role === "admin") {
+      loadSchedules(id);
     }
   });
 
@@ -354,6 +372,89 @@
       showToast(`已重新扫描，共 ${skills.length} 个技能`, "success");
     } catch (e) {
       showToast(e instanceof Error ? e.message : "扫描失败", "error");
+    }
+  }
+
+  // 记忆（P4）
+  async function loadMemories(id: string) {
+    try {
+      memories = await listMemories(id, memoryQuery);
+    } catch {
+      memories = [];
+    }
+  }
+
+  async function handleDeleteMemory(mid: number) {
+    const d = detail;
+    if (!d) return;
+    try {
+      await deleteMemory(d.id, mid);
+      memories = memories.filter((m) => m.id !== mid);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "删除失败", "error");
+    }
+  }
+
+  // 日程（P4）
+  async function loadSchedules(id: string) {
+    try {
+      schedules = await listSchedules(id);
+    } catch {
+      schedules = [];
+    }
+  }
+
+  async function handleAddSchedule() {
+    const d = detail;
+    if (!d || !scheduleForm.name.trim() || !scheduleForm.prompt.trim()) {
+      showToast("名称与任务提示词必填", "warning");
+      return;
+    }
+    try {
+      await createSchedule(d.id, scheduleForm);
+      showAddSchedule = false;
+      scheduleForm = { name: "", cron: "0 9 * * *", prompt: "", enabled: true };
+      showToast("日程已创建", "success");
+      await loadSchedules(d.id);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "创建失败", "error");
+    }
+  }
+
+  async function handleToggleSchedule(s: BotSchedule) {
+    const d = detail;
+    if (!d || !s.id) return;
+    try {
+      await updateSchedule(d.id, s.id, { enabled: !s.enabled });
+      await loadSchedules(d.id);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "操作失败", "error");
+    }
+  }
+
+  async function handleDeleteSchedule(s: BotSchedule) {
+    const d = detail;
+    if (!d || !s.id) return;
+    try {
+      await deleteSchedule(d.id, s.id);
+      schedules = schedules.filter((x) => x.id !== s.id);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "删除失败", "error");
+    }
+  }
+
+  async function handleRunScheduleNow(s: BotSchedule) {
+    const d = detail;
+    if (!d || !s.id) return;
+    scheduleRunning = true;
+    try {
+      await runScheduleNow(d.id, s.id);
+      showToast("已执行，结果见列表", "success");
+      await loadSchedules(d.id);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "执行失败", "error");
+    } finally {
+      scheduleRunning = false;
     }
   }
 
@@ -734,6 +835,93 @@
                     </div>
                   {/if}
 
+                  <!-- 日程（P4：定时主动汇报） -->
+                  {#if tab === "schedules"}
+                    <div class="space-y-3 text-sm">
+                      <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">到点自动执行任务并把结果推送到绑定的 IM 渠道（cron：分 时 日 月 周，或 @every 30m）</span>
+                        <Button variant="primary" size="sm" onclick={() => (showAddSchedule = true)}>
+                          <Icon icon="mdi:calendar-plus" class="mr-1" />新建日程
+                        </Button>
+                      </div>
+                      <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                        <table class="w-full">
+                          <thead class="bg-gray-50 text-left text-xs text-gray-500 dark:bg-gray-800">
+                            <tr><th class="px-3 py-2">名称</th><th class="px-3 py-2">cron</th><th class="px-3 py-2">上次执行</th><th class="px-3 py-2">状态</th><th class="px-3 py-2"></th></tr>
+                          </thead>
+                          <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800">
+                            {#each schedules as s (s.id)}
+                              <tr>
+                                <td class="px-3 py-2">
+                                  <div class="font-medium text-gray-700 dark:text-gray-200">{s.name}</div>
+                                  <div class="max-w-xs truncate text-xs text-gray-400" title={s.prompt}>{s.prompt}</div>
+                                </td>
+                                <td class="px-3 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{s.cron}</td>
+                                <td class="px-3 py-2 text-xs">
+                                  {#if s.last_error}
+                                    <span class="text-red-500" title={s.last_error}>失败</span>
+                                  {:else if s.last_run_at}
+                                    <span class="text-gray-500" title={s.last_result || ""}>{new Date(s.last_run_at).toLocaleString()}</span>
+                                  {:else}
+                                    <span class="text-gray-400">未执行</span>
+                                  {/if}
+                                </td>
+                                <td class="px-3 py-2">
+                                  <button class="text-xs {s.enabled ? 'text-green-600' : 'text-gray-400'} hover:underline" onclick={() => handleToggleSchedule(s)}>
+                                    {s.enabled ? "启用中" : "已暂停"}
+                                  </button>
+                                </td>
+                                <td class="px-3 py-2 text-right">
+                                  <div class="flex justify-end gap-2">
+                                    <button class="text-xs text-blue-500 hover:underline" onclick={() => handleRunScheduleNow(s)}>立即执行</button>
+                                    <button class="text-xs text-red-500 hover:underline" onclick={() => handleDeleteSchedule(s)}>删除</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            {:else}
+                              <tr>
+                                <td colspan="5" class="px-3 py-4 text-center text-xs text-gray-400">
+                                  暂无日程；创建一条让 Bot 定时主动汇报（如每天 9 点发日报）
+                                </td>
+                              </tr>
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  {/if}
+
+                  <!-- 记忆（P4：长期记忆审计） -->
+                  {#if tab === "memories"}
+                    <div class="space-y-3 text-sm">
+                      <div class="flex items-center gap-2">
+                        <div class="w-64">
+                          <Input bind:value={memoryQuery} placeholder="搜索记忆关键词" />
+                        </div>
+                        <Button variant="outline" size="sm" onclick={() => { const d = detail; if (d) loadMemories(d.id); }}>搜索</Button>
+                        <span class="text-xs text-gray-400">Bot 在对话中通过工具自主存取的记忆；可在此审计或删除</span>
+                      </div>
+                      <div class="space-y-2">
+                        {#each memories as m (m.id)}
+                          <div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+                            <div class="flex items-start justify-between gap-2">
+                              <div class="min-w-0">
+                                <div class="text-xs font-medium text-blue-600 dark:text-blue-300">{m.key}</div>
+                                <div class="mt-1 break-words text-gray-700 dark:text-gray-200">{m.content}</div>
+                                <div class="mt-1 text-xs text-gray-400">{new Date(m.updated_at).toLocaleString()}</div>
+                              </div>
+                              <button class="shrink-0 text-xs text-red-500 hover:underline" onclick={() => handleDeleteMemory(m.id)}>删除</button>
+                            </div>
+                          </div>
+                        {:else}
+                          <div class="rounded-lg border border-dashed border-gray-300 p-4 text-center text-xs text-gray-400 dark:border-gray-600">
+                            暂无记忆；Bot 对话中保存的记忆会出现在这里
+                          </div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+
                   <!-- 日志 -->
                   {#if tab === "logs"}
                     <div class="flex h-full flex-col gap-2">
@@ -780,6 +968,37 @@
     <div class="flex justify-end gap-2 pt-2">
       <Button variant="ghost" onclick={() => (showCreate = false)}>取消</Button>
       <Button variant="primary" onclick={handleCreate} loading={working} disabled={!createForm.name.trim()}>
+        创建
+      </Button>
+    </div>
+  </div>
+</Modal>
+
+<!-- 新建日程弹窗 -->
+<Modal bind:open={showAddSchedule} title="新建日程" size="md">
+  <div class="space-y-3">
+    <div>
+      <label class="mb-1 block text-xs text-gray-500">名称 *</label>
+      <Input bind:value={scheduleForm.name} placeholder="如：每日早报" />
+    </div>
+    <div>
+      <label class="mb-1 block text-xs text-gray-500">cron 表达式 *</label>
+      <Input bind:value={scheduleForm.cron} placeholder="0 9 * * *（每天 9 点）或 @every 30m" />
+      <p class="mt-1 text-xs text-gray-400">5 字段：分 时 日 月 周（如 0 9 * * 1-5 为工作日 9 点）</p>
+    </div>
+    <div>
+      <label class="mb-1 block text-xs text-gray-500">任务提示词 *</label>
+      <textarea
+        bind:value={scheduleForm.prompt}
+        rows="4"
+        placeholder="如：查看今天沙箱里的产出，按记忆中的格式生成日报并发给我"
+        class="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-800 focus:border-blue-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+      ></textarea>
+      <p class="mt-1 text-xs text-gray-400">Bot 将以自己的身份执行（可用技能/沙箱/记忆），结果推送到绑定的渠道</p>
+    </div>
+    <div class="flex justify-end gap-2 pt-2">
+      <Button variant="ghost" onclick={() => (showAddSchedule = false)}>取消</Button>
+      <Button variant="primary" onclick={handleAddSchedule} disabled={!scheduleForm.name.trim() || !scheduleForm.prompt.trim()}>
         创建
       </Button>
     </div>

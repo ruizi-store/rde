@@ -1,3 +1,15 @@
+rde (0.4.0) unstable; urgency=medium
+
+  * feat(bot): Bot 长期记忆——bots_memories 表 + save_memory/search_memory 工具
+    （LLM 对话中自主存取，REST 审计查看/搜索/删除）
+  * feat(bot): 定时主动汇报——bots_schedules 表（robfig/cron，5 字段 + @every 描述符），
+    到点以 Bot 身份执行带工具任务（技能/沙箱/记忆可用）并把结果推送到绑定 IM 渠道；
+    支持立即执行、暂停、上次结果落库
+  * feat(frontend): Bot 详情新增「日程」「记忆」标签页
+  * feat(ai): Module.RunBotTask / SendToChannel 导出（调度入口）；记忆接口 MemoryProvider
+
+ -- RDE Maintainers <maintainers@rde.local>  Tue, 24 Nov 2026 19:00:00 +0800
+
 rde (0.3.0) unstable; urgency=medium
 
   * feat(bot): 技能文件化——SKILL.md（frontmatter+正文+预置脚本），首次播种默认技能，REST 热加载

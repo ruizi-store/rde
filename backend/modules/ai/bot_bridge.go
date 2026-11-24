@@ -9,6 +9,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 // BotInfo Bot 的摘要信息（bot 模块 → ai 模块的传输结构，避免直接依赖）
@@ -56,32 +57,74 @@ type BotResolver interface {
 	ResolveBotByChannel(platform, chatID, userID string) *BotInfo
 }
 
+// MemoryItem 记忆条目
+type MemoryItem struct {
+	Key       string `json:"key"`
+	Content   string `json:"content"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// MemoryProvider Bot 长期记忆存取（由 bot 模块注入，SQLite 存储）
+type MemoryProvider interface {
+	// SaveMemory 保存/覆盖一条记忆（同 key 覆盖）
+	SaveMemory(botID, key, content string) error
+	// SearchMemory 按关键词检索记忆（无关键词返回最近条目）
+	SearchMemory(botID, query string, limit int) ([]MemoryItem, error)
+}
+
 // botBridge ai 模块持有的桥接实现集合
 type botBridge struct {
 	executor SandboxExecutor
 	resolver BotResolver
 	skills   SkillProvider
+	memory   MemoryProvider
 }
 
 // SetBotBridge 注入 bot 模块的桥接实现（bot.Module Init 调用）
-func (m *Module) SetBotBridge(executor SandboxExecutor, resolver BotResolver, skills SkillProvider) {
-	m.service.setBotBridge(executor, resolver, skills)
+func (m *Module) SetBotBridge(executor SandboxExecutor, resolver BotResolver, skills SkillProvider, memory MemoryProvider) {
+	m.service.setBotBridge(executor, resolver, skills, memory)
 	m.gateway.setBotBridge(resolver)
 	m.ctx.Logger.Info("bot bridge injected into ai module")
 }
 
 // setBotBridge 设置 service 的桥接引用
-func (s *Service) setBotBridge(executor SandboxExecutor, resolver BotResolver, skills SkillProvider) {
+func (s *Service) setBotBridge(executor SandboxExecutor, resolver BotResolver, skills SkillProvider, memory MemoryProvider) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.botExecutor = executor
 	s.botResolver = resolver
 	s.botSkills = skills
+	s.botMemory = memory
 }
 
 // setBotBridge 设置网关的 Bot 解析器
 func (gs *GatewayService) setBotBridge(resolver BotResolver) {
 	gs.botResolver = resolver
+}
+
+// RunBotTask 以指定 Bot 的身份执行一次性任务（定时调度/立即执行共用）
+// prompt 作为用户消息进入带工具的对话循环，返回最终回复文本。
+func (m *Module) RunBotTask(ctx context.Context, bot *BotInfo, prompt string) (string, error) {
+	messages := []GatewayMessage{
+		{Role: "user", Content: "【定时任务】" + prompt},
+	}
+	return m.service.ChatWithToolsForBot(ctx, messages, bot)
+}
+
+// SendToChannel 向指定 IM 渠道推送文本（Bot 定时任务结果推送用）
+// 按平台取网关适配器发送；平台未启用返回错误。
+func (m *Module) SendToChannel(ctx context.Context, platform, chatID, userID, text string) error {
+	adapter := m.gateway.GetAdapter(PlatformType(platform))
+	if adapter == nil {
+		return fmt.Errorf("平台 %s 未启用", platform)
+	}
+	msg := OutgoingMessage{
+		Platform: PlatformType(platform),
+		ChatID:   chatID,
+		UserID:   userID,
+		Text:     text,
+	}
+	return adapter.SendMessage(ctx, msg)
 }
 
 // botToolsDefinitions Bot 沙箱工具定义（存在 Bot 上下文时附加到工具列表）
@@ -116,19 +159,35 @@ func botToolsDefinitions() []ToolDefinition {
 				"args_json": map[string]interface{}{"type": "string", "description": "传给脚本的参数（JSON 字符串，脚本从环境变量 SKILL_ARGS 读取）"},
 			}, "required": []string{"name"}},
 		}},
+		{Type: "function", Function: FunctionDef{
+			Name:        "save_memory",
+			Description: "把重要信息存入长期记忆（跨对话保留，如任务结论、用户偏好、待办）。同 key 再次保存会覆盖旧值。",
+			Parameters: map[string]interface{}{"type": "object", "properties": map[string]interface{}{
+				"key":     map[string]interface{}{"type": "string", "description": "记忆的键（简短主题词，如「日报格式」「负责人」）"},
+				"content": map[string]interface{}{"type": "string", "description": "记忆内容"},
+			}, "required": []string{"key", "content"}},
+		}},
+		{Type: "function", Function: FunctionDef{
+			Name:        "search_memory",
+			Description: "检索长期记忆。开始任务前先查相关记忆，避免重复询问已知信息。",
+			Parameters: map[string]interface{}{"type": "object", "properties": map[string]interface{}{
+				"query": map[string]interface{}{"type": "string", "description": "关键词（空则返回最近的记忆）"},
+			}},
+		}},
 	}
 }
 
-// executeBotTool 执行 Bot 沙箱工具；返回 false 表示不是 Bot 工具（走原有 SkillsService）
+// executeBotTool 执行 Bot 沙箱/记忆工具；返回 false 表示不是 Bot 工具（走原有 SkillsService）
 func (s *Service) executeBotTool(ctx context.Context, name, argsJSON, botID string) (string, bool) {
+	if botID == "" {
+		return "", false
+	}
+
 	s.mu.RLock()
 	executor := s.botExecutor
 	skills := s.botSkills
+	memory := s.botMemory
 	s.mu.RUnlock()
-
-	if executor == nil || botID == "" {
-		return "", false
-	}
 
 	var args struct {
 		Name     string `json:"name"`
@@ -136,8 +195,41 @@ func (s *Service) executeBotTool(ctx context.Context, name, argsJSON, botID stri
 		Script   string `json:"script"`
 		Timeout  int    `json:"timeout"`
 		ArgsJSON string `json:"args_json"`
+		Key      string `json:"key"`
+		Content  string `json:"content"`
+		Query    string `json:"query"`
 	}
 	_ = jsonUnmarshalLoose(argsJSON, &args)
+
+	switch name {
+	case "save_memory":
+		if memory == nil {
+			return `{"success": false, "error": "memory provider unavailable"}`, true
+		}
+		if args.Key == "" || args.Content == "" {
+			return `{"success": false, "error": "missing key or content"}`, true
+		}
+		if err := memory.SaveMemory(botID, args.Key, args.Content); err != nil {
+			return marshalToolResult(map[string]interface{}{"success": false, "error": err.Error()}), true
+		}
+		return marshalToolResult(map[string]interface{}{"success": true, "key": args.Key}), true
+
+	case "search_memory":
+		if memory == nil {
+			return `{"success": false, "error": "memory provider unavailable"}`, true
+		}
+		limit := 8
+		items, err := memory.SearchMemory(botID, args.Query, limit)
+		if err != nil {
+			return marshalToolResult(map[string]interface{}{"success": false, "error": err.Error()}), true
+		}
+		return marshalToolResult(map[string]interface{}{"success": true, "data": items}), true
+	}
+
+	// 以下工具依赖沙箱执行器
+	if executor == nil {
+		return "", false
+	}
 
 	switch name {
 	case "list_skills":

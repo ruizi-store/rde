@@ -61,12 +61,15 @@
 - 遗留（P4）：`skills.go` 的 22 个硬编码 NAS 工具继续并存（网关默认助手路径仍用）；MCP 兼容、飞书/钉钉渠道、
   alerts 泛化为 cron 技能调度。
 
-### P4 — 记忆、审批、协作
-- 记忆：SQLite + 本地向量（先 `sqlite-vec` 或简单 FTS，不引重依赖）。
-- 审批卡片（IM 交互式消息）、密钥安全录入表单。
-- 多 Bot 协作（放到最后：先让单个 Bot 真正有用）。
+### P4 — 记忆、审批、协作（进行中）
+- 记忆 ✅ 2026-11：`bots_memories` 表 + `save_memory`/`search_memory` 工具（LLM 自主存取，同 key 覆盖，
+  关键词 LIKE 检索），REST 审计（查看/搜索/删除）；system prompt 提示先查后存。
+- 定时主动汇报 ✅ 2026-11：`bots_schedules` 表（robfig/cron 5 字段 + `@every` 描述符），
+  触发时以 Bot 身份跑带工具对话（技能/沙箱/记忆可用），结果推送到 Bot 绑定渠道；
+  支持 RunNow 手动执行、暂停、上次结果/错误落库；前端「日程」「记忆」标签页。
+- 待办：审批卡片（IM 交互式消息）、密钥安全录入表单、多 Bot 协作（放最后：先让单个 Bot 真正有用）。
 - 渠道扩展：飞书、钉钉（企微/TG 已有底子）；MCP 兼容（stdio/HTTP）。
-- 调度与主动汇报：把 `gateway_alerts.go` 的推送通道泛化为 cron 触发 skill 执行 + 结果推送。
+- 清理 `gateway_alerts.go` 泛化为通用调度推送（与 bots_schedules 并存一段时间）。
 
 ## 模块取舍（已在 feat/bot-direction 分支执行 ✅）
 

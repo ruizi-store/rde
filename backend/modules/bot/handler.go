@@ -2,6 +2,7 @@
 package bot
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,14 +10,16 @@ import (
 
 // Handler HTTP 处理器
 type Handler struct {
-	service *Service
-	proxy   *StreamProxy
-	skills  *SkillService
+	service   *Service
+	proxy     *StreamProxy
+	skills    *SkillService
+	memory    *MemoryService
+	schedules *ScheduleService
 }
 
 // NewHandler 创建处理器
-func NewHandler(service *Service, proxy *StreamProxy, skills *SkillService) *Handler {
-	return &Handler{service: service, proxy: proxy, skills: skills}
+func NewHandler(service *Service, proxy *StreamProxy, skills *SkillService, memory *MemoryService, schedules *ScheduleService) *Handler {
+	return &Handler{service: service, proxy: proxy, skills: skills, memory: memory, schedules: schedules}
 }
 
 // RegisterRoutes 注册路由
@@ -43,6 +46,15 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 		g.GET("/skills", h.ListSkills)
 		g.POST("/skills/reload", h.ReloadSkills)
+
+		g.GET("/:id/memories", h.ListMemories)
+		g.DELETE("/:id/memories/:mid", h.DeleteMemory)
+
+		g.GET("/:id/schedules", h.ListSchedules)
+		g.POST("/:id/schedules", h.CreateSchedule)
+		g.PUT("/:id/schedules/:sid", h.UpdateSchedule)
+		g.DELETE("/:id/schedules/:sid", h.DeleteSchedule)
+		g.POST("/:id/schedules/:sid/run", h.RunScheduleNow)
 
 		g.POST("/:id/takeover", h.Takeover)
 		g.POST("/:id/release", h.Release)
@@ -399,4 +411,105 @@ func (h *Handler) ReloadSkills(c *gin.Context) {
 		return
 	}
 	ok(c, h.skills.ListSkills())
+}
+
+// ---------- 记忆（P4：长期记忆审计） ----------
+
+// ListMemories 查看 Bot 的记忆（可带 ?q= 关键词）
+func (h *Handler) ListMemories(c *gin.Context) {
+	memories, err := h.memory.SearchMemory(c.Param("id"), c.Query("q"), 100)
+	if err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	ok(c, memories)
+}
+
+// DeleteMemory 删除一条记忆
+func (h *Handler) DeleteMemory(c *gin.Context) {
+	id := 0
+	if _, err := fmt.Sscanf(c.Param("mid"), "%d", &id); err != nil || id <= 0 {
+		fail(c, 400, "无效记忆 ID")
+		return
+	}
+	if err := h.memory.DeleteMemory(c.Param("id"), uint(id)); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	ok(c, nil)
+}
+
+// ---------- 日程（P4：定时主动汇报） ----------
+
+// ListSchedules 日程列表
+func (h *Handler) ListSchedules(c *gin.Context) {
+	schedules, err := h.schedules.List(c.Param("id"))
+	if err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	ok(c, schedules)
+}
+
+// CreateSchedule 创建日程
+func (h *Handler) CreateSchedule(c *gin.Context) {
+	var req BotSchedule
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+	if err := h.schedules.Create(c.Param("id"), &req); err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	ok(c, req)
+}
+
+// UpdateSchedule 更新日程（name/cron/prompt/enabled）
+func (h *Handler) UpdateSchedule(c *gin.Context) {
+	id := 0
+	if _, err := fmt.Sscanf(c.Param("sid"), "%d", &id); err != nil || id <= 0 {
+		fail(c, 400, "无效日程 ID")
+		return
+	}
+	var updates map[string]interface{}
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+	sch, err := h.schedules.Update(c.Param("id"), uint(id), updates)
+	if err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	ok(c, sch)
+}
+
+// DeleteSchedule 删除日程
+func (h *Handler) DeleteSchedule(c *gin.Context) {
+	id := 0
+	if _, err := fmt.Sscanf(c.Param("sid"), "%d", &id); err != nil || id <= 0 {
+		fail(c, 400, "无效日程 ID")
+		return
+	}
+	if err := h.schedules.Delete(c.Param("id"), uint(id)); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	ok(c, nil)
+}
+
+// RunScheduleNow 立即执行一次日程（手动验证）
+func (h *Handler) RunScheduleNow(c *gin.Context) {
+	id := 0
+	if _, err := fmt.Sscanf(c.Param("sid"), "%d", &id); err != nil || id <= 0 {
+		fail(c, 400, "无效日程 ID")
+		return
+	}
+	result, err := h.schedules.RunNow(c.Param("id"), uint(id))
+	if err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	ok(c, result)
 }

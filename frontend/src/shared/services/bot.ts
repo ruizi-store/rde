@@ -56,6 +56,29 @@ export interface SkillMeta {
   description: string;
 }
 
+// 记忆条目（与后端 modules/bot/memory.go 对齐）
+export interface BotMemory {
+  id: number;
+  bot_id: string;
+  key: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// 定时日程（与后端 modules/bot/schedule.go 对齐）
+export interface BotSchedule {
+  id?: number;
+  bot_id?: string;
+  name: string;
+  cron: string;
+  prompt: string;
+  enabled: boolean;
+  last_run_at?: string;
+  last_result?: string;
+  last_error?: string;
+}
+
 // 列出可见的 bot
 export async function listBots(): Promise<Bot[]> {
   const res = await api.get<Bot[]>("/bots");
@@ -134,6 +157,35 @@ export async function listSkills(): Promise<SkillMeta[]> {
 }
 export async function reloadSkills(): Promise<SkillMeta[]> {
   return api.post<SkillMeta[]>("/bots/skills/reload", {});
+}
+
+// 记忆（P4：长期记忆审计）
+export async function listMemories(id: string, q = ""): Promise<BotMemory[]> {
+  return api.get<BotMemory[]>(`/bots/${id}/memories${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+}
+export async function deleteMemory(id: string, memoryId: number): Promise<void> {
+  await api.delete(`/bots/${id}/memories/${memoryId}`);
+}
+
+// 定时日程（P4：主动汇报）
+export async function listSchedules(id: string): Promise<BotSchedule[]> {
+  return api.get<BotSchedule[]>(`/bots/${id}/schedules`);
+}
+export async function createSchedule(id: string, req: Omit<BotSchedule, "id" | "bot_id">): Promise<BotSchedule> {
+  return api.post<BotSchedule>(`/bots/${id}/schedules`, req);
+}
+export async function updateSchedule(
+  id: string,
+  sid: number,
+  updates: Partial<{ name: string; cron: string; prompt: string; enabled: boolean }>,
+): Promise<BotSchedule> {
+  return api.put<BotSchedule>(`/bots/${id}/schedules/${sid}`, updates);
+}
+export async function deleteSchedule(id: string, sid: number): Promise<void> {
+  await api.delete(`/bots/${id}/schedules/${sid}`);
+}
+export async function runScheduleNow(id: string, sid: number): Promise<string> {
+  return api.post<string>(`/bots/${id}/schedules/${sid}/run`, {});
 }
 
 // 接管 / 交还

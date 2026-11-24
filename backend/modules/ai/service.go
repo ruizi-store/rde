@@ -37,6 +37,7 @@ type Service struct {
 	botExecutor SandboxExecutor
 	botResolver BotResolver
 	botSkills   SkillProvider
+	botMemory   MemoryProvider
 }
 
 // NewService 创建服务实例
@@ -1051,6 +1052,7 @@ func (s *Service) buildBotSystemPrompt(bot *BotInfo) string {
 	}
 	b.WriteString("你可以通过工具使用你的沙箱电脑：先 list_skills 查看技能清单，需要时 get_skill 读取技能指令，" +
 		"然后用 execute_script 在沙箱内执行 bash/python 脚本完成任务，或 run_skill 运行技能预置脚本。\n" +
+		"你拥有长期记忆：任务开始前先 search_memory 查相关记忆，重要结论/偏好/待办用 save_memory 保存。\n" +
 		"执行结果只在沙箱内部生效。回复使用中文，保持简洁，任务完成后说明关键结果。\n")
 
 	if s.botSkills != nil {

@@ -43,6 +43,19 @@ export interface ExecRequest {
   timeout?: number;
 }
 
+// 渠道绑定（与后端 modules/bot/channels.go 对齐）
+export interface BotChannel {
+  platform: "telegram" | "wecom" | "webhook";
+  chat_id?: string;
+  user_id?: string;
+}
+
+// 技能元数据（SKILL.md frontmatter）
+export interface SkillMeta {
+  name: string;
+  description: string;
+}
+
 // 列出可见的 bot
 export async function listBots(): Promise<Bot[]> {
   const res = await api.get<Bot[]>("/bots");
@@ -105,6 +118,22 @@ export async function getBotMembers(id: string): Promise<BotMember[]> {
 }
 export async function setBotMembers(id: string, members: BotMember[]): Promise<void> {
   await api.put(`/bots/${id}/members`, { members });
+}
+
+// 渠道绑定（P3：网关消息按渠道路由到 Bot）
+export async function getBotChannels(id: string): Promise<BotChannel[]> {
+  return api.get<BotChannel[]>(`/bots/${id}/channels`);
+}
+export async function setBotChannels(id: string, channels: BotChannel[]): Promise<void> {
+  await api.put(`/bots/${id}/channels`, { channels });
+}
+
+// 技能文件化（P3：SKILL.md 技能清单）
+export async function listSkills(): Promise<SkillMeta[]> {
+  return api.get<SkillMeta[]>("/bots/skills");
+}
+export async function reloadSkills(): Promise<SkillMeta[]> {
+  return api.post<SkillMeta[]>("/bots/skills/reload", {});
 }
 
 // 接管 / 交还

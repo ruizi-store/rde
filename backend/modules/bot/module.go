@@ -6,13 +6,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/ruizi-store/rde/backend/core/module"
+	"github.com/ruizi-store/rde/backend/modules/ai"
 	"github.com/ruizi-store/rde/backend/modules/docker"
 )
 
 const (
 	ModuleID      = "bot"
 	ModuleName    = "Bot Workbench"
-	ModuleVersion = "1.0.0"
+	ModuleVersion = "1.1.0"
 )
 
 // Module bot 模块（实现 module.Module 接口）
@@ -21,6 +22,7 @@ type Module struct {
 	service *Service
 	handler *Handler
 	proxy   *StreamProxy
+	skills  *SkillService
 }
 
 // New 创建模块实例
@@ -67,8 +69,20 @@ func (m *Module) Init(ctx *module.Context) error {
 	}
 
 	m.service = NewService(ctx.DB, ctx.Logger, dataDir, dockerAPI)
+	m.skills = NewSkillService(ctx.Logger, dataDir)
 	m.proxy = NewStreamProxy(m.service, ctx.Logger)
-	m.handler = NewHandler(m.service, m.proxy)
+	m.handler = NewHandler(m.service, m.proxy, m.skills)
+
+	// P3：向 ai 模块注入桥接（依赖方向 bot → ai；拓扑序 ai 先初始化）
+	if am := ctx.GetModule("ai"); am != nil {
+		if aiMod, ok := am.(*ai.Module); ok {
+			aiMod.SetBotBridge(
+				&botSandbox{service: m.service, skills: m.skills, logger: ctx.Logger},
+				&botChannelResolver{service: m.service},
+				m.skills,
+			)
+		}
+	}
 
 	ctx.Logger.Info("bot module initialized")
 	return nil

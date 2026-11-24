@@ -48,15 +48,25 @@
 - 工具调用走沙箱 exec（`ExecWithTimeout`：超时 300s 上限 / 输出 64KB 截断；控制面不执行用户脚本）。✅
 - 网络拓扑：`rde-bot-net` bridge 网络，控制面容器与沙箱同网段（compose 已配置）。✅
 
-### P3 — 技能与渠道（下一步）
-- 技能文件化：`/var/lib/rde/skills/<name>/SKILL.md`（对齐 agent skills 生态格式），替代 `skills.go` 中硬编码的 22 个 NAS 工具；兼容 MCP（stdio/HTTP）。
-- 渠道扩展：飞书、钉钉（企微/TG 已有底子）。
-- 调度与主动汇报：把 `gateway_alerts.go` 的推送通道泛化为 cron 触发 skill 执行 + 结果推送。
+### P3 — 技能与渠道（✅ 2026-11，MCP/飞书/钉钉/cron 留 P4）
+- 技能文件化：`/var/lib/rde/skills/<name>/SKILL.md`（对齐 agent skills 生态格式：frontmatter name/description + 正文指令 + 可选 `scripts/run.sh|run.py`）；
+  首次启动播种默认技能（web-research / daily-report），REST 热加载（`GET/POST /bots/skills`）。✅
+- 渐进式披露：网关对话 system prompt 只注入技能名+简介索引，LLM 按需 `get_skill` 读全文，`execute_script` 在该 Bot 沙箱执行，
+  `run_skill` 直接跑预置脚本（参数经 base64 注入 `SKILL_ARGS`，防命令行注入）。✅
+- Bot 与 AI 网关打通：`Bot.Channels`（JSON）按 platform + chat_id/user_id 把 IM 消息路由到对应 Bot；
+  Bot 自带 provider/model/职责 system prompt（`ai/bot_bridge.go` 接口 + bot 模块注入，依赖方向 bot→ai 不反向）。✅
+- 网关回调安全：webhook/telegram/wecom 三个外部端点放开 JWT（各自带 API Key / secret_token / 消息签名鉴权；
+  Telegram 新增 `WebhookSecret`，未配置时拒绝回调）。✅
+- 前端：Bot 详情新增「渠道」绑定编辑与「技能」清单标签页。✅
+- 遗留（P4）：`skills.go` 的 22 个硬编码 NAS 工具继续并存（网关默认助手路径仍用）；MCP 兼容、飞书/钉钉渠道、
+  alerts 泛化为 cron 技能调度。
 
 ### P4 — 记忆、审批、协作
 - 记忆：SQLite + 本地向量（先 `sqlite-vec` 或简单 FTS，不引重依赖）。
 - 审批卡片（IM 交互式消息）、密钥安全录入表单。
 - 多 Bot 协作（放到最后：先让单个 Bot 真正有用）。
+- 渠道扩展：飞书、钉钉（企微/TG 已有底子）；MCP 兼容（stdio/HTTP）。
+- 调度与主动汇报：把 `gateway_alerts.go` 的推送通道泛化为 cron 触发 skill 执行 + 结果推送。
 
 ## 模块取舍（已在 feat/bot-direction 分支执行 ✅）
 

@@ -269,6 +269,10 @@ func (t *TelegramAdapter) validateToken() error {
 
 func (t *TelegramAdapter) setWebhook() error {
 	u := fmt.Sprintf("%s/setWebhook?url=%s", t.baseURL, t.config.WebhookURL)
+	if t.config.WebhookSecret != "" {
+		// secret_token：Telegram 回调时带 X-Telegram-Bot-Api-Secret-Token 头，防止伪造消息
+		u += "&secret_token=" + t.config.WebhookSecret
+	}
 	resp, err := t.client.Get(u)
 	if err != nil {
 		return err

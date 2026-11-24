@@ -86,6 +86,10 @@ RDE 容器（控制面, JWT 鉴权）
 - 控制面进程**不执行**用户脚本；工具调用走沙箱容器 exec（超时 300s / 输出 64KB 截断）。
 - 三级可见性：`viewer`（状态）→ `member`（预览串流）→ `admin`（接管，互斥锁 + 30 分钟过期）。
 - 串流走 `/api/v1/bots/<id>/vnc/`（KasmVNC 自带 web 客户端，iframe + `?token=` 认证）。
+- 技能文件化（P3）：`/var/lib/rde/skills/<name>/SKILL.md`（frontmatter name/description + 正文指令，
+  可选 `scripts/run.sh|run.py` 预置入口）。Bot 对话按渐进式披露注入技能索引，LLM 生成的脚本在其沙箱内执行。
+- IM 渠道路由（P3）：Bot 的 `channels`（JSON：platform + chat_id/user_id）把网关消息路由到对应 Bot 应答；
+  webhook/telegram/wecom 外部回调端点各自带 API Key / secret_token / 消息签名鉴权。
 
 ### 使用
 

@@ -11,11 +11,12 @@ import (
 type Handler struct {
 	service *Service
 	proxy   *StreamProxy
+	skills  *SkillService
 }
 
 // NewHandler 创建处理器
-func NewHandler(service *Service, proxy *StreamProxy) *Handler {
-	return &Handler{service: service, proxy: proxy}
+func NewHandler(service *Service, proxy *StreamProxy, skills *SkillService) *Handler {
+	return &Handler{service: service, proxy: proxy, skills: skills}
 }
 
 // RegisterRoutes 注册路由
@@ -36,6 +37,12 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 		g.GET("/:id/members", h.GetMembers)
 		g.PUT("/:id/members", h.SetMembers)
+
+		g.GET("/:id/channels", h.GetChannels)
+		g.PUT("/:id/channels", h.SetChannels)
+
+		g.GET("/skills", h.ListSkills)
+		g.POST("/skills/reload", h.ReloadSkills)
 
 		g.POST("/:id/takeover", h.Takeover)
 		g.POST("/:id/release", h.Release)
@@ -348,4 +355,48 @@ func (h *Handler) Stream(c *gin.Context) {
 		return
 	}
 	h.proxy.Handle(c, botID)
+}
+
+// ---------- 渠道绑定（P3：网关消息路由） ----------
+
+// GetChannels 查询渠道绑定
+func (h *Handler) GetChannels(c *gin.Context) {
+	channels, err := h.service.GetChannels(c.Param("id"))
+	if err != nil {
+		fail(c, 404, err.Error())
+		return
+	}
+	ok(c, channels)
+}
+
+// SetChannels 全量设置渠道绑定
+func (h *Handler) SetChannels(c *gin.Context) {
+	var req struct {
+		Channels []BotChannel `json:"channels" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, 400, "参数错误: "+err.Error())
+		return
+	}
+	if _, err := h.service.UpdateChannels(c.Param("id"), req.Channels); err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	ok(c, nil)
+}
+
+// ---------- 技能文件化（P3） ----------
+
+// ListSkills 技能列表
+func (h *Handler) ListSkills(c *gin.Context) {
+	ok(c, h.skills.ListSkills())
+}
+
+// ReloadSkills 重新扫描技能目录
+func (h *Handler) ReloadSkills(c *gin.Context) {
+	if err := h.skills.Reload(); err != nil {
+		fail(c, 500, err.Error())
+		return
+	}
+	ok(c, h.skills.ListSkills())
 }

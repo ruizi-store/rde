@@ -1,3 +1,16 @@
+rde (0.3.0) unstable; urgency=medium
+
+  * feat(bot): 技能文件化——SKILL.md（frontmatter+正文+预置脚本），首次播种默认技能，REST 热加载
+  * feat(bot): IM 渠道绑定（Bot.Channels），网关消息按 platform+chat_id/user_id 路由到对应 Bot 应答
+  * feat(ai): Bot 沙箱桥接接口（SandboxExecutor/SkillProvider/BotResolver），工具 execute_script/run_skill
+    在 Bot 沙箱内执行；渐进式披露注入技能索引（list_skills/get_skill）
+  * feat(ai): 网关外部回调端点（webhook/telegram/wecom）放开 JWT，各自带 API Key/secret_token/签名鉴权；
+    Telegram 新增 WebhookSecret 防伪造回调
+  * feat(frontend): Bot 详情新增渠道绑定编辑与技能清单标签页
+  * chore(docker): 镜像版本 0.3.0-p3，文档补充技能目录与渠道路由说明
+
+ -- RDE Maintainers <maintainers@rde.local>  Tue, 24 Nov 2026 18:00:00 +0800
+
 rde (0.2.4) unstable; urgency=medium
 
   * feat(linuxlab): 构建日志环形缓冲，刷新后可重连恢复历史与实时输出

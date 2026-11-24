@@ -459,6 +459,11 @@ func (app *App) Start() error {
 				"/api/v1/setup/initialize",
 				"/api/v1/system/i18n",
 				"/api/v1/system/instance",
+				// IM 网关外部回调：外部平台无 JWT，端点自带鉴权
+				// webhook/message → Bearer API Key；wecom/callback → 消息签名；telegram/webhook → secret_token
+				"/api/v1/ai/gateway/webhook/message",
+				"/api/v1/ai/gateway/wecom/callback",
+				"/api/v1/ai/gateway/telegram/webhook",
 			}
 			for _, p := range publicPaths {
 				if path == p {

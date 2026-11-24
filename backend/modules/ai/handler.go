@@ -581,6 +581,9 @@ func (h *Handler) GetGatewayConfig(c *gin.Context) {
 	if safe.Telegram.BotToken != "" {
 		safe.Telegram.BotToken = "***"
 	}
+	if safe.Telegram.WebhookSecret != "" {
+		safe.Telegram.WebhookSecret = "***"
+	}
 	if safe.Wecom.Secret != "" {
 		safe.Wecom.Secret = "***"
 	}
@@ -665,6 +668,16 @@ func (h *Handler) WecomCallback(c *gin.Context) {
 
 // TelegramWebhook Telegram Webhook
 func (h *Handler) TelegramWebhook(c *gin.Context) {
+	// 公开端点：靠 WebhookSecret 防伪造；未配置 secret 时拒绝，防止未鉴权消息进入网关
+	secret := h.gateway.GetTelegramWebhookSecret()
+	if secret == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "webhook secret not configured"})
+		return
+	}
+	if c.GetHeader("X-Telegram-Bot-Api-Secret-Token") != secret {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid secret"})
+		return
+	}
 	adapter := h.gateway.GetAdapter(PlatformTelegram)
 	if adapter == nil {
 		c.JSON(http.StatusOK, gin.H{"ok": true})

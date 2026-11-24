@@ -508,12 +508,13 @@ type WecomConfig struct {
 
 // TelegramConfig Telegram 配置
 type TelegramConfig struct {
-	Enabled    bool   `json:"enabled"`
-	BotToken   string `json:"bot_token"`
-	WebhookURL string `json:"webhook_url"`
-	UseWebhook bool   `json:"use_webhook"`
-	ProxyMode  string `json:"proxy_mode"` // off, system, custom
-	ProxyURL   string `json:"proxy_url"`
+	Enabled      bool   `json:"enabled"`
+	BotToken     string `json:"bot_token"`
+	WebhookURL   string `json:"webhook_url"`
+	UseWebhook   bool   `json:"use_webhook"`
+	WebhookSecret string `json:"webhook_secret,omitempty"` // setWebhook secret_token；回调校验 X-Telegram-Bot-Api-Secret-Token
+	ProxyMode    string `json:"proxy_mode"`                // off, system, custom
+	ProxyURL     string `json:"proxy_url"`
 }
 
 // WebhookConfig 通用 Webhook 配置
@@ -565,6 +566,7 @@ type GatewaySession struct {
 	DailyCount    int              `json:"daily_count"`
 	DailyDate     string           `json:"daily_date"`
 	Messages      []GatewayMessage `json:"messages"`
+	BotID         string           `json:"bot_id,omitempty"` // P3：绑定 Bot 后工具调用走其沙箱
 }
 
 // GatewayMessage 网关消息

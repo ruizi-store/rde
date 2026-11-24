@@ -9,7 +9,9 @@
     listBots, createBot, getBot, updateBot, deleteBot,
     startBot, stopBot, restartBot, getBotLogs, execInBot,
     getBotMembers, setBotMembers, takeoverBot, releaseBot,
+    getBotChannels, setBotChannels, listSkills, reloadSkills,
     botStreamUrl, type Bot, type BotMember, type ExecResult,
+    type BotChannel, type SkillMeta,
   } from "$shared/services/bot";
 
   // ==================== 状态 ====================
@@ -35,6 +37,15 @@
   let execResult = $state<ExecResult | null>(null);
   let execRunning = $state(false);
 
+  // 渠道绑定（P3）
+  let channelDraft = $state<BotChannel[]>([]);
+  let newChannelPlatform = $state("telegram");
+  let newChatId = $state("");
+  let newUserId = $state("");
+
+  // 技能清单（P3）
+  let skills = $state<SkillMeta[]>([]);
+
   // 创建弹窗
   let showCreate = $state(false);
   let createForm = $state({ name: "", description: "", model: "", image: "" });
@@ -50,6 +61,8 @@
     { id: "workbench", label: "工作台" },
     { id: "tools", label: "工具" },
     ...(detail?.my_role === "admin" ? [{ id: "members", label: "成员" }] : []),
+    ...(detail?.my_role === "admin" ? [{ id: "channels", label: "渠道" }] : []),
+    { id: "skills", label: "技能" },
     { id: "logs", label: "日志" },
   ]);
 
@@ -74,6 +87,10 @@
       loadMembers(id);
     } else if (tab === "logs" && id) {
       loadLogs(id);
+    } else if (tab === "channels" && id && detail?.my_role === "admin") {
+      loadChannels(id);
+    } else if (tab === "skills") {
+      loadSkills();
     }
   });
 
@@ -286,6 +303,60 @@
     return u ? u.nickname || u.username : userId.slice(0, 8);
   }
 
+  // 渠道绑定（P3）
+  async function loadChannels(id: string) {
+    try {
+      channelDraft = await getBotChannels(id);
+    } catch {
+      channelDraft = [];
+    }
+  }
+
+  function addChannel() {
+    const platform = newChannelPlatform as BotChannel["platform"];
+    if (!newChatId.trim() && !newUserId.trim()) {
+      showToast("Chat ID 与用户 ID 至少填一个", "warning");
+      return;
+    }
+    if (channelDraft.some((c) => c.platform === platform && c.chat_id === newChatId.trim() && c.user_id === newUserId.trim())) return;
+    channelDraft = [...channelDraft, { platform, chat_id: newChatId.trim(), user_id: newUserId.trim() }];
+    newChatId = "";
+    newUserId = "";
+  }
+
+  function removeChannel(index: number) {
+    channelDraft = channelDraft.filter((_, i) => i !== index);
+  }
+
+  async function saveChannels() {
+    const d = detail;
+    if (!d) return;
+    try {
+      await setBotChannels(d.id, channelDraft);
+      showToast("渠道绑定已保存", "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "保存失败", "error");
+    }
+  }
+
+  // 技能清单（P3）
+  async function loadSkills() {
+    try {
+      skills = await listSkills();
+    } catch {
+      skills = [];
+    }
+  }
+
+  async function handleReloadSkills() {
+    try {
+      skills = await reloadSkills();
+      showToast(`已重新扫描，共 ${skills.length} 个技能`, "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "扫描失败", "error");
+    }
+  }
+
   // ==================== 展示 ====================
 
   function statusColor(status: string): string {
@@ -321,6 +392,12 @@
     { value: "viewer", label: "状态（只看状态）" },
     { value: "member", label: "预览（围观串流）" },
     { value: "admin", label: "接管（全屏操作）" },
+  ];
+
+  const platformOptions = [
+    { value: "telegram", label: "Telegram" },
+    { value: "wecom", label: "企业微信" },
+    { value: "webhook", label: "Webhook" },
   ];
 
   let streamUrl = $derived(detail ? botStreamUrl(detail.id) : "");
@@ -574,6 +651,85 @@
                       </div>
                       <p class="text-xs text-gray-400">
                         留一个 admin 角色成员，否则除平台管理员外无人能管理此 Bot。
+                      </p>
+                    </div>
+                  {/if}
+
+                  <!-- 渠道绑定（P3：网关路由） -->
+                  {#if tab === "channels"}
+                    <div class="space-y-3 text-sm">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <Select value={newChannelPlatform} onchange={(v) => (newChannelPlatform = v)} options={platformOptions} />
+                        <div class="w-40">
+                          <Input bind:value={newChatId} placeholder="Chat ID（群/会话）" />
+                        </div>
+                        <div class="w-40">
+                          <Input bind:value={newUserId} placeholder="用户 ID（可选）" />
+                        </div>
+                        <Button variant="outline" size="sm" onclick={addChannel}>添加</Button>
+                        <Button variant="primary" size="sm" onclick={saveChannels}>保存</Button>
+                      </div>
+                      <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                        <table class="w-full">
+                          <thead class="bg-gray-50 text-left text-xs text-gray-500 dark:bg-gray-800">
+                            <tr><th class="px-3 py-2">平台</th><th class="px-3 py-2">Chat ID</th><th class="px-3 py-2">用户 ID</th><th class="px-3 py-2"></th></tr>
+                          </thead>
+                          <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800">
+                            {#each channelDraft as ch, i (i)}
+                              <tr>
+                                <td class="px-3 py-2 text-gray-700 dark:text-gray-200">{platformOptions.find((p) => p.value === ch.platform)?.label ?? ch.platform}</td>
+                                <td class="px-3 py-2 text-gray-700 dark:text-gray-200">{ch.chat_id || "—"}</td>
+                                <td class="px-3 py-2 text-gray-700 dark:text-gray-200">{ch.user_id || "—"}</td>
+                                <td class="px-3 py-2 text-right">
+                                  <button class="text-xs text-red-500 hover:underline" onclick={() => removeChannel(i)}>移除</button>
+                                </td>
+                              </tr>
+                            {:else}
+                              <tr>
+                                <td colspan="4" class="px-3 py-4 text-center text-xs text-gray-400">
+                                  未绑定渠道；绑定后 IM 网关收到的匹配消息将由该 Bot 应答
+                                </td>
+                              </tr>
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p class="text-xs text-gray-400">
+                        匹配规则：平台一致且 Chat ID 或用户 ID 命中任一即路由到该 Bot；需在「AI 助手 → 消息网关」中启用对应平台。
+                      </p>
+                    </div>
+                  {/if}
+
+                  <!-- 技能（P3：SKILL.md 文件化） -->
+                  {#if tab === "skills"}
+                    <div class="space-y-3 text-sm">
+                      <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">技能目录：/var/lib/rde/skills/&lt;名称&gt;/SKILL.md（重启或点击扫描后生效）</span>
+                        <Button variant="outline" size="sm" onclick={handleReloadSkills}>
+                          <Icon icon="mdi:refresh" class="mr-1" />重新扫描
+                        </Button>
+                      </div>
+                      <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                        <table class="w-full">
+                          <thead class="bg-gray-50 text-left text-xs text-gray-500 dark:bg-gray-800">
+                            <tr><th class="px-3 py-2">技能名</th><th class="px-3 py-2">说明</th></tr>
+                          </thead>
+                          <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800">
+                            {#each skills as sk (sk.name)}
+                              <tr>
+                                <td class="px-3 py-2 font-medium text-gray-700 dark:text-gray-200">{sk.name}</td>
+                                <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{sk.description || "—"}</td>
+                              </tr>
+                            {:else}
+                              <tr>
+                                <td colspan="2" class="px-3 py-4 text-center text-xs text-gray-400">暂无技能；可在数据目录创建 SKILL.md</td>
+                              </tr>
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p class="text-xs leading-relaxed text-gray-400">
+                        Bot 对话时先看到技能名与简介，需要时自动读取技能详情并在自己的沙箱电脑里执行脚本。
                       </p>
                     </div>
                   {/if}

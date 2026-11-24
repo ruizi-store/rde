@@ -32,6 +32,11 @@ type Service struct {
 	skills        *SkillsService
 	saveTimer     *time.Timer
 	saveDirty     bool
+
+	// P3 Bot 桥接（bot 模块注入；见 bot_bridge.go）
+	botExecutor SandboxExecutor
+	botResolver BotResolver
+	botSkills   SkillProvider
 }
 
 // NewService 创建服务实例
@@ -965,11 +970,37 @@ func (s *Service) checkProviderStatusWithTimeout(p *ProviderConfig, timeout time
 	return nil
 }
 
-// ChatWithTools 带工具调用的聊天（用于网关）
+// ChatWithTools 带工具调用的聊天（用于网关，默认 AI 助手）
 func (s *Service) ChatWithTools(ctx context.Context, messages []GatewayMessage) (string, error) {
+	return s.ChatWithToolsForBot(ctx, messages, nil)
+}
+
+// ChatWithToolsForBot 带工具调用的聊天（bot 非 nil 时以该 Bot 的身份与配置对话）
+// - provider/model 优先用 Bot 自身配置，回退全局默认
+// - system prompt 注入 Bot 职责 + 技能索引
+// - 工具列表附加 Bot 沙箱工具，execute_script/run_skill 路由到该 Bot 的沙箱
+func (s *Service) ChatWithToolsForBot(ctx context.Context, messages []GatewayMessage, bot *BotInfo) (string, error) {
 	providerID := s.config.DefaultProvider
+	model := s.config.DefaultModel
+	var systemPrompt string
+
+	s.mu.RLock()
+	if bot != nil {
+		if bot.ProviderID != "" {
+			providerID = bot.ProviderID
+		}
+		if bot.Model != "" {
+			model = bot.Model
+		}
+		systemPrompt = s.buildBotSystemPrompt(bot)
+	}
+	s.mu.RUnlock()
+
 	if providerID == "" {
 		providerID = DefaultProviderID
+	}
+	if model == "" {
+		model = DefaultModel
 	}
 
 	s.mu.RLock()
@@ -979,20 +1010,18 @@ func (s *Service) ChatWithTools(ctx context.Context, messages []GatewayMessage) 
 		return "", fmt.Errorf("provider not found: %s", providerID)
 	}
 
-	model := s.config.DefaultModel
-	if model == "" {
-		model = DefaultModel
-	}
-
 	// 转换消息格式
-	toolMessages := make([]ChatMessageWithTools, 0, len(messages))
+	toolMessages := make([]ChatMessageWithTools, 0, len(messages)+1)
+	if systemPrompt != "" {
+		toolMessages = append(toolMessages, ChatMessageWithTools{Role: "system", Content: systemPrompt})
+	}
 	for _, m := range messages {
 		toolMessages = append(toolMessages, ChatMessageWithTools{Role: m.Role, Content: m.Content})
 	}
 
 	// 如果启用了工具，使用函数调用循环
 	if s.config.EnableTools && s.skills != nil {
-		return s.chatWithToolsLoop(provider, model, toolMessages)
+		return s.chatWithToolsLoop(ctx, provider, model, toolMessages, bot)
 	}
 
 	// 普通聊天
@@ -1000,6 +1029,7 @@ func (s *Service) ChatWithTools(ctx context.Context, messages []GatewayMessage) 
 		ProviderID: providerID,
 		Model:      model,
 		Messages:   make([]Message, 0, len(messages)),
+		SystemPrompt: systemPrompt,
 	}
 	for _, m := range messages {
 		req.Messages = append(req.Messages, Message{Role: m.Role, Content: m.Content})
@@ -1012,8 +1042,38 @@ func (s *Service) ChatWithTools(ctx context.Context, messages []GatewayMessage) 
 	return resp.Content, nil
 }
 
-func (s *Service) chatWithToolsLoop(provider *ProviderConfig, model string, messages []ChatMessageWithTools) (string, error) {
+// buildBotSystemPrompt 构造 Bot 的 system prompt（职责 + 技能索引）
+func (s *Service) buildBotSystemPrompt(bot *BotInfo) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("你是「%s」，一位配备独立 Linux 沙箱电脑的数字员工（AI 同事）。\n", bot.Name))
+	if bot.Description != "" {
+		b.WriteString(fmt.Sprintf("你的职责：%s\n", bot.Description))
+	}
+	b.WriteString("你可以通过工具使用你的沙箱电脑：先 list_skills 查看技能清单，需要时 get_skill 读取技能指令，" +
+		"然后用 execute_script 在沙箱内执行 bash/python 脚本完成任务，或 run_skill 运行技能预置脚本。\n" +
+		"执行结果只在沙箱内部生效。回复使用中文，保持简洁，任务完成后说明关键结果。\n")
+
+	if s.botSkills != nil {
+		if skills := s.botSkills.ListSkills(); len(skills) > 0 {
+			b.WriteString("当前可用技能：\n")
+			for _, sk := range skills {
+				b.WriteString(fmt.Sprintf("- %s: %s\n", sk.Name, sk.Description))
+			}
+			b.WriteString("（技能详情可通过 get_skill 获取）\n")
+		}
+	}
+	return b.String()
+}
+
+func (s *Service) chatWithToolsLoop(ctx context.Context, provider *ProviderConfig, model string, messages []ChatMessageWithTools, bot *BotInfo) (string, error) {
 	tools := s.skills.GetToolDefinitions()
+
+	// Bot 上下文存在时附加沙箱工具
+	var botID string
+	if bot != nil {
+		botID = bot.ID
+		tools = append(tools, botToolsDefinitions()...)
+	}
 
 	for i := 0; i < 5; i++ { // 最多 5 轮工具调用
 		reqBody := OpenAIChatRequestWithTools{
@@ -1059,9 +1119,12 @@ func (s *Service) chatWithToolsLoop(provider *ProviderConfig, model string, mess
 			ToolCalls: choice.Message.ToolCalls,
 		})
 
-		// 执行每个工具调用
+		// 执行每个工具调用（Bot 沙箱工具优先路由，其余走本地技能）
 		for _, tc := range choice.Message.ToolCalls {
 			resultJSON := s.skills.ExecuteToolCall(tc.Function.Name, tc.Function.Arguments)
+			if botResult, isBotTool := s.executeBotTool(ctx, tc.Function.Name, tc.Function.Arguments, botID); isBotTool {
+				resultJSON = botResult
+			}
 			messages = append(messages, ChatMessageWithTools{
 				Role:       "tool",
 				Content:    resultJSON,

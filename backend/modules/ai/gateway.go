@@ -38,6 +38,9 @@ type GatewayService struct {
 	aiService *Service
 	skills    *SkillsService
 
+	// P3：按渠道解析绑定的 Bot（bot 模块注入）
+	botResolver BotResolver
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -103,6 +106,14 @@ func (gs *GatewayService) saveConfig() error {
 
 // GetConfig 获取配置
 func (gs *GatewayService) GetConfig() *GatewayConfig { return gs.config }
+
+// GetTelegramWebhookSecret 读取 Telegram webhook secret（空表示未配置）
+func (gs *GatewayService) GetTelegramWebhookSecret() string {
+	if gs.config == nil {
+		return ""
+	}
+	return gs.config.Telegram.WebhookSecret
+}
 
 // UpdateConfig 更新配置
 func (gs *GatewayService) UpdateConfig(config *GatewayConfig) error {
@@ -177,6 +188,9 @@ func (gs *GatewayService) HandleMessage(ctx context.Context, msg IncomingMessage
 
 	session := gs.getOrCreateSession(msg)
 
+	// P3：按渠道解析绑定的 Bot（Bot.Channels 匹配 platform + chat_id/user_id）
+	bot := gs.resolveBotForSession(msg, session)
+
 	if response := gs.handleSpecialCommand(msg, session); response != nil {
 		return response, nil
 	}
@@ -186,7 +200,7 @@ func (gs *GatewayService) HandleMessage(ctx context.Context, msg IncomingMessage
 		session.Messages = session.Messages[len(session.Messages)-20:]
 	}
 
-	response, err := gs.callAI(ctx, session)
+	response, err := gs.callAI(ctx, session, bot)
 	if err != nil {
 		return &OutgoingMessage{
 			Platform: msg.Platform, ChatID: msg.ChatID, UserID: msg.UserID,
@@ -300,7 +314,38 @@ func (gs *GatewayService) handleSpecialCommand(msg IncomingMessage, session *Gat
 	return nil
 }
 
-func (gs *GatewayService) callAI(ctx context.Context, session *GatewaySession) (string, error) {
+// resolveBotForSession 按消息渠道解析绑定的 Bot，并同步到会话
+// 匹配规则：Bot.Channels 中 platform 相等且 chat_id 或 user_id 任一命中
+func (gs *GatewayService) resolveBotForSession(msg IncomingMessage, session *GatewaySession) *BotInfo {
+	if gs.botResolver == nil {
+		return nil
+	}
+	bot := gs.botResolver.ResolveBotByChannel(string(msg.Platform), msg.ChatID, msg.UserID)
+	if bot == nil {
+		session.BotID = ""
+		return nil
+	}
+	if session.BotID != bot.ID {
+		gs.logger.Info("session bound to bot",
+			zap.String("bot_id", bot.ID), zap.String("bot_name", bot.Name),
+			zap.String("platform", string(msg.Platform)))
+		// 绑定变化时切换身份，清空旧上下文避免角色串扰
+		session.Messages = []GatewayMessage{}
+	}
+	session.BotID = bot.ID
+	return bot
+}
+
+func (gs *GatewayService) callAI(ctx context.Context, session *GatewaySession, bot *BotInfo) (string, error) {
+	// Bot 会话：职责/技能 system prompt 由 ChatWithToolsForBot 注入
+	if bot != nil {
+		response, err := gs.aiService.ChatWithToolsForBot(ctx, session.Messages, bot)
+		if err != nil {
+			return "", err
+		}
+		return response, nil
+	}
+
 	systemPrompt := `你是 RDE NAS 系统的 AI 助手，正在通过社交平台与用户交流。
 保持回复简洁（适合移动端阅读），使用 emoji 增强可读性。
 你可以使用各种工具来查询和管理 NAS 系统。`

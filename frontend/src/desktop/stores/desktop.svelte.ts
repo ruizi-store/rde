@@ -178,25 +178,13 @@ class DesktopStore {
       { id: "1", name: "文件管理", icon: "/icons/file-manager.svg", appId: "file", x: 0, y: 0, },
       { id: "3", name: "终端", icon: "/icons/terminal.svg", appId: "terminal", x: 0, y: 1, },
       { id: "22", name: "音乐播放器", icon: "/icons/music.svg", appId: "music", x: 0, y: 2, },
-      { id: "23", name: "视频播放器", icon: "/icons/video-player.svg", appId: "video", x: 0, y: 3, },
       // 第二列：应用管理
       { id: "2", name: "设置", icon: "/icons/settings.svg", appId: "settings", x: 1, y: 0, },
       { id: "10", name: "Docker 应用", icon: "/icons/docker.svg", appId: "docker", x: 1, y: 1, },
-      { id: "24", name: "Flatpak 应用", icon: "/icons/flatpak.svg", appId: "flatpak", x: 1, y: 2, },
-      { id: "18", name: "文件共享", icon: "/icons/samba.svg", appId: "samba", x: 1, y: 3, },
-      // 第三列：工具与娱乐
-      { id: "19", name: "同步", icon: "/icons/sync.svg", appId: "sync", x: 2, y: 0, },
-      { id: "12", name: "下载管理", icon: "/icons/download.svg", appId: "download", x: 2, y: 1, },
-      { id: "20", name: "复古游戏", icon: "/icons/retrogame.svg", appId: "retrogame", x: 2, y: 2, },
-      { id: "13", name: "备份管理", icon: "/icons/backup.svg", appId: "backup", x: 2, y: 3, },
-      // 第四列：开发工具
-      { id: "21", name: "相册", icon: "/icons/photos.svg", appId: "photos", x: 3, y: 0, },
-      { id: "25", name: "Linux Lab", icon: "/icons/linuxlab.svg", appId: "linuxlab", x: 3, y: 1, },
-      { id: "26", name: "AI 助手", icon: "/icons/ai.svg", appId: "ai", x: 3, y: 2, },
-      { id: "27", name: "虚拟机", icon: "/icons/vm.svg", appId: "vm", x: 3, y: 3, },
-      // 第五列
-      { id: "28", name: "Android", icon: "/icons/android.svg", appId: "android", x: 4, y: 0, },
-      { id: "29", name: "翻译", icon: "/icons/translate.svg", appId: "translate", x: 4, y: 1, },
+      { id: "19", name: "同步", icon: "/icons/sync.svg", appId: "sync", x: 1, y: 2, },
+      // 第三列：工具
+      { id: "12", name: "备份管理", icon: "/icons/backup.svg", appId: "backup", x: 2, y: 0, },
+      { id: "26", name: "AI 助手", icon: "/icons/ai.svg", appId: "ai", x: 2, y: 1, },
     ];
   }
 
@@ -250,14 +238,17 @@ class DesktopStore {
             }
             return icon;
           });
+          // 清理已移除模块的残留图标（photos/video/download/samba/retrogame/
+          // vm/android/flatpak/linuxlab/translate）
+          const removedAppIds = new Set([
+            "photos", "video", "download", "samba", "retrogame",
+            "vm", "android", "flatpak", "linuxlab", "translate",
+          ]);
+          this.icons = this.icons.filter((icon) => !removedAppIds.has(icon.appId));
           // 自动补充新增的桌面图标
           const newIcons: { appId: string; name: string; icon: string }[] = [
             { appId: "terminal", name: "终端", icon: "/icons/terminal.svg" },
-            { appId: "flatpak", name: "Flatpak 应用", icon: "/icons/flatpak.svg" },
             { appId: "ai", name: "AI 助手", icon: "/icons/ai.svg" },
-            { appId: "vm", name: "虚拟机", icon: "/icons/vm.svg" },
-            { appId: "android", name: "Android", icon: "/icons/android.svg" },
-            { appId: "translate", name: "翻译", icon: "/icons/translate.svg" },
           ];
           for (const ni of newIcons) {
             if (!this.icons.some((i) => i.appId === ni.appId)) {

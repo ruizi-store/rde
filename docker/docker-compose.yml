@@ -19,11 +19,8 @@ services:
     environment:
       TZ: Asia/Shanghai
       RDE_PORT: "3080"
-      # ---- 模块开关（按需调整；两项都留空 = 启用全部模块）----
-      # 精简 profile（推荐：不含需要宿主机内核/硬件能力的模块）
-      RDE_MODULES_DISABLED: "retrogame,linuxlab,android,vm,flatpak,samba,ssh,download,sync,translate"
-      # 白名单模式（与黑名单二选一，优先级更高）:
-      # RDE_MODULES: "files,docker,terminal,ai,backup,photos,cloudbackup"
+      # ---- 模块开关（可选模块仅 ssh/sync/cloudbackup；两项都留空 = 启用全部）----
+      RDE_MODULES_DISABLED: ""
     volumes:
       # 数据目录：两侧路径必须一致（docker-apps 生成的 bind mount 按宿主机路径解析）
       - /var/lib/rde:/var/lib/rde

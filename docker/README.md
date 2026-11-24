@@ -53,17 +53,16 @@ docker build \
 
 ## 模块开关
 
-可选模块清单：`samba ssh sync download flatpak retrogame photos video linuxlab android cloudbackup vm translate`
+可选模块清单：`ssh sync cloudbackup`（其余模块为核心，始终启用）
 
 | 模块 | 容器内可用性 | 说明 |
 |---|---|---|
-| `download` / `sync` / `samba` / `video` | ❌ 精简镜像未带 aria2/syncthing/samba/ffmpeg | 需要扩展镜像或改用应用商店安装对应容器 |
-| `retrogame` / `linuxlab` | ✅ 走 Docker | 依赖 docker.sock |
-| `vm` | ⚠️ 需 `--device /dev/kvm` | 默认建议禁用 |
-| `android` | ⚠️ 需宿主机已加载 binder_linux | 默认建议禁用 |
-| `flatpak` | ⚠️ 依赖 systemd/KasmVNC/PulseAudio | 容器内不建议启用 |
-| `translate` | ⚠️ 需 127.0.0.1:5000 可达 | LibreTranslate 地址需按部署调整 |
-| `photos` / `cloudbackup` / `ssh` | ✅ | 纯文件/网络逻辑 |
+| `sync` | ⚠️ 精简镜像未带 syncthing | 需要扩展镜像或应用商店安装容器 |
+| `ssh` | ✅ | 终端 SFTP/SSH 功能依赖此模块 |
+| `cloudbackup` | ✅ | 纯网络逻辑 |
+
+> 历史版本包含 photos/video/download/samba/retrogame/vm/android/flatpak/linuxlab/translate
+> 等模块，已在 `feat/bot-direction` 分支移除（产品转向"带电脑的 Bot"，见 docs/ROADMAP.md）。
 
 后端 `/api/v1/modules` 会返回实际注册的模块，前端据此渲染。
 

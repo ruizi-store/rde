@@ -23,22 +23,27 @@ RDE（瑞子云桌面）是一个开源的 Web 桌面环境，将 Linux 服务�
 - **文件管理**：功能完整的文件管理器，支持上传、下载、预览、分享，TUS 协议断点续传。
 - **Docker 应用商店**：可视化管理容器和镜像，一键部署常用应用。
 - **系统监控**：CPU、内存、磁盘、网络实时监控仪表盘。
-- **多协议下载**：基于 aria2，支持 HTTP/BT/磁力链接下载管理。
-- **Samba 共享**：一键配置局域网文件共享服务。
 - **文件同步**：Syncthing 多设备文件同步。
 - **备份与恢复**：支持本地、WebDAV、S3、SFTP 等多种备份目标。
-- **Web 终端**：浏览器内完整的 Linux 终端。
-- **AI 助手**：智能对话、语音交互、Telegram 机器人集成。
-- **安卓模拟器**：在 Linux 上运行 Android 应用。
-- **虚拟机管理**：QEMU/KVM 虚拟机的创建与管理。
+- **Web 终端**：浏览器内完整的 Linux 终端（含 SSH/SFTP 远程连接）。
+- **AI 助手**：智能对话、语音交互、企业微信/Telegram 网关集成。
+- **Docker 部署**：官方镜像 + docker compose 单容器交付（见 `docker/README.md`）。
 - **离线资源**：支持将 Docker 镜像 tar、依赖 deb 等预先放入 `/usr/share/rde/offline`，断网环境优先本地加载。
+
+> 路线：产品正转向"带电脑的 AI Bot"（每个 Bot 一台持久沙箱电脑，小团队经 IM 派活），详见 `docs/ROADMAP.md`。
 
 ## 快速开始
 
-### 在线安装
+### Docker 部署（推荐）
 
 ```bash
-# Debian / Ubuntu
+git clone https://github.com/ruizi-store/rde.git
+cd rde/docker && docker compose up -d
+```
+
+### DEB 安装（Debian / Ubuntu）
+
+```bash
 wget https://github.com/ruizi-store/rde/releases/latest/download/rde_amd64.deb
 sudo apt install ./rde_amd64.deb
 ```
@@ -62,7 +67,8 @@ cd frontend && pnpm dev       # 前端 :5173
 ### 构建
 
 ```bash
-make deb    # 构建 DEB 安装包
+make deb     # 构建 DEB 安装包
+make docker  # 构建 Docker 镜像
 ```
 
 ## 项目架构
@@ -71,24 +77,17 @@ make deb    # 构建 DEB 安装包
 rde/
 ├── backend/                 # Go 后端 (Gin + GORM + SQLite)
 │   ├── core/                #   核心框架（认证、配置、数据库、i18n、事件、模块注册）
-│   ├── modules/             #   功能模块
-│   │   ├── files/           #     文件管理
-│   │   ├── docker/          #     Docker 容器管理
-│   │   ├── terminal/        #     Web 终端
-│   │   ├── backup/          #     备份还原
-│   │   ├── download/        #     下载管理
-│   │   ├── ai/              #     AI 助手
-│   │   ├── android/         #     安卓模拟器
-│   │   ├── vm/              #     虚拟机管理
-│   │   └── ...              #     更多模块
+│   ├── modules/             #   功能模块（ai/files/docker/terminal/backup/ssh/sync/...）
 │   ├── model/               #   数据模型
-│   └── pkg/                 #   公共工具包
+│   └── pkg/                 #   公共工具包（含 container 容器探测）
 ├── frontend/                # SvelteKit 前端 (Svelte 5 + Tailwind CSS v4)
 │   └── src/
 │       ├── desktop/         #   桌面环境（窗口管理、任务栏）
 │       ├── apps/            #   应用 UI
 │       └── lib/             #   组件库
-└── debian/                  # DEB 打包配置
+├── docker/                  # Docker 镜像交付（Dockerfile/compose/entrypoint）
+├── debian/                  # DEB 打包配置
+└── docs/                    # 产品路线（ROADMAP.md）
 ```
 
 ## 技术栈
@@ -98,9 +97,7 @@ rde/
 | 后端 | Go 1.25、Gin、GORM、SQLite |
 | 前端 | Svelte 5、SvelteKit、Tailwind CSS v4、Vite 7 |
 | 容器 | Docker API |
-| 下载 | aria2 RPC |
-| AI | Ollama / OpenAI API |
-| 虚拟化 | QEMU/KVM、安卓模拟器 |
+| AI | OpenAI 兼容 API / Ollama |
 
 ## 参与贡献
 

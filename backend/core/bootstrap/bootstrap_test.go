@@ -11,7 +11,7 @@ import (
 )
 
 func TestParseModuleFilter(t *testing.T) {
-	ids := []string{"samba", "ssh", "sync", "download", "flatpak", "vm", "translate"}
+	ids := []string{"ssh", "sync", "cloudbackup"}
 
 	t.Run("默认全部启用", func(t *testing.T) {
 		t.Setenv("RDE_MODULES", "")
@@ -33,27 +33,26 @@ func TestParseModuleFilter(t *testing.T) {
 
 	t.Run("黑名单模式禁用清单内模块", func(t *testing.T) {
 		t.Setenv("RDE_MODULES", "")
-		t.Setenv("RDE_MODULES_DISABLED", "flatpak,retrogame")
+		t.Setenv("RDE_MODULES_DISABLED", "sync,cloudbackup")
 		enabled := parseModuleFilter(ids)
-		assert.False(t, enabled["flatpak"])
-		assert.False(t, enabled["retrogame"])
-		assert.True(t, enabled["samba"])
-		assert.True(t, enabled["vm"])
+		assert.False(t, enabled["sync"])
+		assert.False(t, enabled["cloudbackup"])
+		assert.True(t, enabled["ssh"])
 	})
 
 	t.Run("白名单优先于黑名单", func(t *testing.T) {
-		t.Setenv("RDE_MODULES", "vm")
-		t.Setenv("RDE_MODULES_DISABLED", "vm")
+		t.Setenv("RDE_MODULES", "sync")
+		t.Setenv("RDE_MODULES_DISABLED", "sync")
 		enabled := parseModuleFilter(ids)
-		assert.True(t, enabled["vm"], "allowlist should take precedence")
-		assert.False(t, enabled["samba"])
+		assert.True(t, enabled["sync"], "allowlist should take precedence")
+		assert.False(t, enabled["ssh"])
 	})
 
 	t.Run("未知模块 ID 不影响结果", func(t *testing.T) {
-		t.Setenv("RDE_MODULES", "samba, nonexistent-module")
+		t.Setenv("RDE_MODULES", "ssh, nonexistent-module")
 		enabled := parseModuleFilter(ids)
-		assert.True(t, enabled["samba"])
-		assert.False(t, enabled["ssh"])
+		assert.True(t, enabled["ssh"])
+		assert.False(t, enabled["sync"])
 	})
 }
 

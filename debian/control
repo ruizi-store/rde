@@ -11,20 +11,11 @@ Package: rde
 Architecture: any
 Depends: ${misc:Depends},
          systemd,
-         aria2,
          docker.io,
          docker-compose-v2 | docker-compose,
-         samba,
-         samba-common-bin,
          smartmontools,
-         ffmpeg,
          syncthing,
-         git,
-         flatpak,
-         dkms,
-         android-tools-adb,
-         qemu-system-x86,
-         qemu-utils
+         git
 Description: RDE (Ruizi Desktop Environment) - Web-based Desktop for Linux Servers
  RDE is an open-source web desktop environment that turns Linux servers
  into feature-rich cloud desktops with a Windows-like browser experience.
@@ -32,14 +23,9 @@ Description: RDE (Ruizi Desktop Environment) - Web-based Desktop for Linux Serve
  Features:
   - File Manager: upload, download, preview, share with TUS resumable uploads
   - Docker Apps: visual container/image management, one-click deploy
-  - Download Manager: aria2-based HTTP/BT/magnet download management
-  - Samba Sharing: LAN file sharing service
-  - File Sync: Syncthing multi-device sync
+  - Web Terminal: full-featured terminal in the browser (SSH/SFTP)
   - System Monitor: real-time CPU, memory, disk, network dashboard
   - Backup & Restore: local, WebDAV, S3, SFTP backup targets
-  - Web Terminal: full-featured terminal in the browser
-  - AI Assistant: AI chat, voice, webhook and telegram gateway
-  - VM Manager: QEMU/KVM virtual machine management with VNC console
-  - Android: ADB screen casting and device control
-  - Cloud Backup: cloud-based backup and restore
+  - File Sync: Syncthing multi-device sync
+  - AI Assistant: AI chat, voice, IM gateway (WeCom/Telegram)
   - Offline assets: optional local Docker image tars / debs under /usr/share/rde/offline

@@ -56,15 +56,15 @@
 - 审批卡片（IM 交互式消息）、密钥安全录入表单。
 - 多 Bot 协作（放到最后：先让单个 Bot 真正有用）。
 
-## 模块取舍（与容器 profile 对齐）
+## 模块取舍（已在 feat/bot-direction 分支执行 ✅）
 
 | 处置 | 模块 |
 |---|---|
-| 核心（始终保留） | setup users files system notification sudo terminal docker ai backup |
-| 保留但默认禁用（容器 profile） | samba ssh sync download flatpak photos video cloudbackup |
-| 建议移除（下个大版本） | retrogame linuxlab android vm translate |
+| 核心（保留） | setup users files system notification sudo terminal docker ai backup |
+| 可选保留 | ssh（终端 SFTP 依赖）、sync、cloudbackup |
+| 已移除 | photos video download samba retrogame vm android flatpak linuxlab translate |
 
-移除模块迁移路径：照片→应用商店装 Immich；视频→Jellyfin；下载/同步/Samba→应用商店容器化安装；VM/安卓→不做（K8s/云厂商与 umbrelOS 已更好）；翻译→大模型自带。
+已移除模块的替代路径：照片→应用商店装 Immich；视频→Jellyfin；下载/同步/Samba→应用商店容器化安装；VM/安卓→不做（云厂商与 umbrelOS 已更好）；翻译→大模型自带；Linux Lab/复古游戏→放弃。
 
 ## 不做清单（防战线回涨）
 

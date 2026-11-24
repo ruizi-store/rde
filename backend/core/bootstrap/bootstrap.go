@@ -25,28 +25,18 @@ import (
 
 	// 导入核心模块
 	"github.com/ruizi-store/rde/backend/modules/ai"
-	"github.com/ruizi-store/rde/backend/modules/android"
 	"github.com/ruizi-store/rde/backend/modules/backup"
 	"github.com/ruizi-store/rde/backend/modules/cloudbackup"
 	"github.com/ruizi-store/rde/backend/modules/docker"
-	"github.com/ruizi-store/rde/backend/modules/download"
 	"github.com/ruizi-store/rde/backend/modules/files"
-	"github.com/ruizi-store/rde/backend/modules/flatpak"
-	"github.com/ruizi-store/rde/backend/modules/linuxlab"
 	"github.com/ruizi-store/rde/backend/modules/notification"
-	"github.com/ruizi-store/rde/backend/modules/photos"
-	"github.com/ruizi-store/rde/backend/modules/retrogame"
-	"github.com/ruizi-store/rde/backend/modules/samba"
 	"github.com/ruizi-store/rde/backend/modules/setup"
 	"github.com/ruizi-store/rde/backend/modules/ssh"
 	"github.com/ruizi-store/rde/backend/modules/sudo"
 	"github.com/ruizi-store/rde/backend/modules/sync"
 	"github.com/ruizi-store/rde/backend/modules/system"
 	"github.com/ruizi-store/rde/backend/modules/terminal"
-	"github.com/ruizi-store/rde/backend/modules/translate"
 	"github.com/ruizi-store/rde/backend/modules/users"
-	"github.com/ruizi-store/rde/backend/modules/video"
-	"github.com/ruizi-store/rde/backend/modules/vm"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -73,23 +63,13 @@ type App struct {
 	Sudo         *sudo.Module
 	Terminal     *terminal.Module
 	Docker       *docker.Module
-	Samba        *samba.Module
 	SSH          *ssh.Module
 	Sync         *sync.Module
-	Download     *download.Module
-	Flatpak      *flatpak.Module
-	Retrogame    *retrogame.Module
-	Photos       *photos.Module
-	Video        *video.Module
 	Backup       *backup.Module
-	LinuxLab     *linuxlab.Module
 
 	// 新增模块（原插件）
 	AI          *ai.Module
-	Android     *android.Module
 	CloudBackup *cloudbackup.Module
-	VM          *vm.Module
-	Translate   *translate.Module
 }
 
 // Options 启动选项
@@ -328,50 +308,20 @@ func (app *App) registerModules() error {
 		instance module.Module
 	}
 	optionalModules := []optionalModule{
-		{"samba", samba.New()},
 		{"ssh", ssh.New()},
 		{"sync", sync.New()},
-		{"download", download.New()},
-		{"flatpak", flatpak.New()},
-		{"retrogame", retrogame.New()},
-		{"photos", photos.New()},
-		{"video", video.New()},
-		{"linuxlab", linuxlab.New()},
-		{"android", android.New()},
 		{"cloudbackup", cloudbackup.New()},
-		{"vm", vm.New()},
-		{"translate", translate.New()},
 	}
 
 	// 同步 App 上的字段引用（保持既有 API 兼容）
 	for _, om := range optionalModules {
 		switch om.id {
-		case "samba":
-			app.Samba = om.instance.(*samba.Module)
 		case "ssh":
 			app.SSH = om.instance.(*ssh.Module)
 		case "sync":
 			app.Sync = om.instance.(*sync.Module)
-		case "download":
-			app.Download = om.instance.(*download.Module)
-		case "flatpak":
-			app.Flatpak = om.instance.(*flatpak.Module)
-		case "retrogame":
-			app.Retrogame = om.instance.(*retrogame.Module)
-		case "photos":
-			app.Photos = om.instance.(*photos.Module)
-		case "video":
-			app.Video = om.instance.(*video.Module)
-		case "linuxlab":
-			app.LinuxLab = om.instance.(*linuxlab.Module)
-		case "android":
-			app.Android = om.instance.(*android.Module)
 		case "cloudbackup":
 			app.CloudBackup = om.instance.(*cloudbackup.Module)
-		case "vm":
-			app.VM = om.instance.(*vm.Module)
-		case "translate":
-			app.Translate = om.instance.(*translate.Module)
 		}
 	}
 
@@ -390,32 +340,12 @@ func (app *App) registerModules() error {
 			app.Logger.Info("Optional module disabled by configuration", zap.String("id", om.id))
 			// 禁用时清空 App 字段，避免调用方误用
 			switch om.id {
-			case "samba":
-				app.Samba = nil
 			case "ssh":
 				app.SSH = nil
 			case "sync":
 				app.Sync = nil
-			case "download":
-				app.Download = nil
-			case "flatpak":
-				app.Flatpak = nil
-			case "retrogame":
-				app.Retrogame = nil
-			case "photos":
-				app.Photos = nil
-			case "video":
-				app.Video = nil
-			case "linuxlab":
-				app.LinuxLab = nil
-			case "android":
-				app.Android = nil
 			case "cloudbackup":
 				app.CloudBackup = nil
-			case "vm":
-				app.VM = nil
-			case "translate":
-				app.Translate = nil
 			}
 		}
 	}
@@ -515,7 +445,6 @@ func (app *App) Start() error {
 	authMiddleware := auth.MiddlewareWithConfig(app.TokenManager, &auth.MiddlewareConfig{
 		Skipper: func(c *gin.Context) bool {
 			path := c.Request.URL.Path
-			method := c.Request.Method
 
 			publicPaths := []string{
 				"/api/v1/auth/login",
@@ -536,11 +465,6 @@ func (app *App) Start() error {
 				return true
 			}
 			if strings.HasPrefix(path, "/api/v1/setup/") {
-				return true
-			}
-
-			// Flatpak 图标供 img 标签使用（无敏感数据）
-			if method == "GET" && strings.HasPrefix(path, "/api/v1/flatpak/icons/") {
 				return true
 			}
 			return false
@@ -598,16 +522,6 @@ func (app *App) registerCoreRoutes() {
 func (app *App) registerStaticFiles() {
 	dataDir := app.Config.GetString("data_dir")
 	wwwDir := filepath.Join(dataDir, "www")
-
-	// EmulatorJS：优先使用构建期打包到 www/emulatorjs 的离线资源
-	emulatorjsDir := filepath.Join(wwwDir, "emulatorjs")
-	if _, err := os.Stat(filepath.Join(emulatorjsDir, "emulator.min.js")); err != nil {
-		// 兼容旧版按需下载目录
-		emulatorjsDir = filepath.Join(dataDir, "emulatorjs")
-		os.MkdirAll(emulatorjsDir, 0755)
-	}
-	app.Router.Static("/emulatorjs", emulatorjsDir)
-	app.Logger.Info("EmulatorJS static route registered", zap.String("path", emulatorjsDir))
 
 	// 用户头像静态文件
 	avatarsDir := filepath.Join(dataDir, "avatars")

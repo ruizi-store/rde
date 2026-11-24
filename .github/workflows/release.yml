@@ -79,8 +79,8 @@ jobs:
         run: |
           ls -lh outputs/
           # 两架构的镜像 tar 必须齐（排除 buildx .dockerbuild 调试产物）
-          test -f outputs/rde-*.tar.gz
-          [ "$(ls outputs/*.tar.gz | wc -l)" = "2" ]
+          count=$(find outputs -name '*.tar.gz' | wc -l)
+          [ "$count" = "2" ] || { echo "expected 2 image tarballs, got $count"; ls -l outputs; exit 1; }
 
       - name: Generate release notes
         id: notes

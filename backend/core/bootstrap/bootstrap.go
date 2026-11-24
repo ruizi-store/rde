@@ -87,6 +87,9 @@ type Options struct {
 
 	// Debug 是否开启调试模式
 	Debug bool
+
+	// ConfigPath 配置文件路径（rde.conf；认证模式 [auth] 段读取与写入）
+	ConfigPath string
 }
 
 // DefaultOptions 返回默认选项
@@ -130,6 +133,16 @@ func New(opts *Options) (*App, error) {
 	cfg.Set("db_path", opts.DBPath)
 	cfg.Set("log_path", opts.LogPath)
 	cfg.Set("debug", opts.Debug)
+
+	// 认证模式：配置文件 [auth] 段（环境变量 RDE_AUTH_MODE 在 ResolveAuthMode
+	// 里优先；此处把 conf 路径暴露给 users 模块，「启用账号登录」写回同一文件）
+	confPath := opts.ConfigPath
+	if confPath == "" {
+		confPath = "/etc/rde/rde.conf"
+	}
+	auth.SetConfigMode(auth.ReadModeFromConfigFile(confPath))
+	cfg.Set("auth.config_path", confPath)
+	cfg.Set("auth.mode", auth.ResolveAuthMode())
 
 	// 设置各模块数据目录
 	cfg.Set("files.root_path", filepath.Join(opts.DataDir, "files"))
@@ -483,10 +496,12 @@ func (app *App) Start() error {
 				"/api/v1/system/i18n",
 				"/api/v1/system/instance",
 				// IM 网关外部回调：外部平台无 JWT，端点自带鉴权
-				// webhook/message → Bearer API Key；wecom/callback → 消息签名；telegram/webhook → secret_token
+				// webhook/message → Bearer API Key；wecom/callback → 消息签名；telegram/webhook → secret_token；
+				// feishu/callback → 事件订阅 VerificationToken
 				"/api/v1/ai/gateway/webhook/message",
 				"/api/v1/ai/gateway/wecom/callback",
 				"/api/v1/ai/gateway/telegram/webhook",
+				"/api/v1/ai/gateway/feishu/callback",
 			}
 			for _, p := range publicPaths {
 				if path == p {

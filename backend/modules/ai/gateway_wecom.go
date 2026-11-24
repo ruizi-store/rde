@@ -14,7 +14,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +47,10 @@ type WecomMessage struct {
 	Content      string   `xml:"Content"`
 	MsgId        string   `xml:"MsgId"`
 	AgentID      int      `xml:"AgentID"`
+	// 模板卡片按钮回调（MsgType=event / Event=template_card_event）
+	Event    string `xml:"Event,omitempty"`
+	TaskId   string `xml:"TaskId,omitempty"`
+	EventKey string `xml:"EventKey,omitempty"`
 }
 
 // WecomEncryptedMessage 加密的消息
@@ -65,15 +71,43 @@ type WecomTokenResponse struct {
 
 // WecomSendMessageRequest 发送消息请求
 type WecomSendMessageRequest struct {
-	ToUser  string            `json:"touser"`
-	MsgType string            `json:"msgtype"`
-	AgentID int               `json:"agentid"`
-	Text    *WecomTextContent `json:"text,omitempty"`
+	ToUser       string               `json:"touser"`
+	MsgType      string               `json:"msgtype"`
+	AgentID      int                  `json:"agentid"`
+	Text         *WecomTextContent    `json:"text,omitempty"`
+	TemplateCard *WecomTemplateCard   `json:"template_card,omitempty"`
 }
 
 // WecomTextContent 文本内容
 type WecomTextContent struct {
 	Content string `json:"content"`
+}
+
+// WecomTemplateCard 模板卡片（button_list，审批按钮交互）
+type WecomTemplateCard struct {
+	CardType   string                   `json:"card_type"` // button_list
+	Source     *WecomCardSource         `json:"source,omitempty"`
+	MainTitle  *WecomCardMainTitle      `json:"main_title,omitempty"`
+	TaskID     string                   `json:"task_id"`
+	SubTitle   string                   `json:"sub_title_text,omitempty"`
+	ButtonList []WecomCardButton        `json:"button_list"`
+}
+
+type WecomCardSource struct {
+	Desc string `json:"desc"`
+}
+
+type WecomCardMainTitle struct {
+	Title string `json:"title"`
+	Desc  string `json:"desc,omitempty"`
+}
+
+// WecomCardButton 卡片按钮（style：1 主要按钮，2 警示/红色，3 普通）
+type WecomCardButton struct {
+	Text string `json:"text"`
+	Type int    `json:"type"` // 1 点击跳转/回调
+	Key  string `json:"key"`
+	Style int   `json:"style,omitempty"`
 }
 
 // NewWecomAdapter 创建企业微信适配器
@@ -123,6 +157,14 @@ func (w *WecomAdapter) SendMessage(ctx context.Context, msg OutgoingMessage) err
 		Text: &WecomTextContent{Content: msg.Text},
 	}
 
+	// 审批通知 → button_list 模板卡片（按钮回调直接决定）
+	if approvalID, ok := parseApprovalNotification(msg.Text); ok {
+		reqBody = WecomSendMessageRequest{
+			ToUser: msg.UserID, MsgType: "template_card", AgentID: w.config.AgentID,
+			TemplateCard: w.approvalCard(approvalID, msg.Text),
+		}
+	}
+
 	body, _ := json.Marshal(reqBody)
 	u := fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=%s", token)
 	resp, err := http.Post(u, "application/json", bytes.NewReader(body))
@@ -140,6 +182,23 @@ func (w *WecomAdapter) SendMessage(ctx context.Context, msg OutgoingMessage) err
 		return fmt.Errorf("wecom error: %d - %s", result.ErrCode, result.ErrMsg)
 	}
 	return nil
+}
+
+// approvalCard 审批模板卡片（task_id=审批编号，按钮 key=approve/deny）
+func (w *WecomAdapter) approvalCard(approvalID uint, text string) *WecomTemplateCard {
+	// 通知正文去掉命令提示（卡片按钮已替代）
+	body := strings.TrimSpace(regexp.MustCompile(`\n?\n?同意回复[^\n]*$`).ReplaceAllString(text, ""))
+	return &WecomTemplateCard{
+		CardType:  "button_list",
+		Source:    &WecomCardSource{Desc: "RDE 数字员工"},
+		MainTitle: &WecomCardMainTitle{Title: fmt.Sprintf("🔔 审批请求 #%d", approvalID)},
+		TaskID:    fmt.Sprintf("approval_%d", approvalID),
+		SubTitle:  body,
+		ButtonList: []WecomCardButton{
+			{Text: "批准", Type: 1, Key: "approve", Style: 1},
+			{Text: "拒绝", Type: 1, Key: "deny", Style: 2},
+		},
+	}
 }
 
 // HandleCallback 处理企业微信回调
@@ -176,6 +235,11 @@ func (w *WecomAdapter) HandleCallback(msgSignature, timestamp, nonce, echostr st
 		return "", err
 	}
 
+	// 模板卡片按钮回调（审批决定）
+	if msg.MsgType == "event" && msg.Event == "template_card_event" && msg.TaskId != "" {
+		return w.handleCardEvent(&msg)
+	}
+
 	inMsg := IncomingMessage{
 		Platform:  PlatformWecom,
 		UserID:    msg.FromUserName,
@@ -198,6 +262,37 @@ func (w *WecomAdapter) HandleCallback(msgSignature, timestamp, nonce, echostr st
 		}
 	}()
 
+	return "success", nil
+}
+
+// handleCardEvent 处理审批卡片按钮回调：TaskId=approval_<id>，EventKey=approve/deny
+func (w *WecomAdapter) handleCardEvent(msg *WecomMessage) (string, error) {
+	taskID := strings.TrimPrefix(msg.TaskId, "approval_")
+	approvalID, err := strconv.ParseUint(taskID, 10, 64)
+	if err != nil {
+		w.logger.Warn("企微卡片回调 TaskId 无效", zap.String("task_id", msg.TaskId))
+		return "success", nil
+	}
+
+	approve := msg.EventKey == "approve"
+	reply, err := w.gateway.HandleApprovalButton(uint(approvalID), approve, "wecom:"+msg.FromUserName)
+	if err != nil {
+		w.logger.Warn("企微卡片审批失败", zap.Error(err), zap.String("task_id", msg.TaskId))
+		reply = "❌ " + err.Error()
+	}
+
+	// 结果私发给点击者（卡片本身需调用更新接口才能变化，此处以消息形式确认）
+	if msg.FromUserName != "" {
+		confirmMsg := OutgoingMessage{
+			Platform: PlatformWecom,
+			UserID:   msg.FromUserName,
+			ChatID:   msg.FromUserName,
+			Text:     reply,
+		}
+		if err := w.SendMessage(context.Background(), confirmMsg); err != nil {
+			w.logger.Error("企微审批结果发送失败", zap.Error(err))
+		}
+	}
 	return "success", nil
 }
 

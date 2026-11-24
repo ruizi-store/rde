@@ -25,6 +25,7 @@ type Module struct {
 	alerts   *AlertService
 	sessions *SessionStore
 	voice    *VoiceService
+	mcp      *MCPManager
 	coreAPI  *CoreAPI
 	stopCh   chan struct{}
 }
@@ -69,6 +70,8 @@ func (m *Module) Init(ctx *module.Context) error {
 	m.service = NewService(logger, aiDir)
 	m.skills = NewSkillsService(logger, aiDir)
 	m.service.SetSkills(m.skills)
+	m.mcp = NewMCPManager(logger, aiDir)
+	m.service.SetMCPManager(m.mcp)
 
 	m.coreAPI = NewCoreAPI(logger)
 	m.setup = NewSetupService(logger, aiDir, m.coreAPI)

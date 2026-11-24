@@ -484,6 +484,8 @@ const (
 	PlatformWecom    PlatformType = "wecom"
 	PlatformTelegram PlatformType = "telegram"
 	PlatformWebhook  PlatformType = "webhook"
+	PlatformFeishu   PlatformType = "feishu"
+	PlatformDingtalk PlatformType = "dingtalk"
 )
 
 // GatewayConfig 消息网关配置
@@ -492,7 +494,40 @@ type GatewayConfig struct {
 	Wecom    WecomConfig    `json:"wecom"`
 	Telegram TelegramConfig `json:"telegram"`
 	Webhook  WebhookConfig  `json:"webhook"`
+	Feishu   FeishuConfig   `json:"feishu"`
+	Dingtalk DingtalkConfig `json:"dingtalk"`
 	Security SecurityConfig `json:"security"`
+	// PublicBaseURL 对外可访问的基础地址（如 https://rde.example.com），
+	// 用于审批卡片上的 Web 链接（{base}/?approval=<id>）；留空则不附链接
+	PublicBaseURL string `json:"public_base_url,omitempty"`
+}
+
+// FeishuConfig 飞书（自建应用机器人）配置
+type FeishuConfig struct {
+	Enabled bool   `json:"enabled"`
+	AppID   string `json:"app_id"`
+	AppSecret string `json:"app_secret"`
+	// VerificationToken 事件订阅校验（开放平台「事件与回调」页）；
+	// 事件回调端点 /api/v1/ai/gateway/feishu/callback
+	VerificationToken string `json:"verification_token"`
+	// APIBase 飞书 API 地址（默认 https://open.feishu.cn，测试注入用）
+	APIBase string `json:"api_base,omitempty"`
+}
+
+// DingtalkConfig 钉钉机器人配置
+type DingtalkConfig struct {
+	Enabled bool   `json:"enabled"`
+	// Stream 模式（企业自建应用，消息经 WebSocket 长连接推送，无需公网回调）
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	// WebhookURL 群自定义机器人 webhook（主动推送兜底；Stream 会话过期后使用）
+	WebhookURL string `json:"webhook_url"`
+	// Secret 自定义机器人加签密钥（可选）
+	Secret string `json:"secret"`
+	// APIBase 钉钉 API 地址（默认 https://api.dingtalk.com，测试注入用）
+	APIBase string `json:"api_base,omitempty"`
+	// StreamEndpoint WebSocket 网关地址（测试注入用）
+	StreamEndpoint string `json:"stream_endpoint,omitempty"`
 }
 
 // WecomConfig 企业微信配置
@@ -515,6 +550,8 @@ type TelegramConfig struct {
 	WebhookSecret string `json:"webhook_secret,omitempty"` // setWebhook secret_token；回调校验 X-Telegram-Bot-Api-Secret-Token
 	ProxyMode    string `json:"proxy_mode"`                // off, system, custom
 	ProxyURL     string `json:"proxy_url"`
+	// APIBase Telegram API 地址（默认 https://api.telegram.org，测试注入用）
+	APIBase string `json:"api_base,omitempty"`
 }
 
 // WebhookConfig 通用 Webhook 配置

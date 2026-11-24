@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -146,6 +148,12 @@ func (gs *GatewayService) initAdapters() {
 	}
 	if gs.config.Telegram.Enabled {
 		gs.adapters[PlatformTelegram] = NewTelegramAdapter(gs.logger, &gs.config.Telegram, gs)
+	}
+	if gs.config.Feishu.Enabled {
+		gs.adapters[PlatformFeishu] = NewFeishuAdapter(gs.logger, &gs.config.Feishu, gs)
+	}
+	if gs.config.Dingtalk.Enabled {
+		gs.adapters[PlatformDingtalk] = NewDingtalkAdapter(gs.logger, &gs.config.Dingtalk, gs)
 	}
 	gs.adapters[PlatformWebhook] = NewWebhookAdapter(gs.logger, &gs.config.Webhook, gs)
 }
@@ -417,6 +425,50 @@ func (gs *GatewayService) callAI(ctx context.Context, session *GatewaySession, b
 // GetAdapter 获取适配器
 func (gs *GatewayService) GetAdapter(platform PlatformType) PlatformAdapter {
 	return gs.adapters[platform]
+}
+
+// approvalNotificationRe 审批通知文本识别（bot/approvals.go pushNotification 生成）
+var approvalNotificationRe = regexp.MustCompile(`🔔 审批请求 #(\d+)`)
+
+// parseApprovalNotification 判断文本是否审批通知，返回审批编号
+func parseApprovalNotification(text string) (uint, bool) {
+	m := approvalNotificationRe.FindStringSubmatch(text)
+	if m == nil {
+		return 0, false
+	}
+	id, err := strconv.ParseUint(m[1], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return uint(id), true
+}
+
+// PublicBaseURL 对外基础地址（审批卡片 Web 链接用）
+func (gs *GatewayService) PublicBaseURL() string {
+	return gs.config.PublicBaseURL
+}
+
+// ApprovalWebLink 审批 Web 链接（未配置 PublicBaseURL 返回空）
+func (gs *GatewayService) ApprovalWebLink(approvalID uint) string {
+	base := gs.config.PublicBaseURL
+	if base == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/?approval=%d", strings.TrimSuffix(base, "/"), approvalID)
+}
+
+// HandleApprovalButton 平台卡片按钮回调统一入口
+// （Telegram inline keyboard / 飞书卡片按钮 / 企微模板卡片事件）。
+// 卡片回调不经过会话（拿不到 Bot 绑定），按全局唯一审批编号决定。
+func (gs *GatewayService) HandleApprovalButton(approvalID uint, approve bool, byUser string) (string, error) {
+	if gs.approvals == nil {
+		return "", fmt.Errorf("审批管理未启用")
+	}
+	decider, ok := gs.approvals.(ApprovalByIDDecider)
+	if !ok {
+		return "", fmt.Errorf("审批管理不支持按钮回调")
+	}
+	return decider.DecideApprovalByID(approvalID, approve, byUser)
 }
 
 // GetStatus 获取网关状态

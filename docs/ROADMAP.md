@@ -60,8 +60,8 @@
 - 网关回调安全：webhook/telegram/wecom 三个外部端点放开 JWT（各自带 API Key / secret_token / 消息签名鉴权；
   Telegram 新增 `WebhookSecret`，未配置时拒绝回调）。✅
 - 前端：Bot 详情新增「渠道」绑定编辑与「技能」清单标签页。✅
-- 遗留（P4）：`skills.go` 的 22 个硬编码 NAS 工具继续并存（网关默认助手路径仍用）；MCP 兼容、飞书/钉钉渠道、
-  alerts 泛化为 cron 技能调度。
+- 遗留：`skills.go` 的 22 个硬编码 NAS 工具继续并存（网关默认助手路径仍用）；alerts 泛化为 cron 技能调度。
+  （MCP 兼容、飞书/钉钉渠道已完成，见 P4 ✅ 2026-11）
 
 ### P4 — 记忆、审批、协作（进行中）
 - 记忆 ✅ 2026-11：`bots_memories` 表 + `save_memory`/`search_memory` 工具（LLM 自主存取，同 key 覆盖，
@@ -73,8 +73,16 @@
   Bot 绑定渠道（IM 回复 `/approve|/deny <id>`）并出现在 Web「审批」标签页；工具阻塞等待
   （waiter channel + 2s 兜底轮询，默认 120s 上限 300s），批准后 Bot 继续执行，拒绝/超时即放弃；
   已处理审批不可重复决定；Bot 工具调用轮数上限放宽到 12（审批链路更长）。
-- 待办：审批卡片升级为 IM 交互式消息（企微/飞书卡片按钮）、密钥安全录入表单、多 Bot 协作（放最后：先让单个 Bot 真正有用）。
-- 渠道扩展：飞书、钉钉（企微/TG 已有底子）；MCP 兼容（stdio/HTTP）。
+- 审批卡片升级为 IM 交互式消息 ✅ 2026-11（0.7.0）：Telegram inline keyboard、企微 button_list
+  模板卡片、飞书 interactive 卡片按钮（回调直接决定，DecideApprovalByID）；钉钉 actionCard 附 Web
+  审批页深链；文本命令 /approve|/deny 全平台兜底。
+- 渠道扩展 ✅ 2026-11（0.7.0）：飞书（自建应用机器人：tenant_access_token 发送 + 事件订阅回调）、
+  钉钉（Stream 模式 WebSocket 长连接，无需公网回调）。
+- MCP 兼容 ✅ 2026-11（0.7.0）：Streamable HTTP + stdio 两种传输，REST 配置管理，
+  工具以 mcp_<server>_<tool> 桥接进 Bot 工具列表（可信基础设施，不经沙箱）。
+- none→local 升级入口 ✅ 2026-11（0.7.0）：设置页「登录方式」卡片，创建管理员并写
+  rde.conf [auth] mode=local（重启生效）；认证模式支持 conf（优先级 env > conf > 默认 none）。
+- 待办：密钥安全录入表单、多 Bot 协作（放最后：先让单个 Bot 真正有用）。
 - 清理 `gateway_alerts.go` 泛化为通用调度推送（与 bots_schedules 并存一段时间）。
 
 ## 模块取舍（已在 feat/bot-direction 分支执行 ✅）

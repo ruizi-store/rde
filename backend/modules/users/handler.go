@@ -682,3 +682,35 @@ func (h *Handler) DeleteGroup(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }
+
+// EnableLocalAuth 启用账号登录（免登录→本地账号升级入口）
+// 创建管理员 + 写配置文件 [auth] 段，重启后生效
+func (h *Handler) EnableLocalAuth(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	message, err := h.service.EnableLocalAuth(req.Username, req.Password)
+	if err != nil {
+		h.logger.Warn("Failed to enable local auth", zap.Error(err), zap.String("username", req.Username))
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": message})
+}
+
+// DisableLocalAuth 关闭账号登录（回到免登录模式）
+func (h *Handler) DisableLocalAuth(c *gin.Context) {
+	message, err := h.service.DisableLocalAuth()
+	if err != nil {
+		h.logger.Warn("Failed to disable local auth", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": message})
+}

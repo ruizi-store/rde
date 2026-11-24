@@ -206,6 +206,20 @@ export interface GatewayConfig {
     proxy_mode: string;
     proxy_url: string;
   };
+  feishu: {
+    enabled: boolean;
+    app_id: string;
+    app_secret: string;
+    verification_token: string;
+  };
+  dingtalk: {
+    enabled: boolean;
+    client_id: string;
+    client_secret: string;
+    webhook_url: string;
+    secret: string;
+  };
+  public_base_url?: string;
   webhook: {
     enabled: boolean;
     api_key: string;
@@ -216,6 +230,29 @@ export interface GatewayConfig {
     daily_limit: number;
     require_pin: boolean;
     pin: string;
+  };
+}
+
+// MCP 服务器配置（admin 配置的可信基础设施）
+export interface MCPServerConfig {
+  name: string;
+  description?: string;
+  transport: "http" | "stdio";
+  url?: string;
+  headers?: Record<string, string>;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  enabled: boolean;
+}
+
+// MCP 工具（桥接后的定义）
+export interface MCPToolDefinition {
+  type: string;
+  function: {
+    name: string;
+    description: string;
+    parameters?: Record<string, unknown>;
   };
 }
 
@@ -525,6 +562,32 @@ class AIService {
 
   async getGatewayStatus(): Promise<GatewayStatus> {
     return api.get<GatewayStatus>("/ai/gateway/status");
+  }
+
+  // ==================== MCP 服务器管理 ====================
+
+  async listMCPServers(): Promise<MCPServerConfig[]> {
+    const r = await api.get<{ servers: MCPServerConfig[] }>("/ai/mcp/servers");
+    return r.servers || [];
+  }
+
+  async upsertMCPServer(server: MCPServerConfig): Promise<void> {
+    await api.put("/ai/mcp/servers", server);
+  }
+
+  async deleteMCPServer(name: string): Promise<void> {
+    await api.delete(`/ai/mcp/servers/${encodeURIComponent(name)}`);
+  }
+
+  async testMCPServer(
+    name: string,
+  ): Promise<{ success: boolean; error?: string; tools?: { name: string; description?: string }[] }> {
+    return api.post(`/ai/mcp/servers/${encodeURIComponent(name)}/test`);
+  }
+
+  async listMCPTools(): Promise<MCPToolDefinition[]> {
+    const r = await api.get<{ tools: MCPToolDefinition[] }>("/ai/mcp/tools");
+    return r.tools || [];
   }
 
   async startGateway(): Promise<void> {

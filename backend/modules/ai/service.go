@@ -39,6 +39,9 @@ type Service struct {
 	botSkills    SkillProvider
 	botMemory    MemoryProvider
 	botApprovals ApprovalManager
+
+	// MCP 服务器（admin 配置的可信基础设施；见 mcp.go）
+	mcp *MCPManager
 }
 
 // NewService 创建服务实例
@@ -873,6 +876,20 @@ func (s *Service) getDefaultBaseURL(provider Provider) string {
 // SetSkills 设置技能服务引用
 func (s *Service) SetSkills(skills *SkillsService) { s.skills = skills }
 
+// SetMCPManager 注入 MCP 管理器（module Init 调用）
+func (s *Service) SetMCPManager(m *MCPManager) {
+	s.mu.Lock()
+	s.mcp = m
+	s.mu.Unlock()
+}
+
+// MCPManager 获取 MCP 管理器（handler REST 用）
+func (s *Service) MCPManager() *MCPManager {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.mcp
+}
+
 // GetAIConfig 获取 AI 配置
 func (s *Service) GetAIConfig() *AIConfig { return s.config }
 
@@ -1077,6 +1094,15 @@ func (s *Service) chatWithToolsLoop(ctx context.Context, provider *ProviderConfi
 	if bot != nil {
 		botID = bot.ID
 		tools = append(tools, botToolsDefinitions()...)
+		// MCP 工具（admin 配置的可信基础设施）桥接进工具列表
+		s.mu.RLock()
+		mcp := s.mcp
+		s.mu.RUnlock()
+		if mcp != nil {
+			if mcpTools := mcp.ToolDefinitions(ctx); len(mcpTools) > 0 {
+				tools = append(tools, mcpTools...)
+			}
+		}
 	}
 
 	for i := 0; i < 12; i++ { // 最多 12 轮工具调用（含审批阻塞轮，Bot 链路比普通对话长）

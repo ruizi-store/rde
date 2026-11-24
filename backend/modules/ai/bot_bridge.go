@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // BotInfo Bot 的摘要信息（bot 模块 → ai 模块的传输结构，避免直接依赖）
@@ -81,6 +82,13 @@ type ApprovalManager interface {
 	RequestApproval(ctx context.Context, botID, action, reason string, timeoutSec int) (approved bool, message string, err error)
 	// DecideApproval 用户决定（approve=true 批准）；返回确认文案
 	DecideApproval(botID string, approvalID uint, approve bool, byUser string) (string, error)
+}
+
+// ApprovalByIDDecider 按全局唯一编号决定审批（卡片按钮回调无法预知所属 Bot）
+// bot.ApprovalService 在实现 ApprovalManager 的同时实现本接口
+type ApprovalByIDDecider interface {
+	// DecideApprovalByID 按审批编号直接决定（编号全局唯一）
+	DecideApprovalByID(approvalID uint, approve bool, byUser string) (string, error)
 }
 
 // botBridge ai 模块持有的桥接实现集合
@@ -213,6 +221,21 @@ func botToolsDefinitions() []ToolDefinition {
 
 // executeBotTool 执行 Bot 沙箱/记忆工具；返回 false 表示不是 Bot 工具（走原有 SkillsService）
 func (s *Service) executeBotTool(ctx context.Context, name, argsJSON, botID string) (string, bool) {
+	// MCP 桥接工具（admin 配置的可信基础设施，不经沙箱）
+	if strings.HasPrefix(name, MCPToolPrefix) {
+		s.mu.RLock()
+		mcp := s.mcp
+		s.mu.RUnlock()
+		if mcp == nil {
+			return marshalToolResult(map[string]interface{}{"success": false, "error": "mcp manager unavailable"}), true
+		}
+		result, err := mcp.CallTool(ctx, name, argsJSON)
+		if err != nil {
+			return marshalToolResult(map[string]interface{}{"success": false, "error": err.Error()}), true
+		}
+		return result, true
+	}
+
 	if botID == "" {
 		return "", false
 	}

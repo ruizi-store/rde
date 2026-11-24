@@ -72,6 +72,7 @@ func (m *Module) Init(ctx *module.Context) error {
 	// 创建服务
 	m.service = NewService(ctx.DB, ctx.Logger)
 	m.service.SetEventBus(ctx.EventBus)
+	m.service.SetAuthConfPath(ctx.Config.GetString("auth.config_path"))
 
 	// 设置头像存储目录
 	avatarsDir := filepath.Join(ctx.Config.GetString("data_dir"), "avatars")
@@ -128,6 +129,10 @@ func (m *Module) RegisterRoutes(router *gin.RouterGroup) {
 		users.POST("/2fa/setup", handler.Setup2FA)
 		users.POST("/2fa/enable", handler.Enable2FA)
 		users.DELETE("/2fa", handler.Disable2FA)
+
+		// 认证模式切换（none↔local；none 模式下经固定身份即可调用）
+		users.POST("/enable-local-auth", handler.EnableLocalAuth)
+		users.POST("/disable-local-auth", handler.DisableLocalAuth)
 	}
 
 	// 用户组

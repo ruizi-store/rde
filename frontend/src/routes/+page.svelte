@@ -9,6 +9,7 @@
   import { reloadAllStoresForUser } from "$desktop/utils/reload-stores";
   import { userStore } from "$shared/stores/user.svelte";
   import { api } from "$shared/services/api";
+  import { windows } from "$desktop/stores/windows.svelte";
 
   let ready = $state(false);
   let checkingSetup = $state(true);
@@ -16,6 +17,17 @@
   // 先同步注册应用（使用默认模块状态）
   if (browser) {
     registerApps();
+  }
+
+  // IM 审批卡片深链：/?approval=<id> → 打开 Bot 工作台并跳到审批记录
+  let approvalDeepLink: string | null = null;
+  if (browser) {
+    const aid = new URLSearchParams(window.location.search).get("approval");
+    if (aid) {
+      approvalDeepLink = aid;
+      // 清掉 query 参数，避免刷新后重复打开
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }
 
   // 然后异步加载真实的模块状态并更新
@@ -74,7 +86,16 @@
     // token 有效，加载应用
     await initApps();
     ready = true;
+    openApprovalDeepLink();
   });
+
+  /** 打开审批深链窗口（桌面就绪后调用一次） */
+  function openApprovalDeepLink() {
+    if (!approvalDeepLink) return;
+    const aid = approvalDeepLink;
+    approvalDeepLink = null;
+    windows.open("bot", { approval: aid }).catch(() => {});
+  }
 
   /** 免登录模式直接进入桌面（后端注入固定管理员身份，无需 token） */
   async function enterNoAuthDesktop() {
@@ -85,6 +106,7 @@
     reloadAllStoresForUser();
     await initApps();
     ready = true;
+    openApprovalDeepLink();
   }
 
   /** 从 JWT payload 恢复基本用户信息 */

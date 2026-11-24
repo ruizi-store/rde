@@ -27,6 +27,8 @@ var validPlatforms = map[string]bool{
 	"telegram": true,
 	"wecom":    true,
 	"webhook":  true,
+	"feishu":   true,
+	"dingtalk": true,
 }
 
 // GetChannels 解析 Bot 的渠道绑定
@@ -52,7 +54,7 @@ func (s *Service) UpdateChannels(botID string, channels []BotChannel) (*Bot, err
 		ch.ChatID = strings.TrimSpace(ch.ChatID)
 		ch.UserID = strings.TrimSpace(ch.UserID)
 		if !validPlatforms[ch.Platform] {
-			return nil, errors.New("无效平台（可选 telegram/wecom/webhook）")
+			return nil, errors.New("无效平台（可选 telegram/wecom/webhook/feishu/dingtalk）")
 		}
 		if ch.ChatID == "" && ch.UserID == "" {
 			return nil, errors.New("chat_id 与 user_id 不能同时为空")

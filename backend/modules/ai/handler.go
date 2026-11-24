@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -90,7 +91,15 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		ai.POST("/gateway/test-telegram", h.TestTelegram)
 		ai.POST("/gateway/wecom/callback", h.WecomCallback)
 		ai.POST("/gateway/telegram/webhook", h.TelegramWebhook)
+		ai.POST("/gateway/feishu/callback", h.FeishuCallback)
 		ai.POST("/gateway/webhook/message", h.WebhookMessage)
+
+		// MCP 服务器（admin 配置的可信基础设施）
+		ai.GET("/mcp/servers", h.ListMCPServers)
+		ai.PUT("/mcp/servers", h.UpsertMCPServer)
+		ai.DELETE("/mcp/servers/:name", h.DeleteMCPServer)
+		ai.POST("/mcp/servers/:name/test", h.TestMCPServer)
+		ai.GET("/mcp/tools", h.ListMCPTools)
 
 		// 告警
 		ai.GET("/alerts/config", h.GetAlertsConfig)
@@ -693,9 +702,103 @@ func (h *Handler) TelegramWebhook(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+// FeishuCallback 飞书事件订阅回调（公开端点：VerificationToken 校验防伪造）
+// 处理 url_verification 握手、消息事件、审批卡片按钮回调
+func (h *Handler) FeishuCallback(c *gin.Context) {
+	adapter := h.gateway.GetAdapter(PlatformFeishu)
+	if adapter == nil {
+		// 未启用：url_verification 握手仍要应答，否则开放平台保存不了回调地址
+		c.JSON(http.StatusOK, gin.H{"code": 404, "msg": "feishu adapter disabled"})
+		return
+	}
+	fa, ok := adapter.(*FeishuAdapter)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid adapter"})
+		return
+	}
+	body, _ := io.ReadAll(c.Request.Body)
+	result := fa.HandleCallback(body)
+	c.JSON(http.StatusOK, result)
+}
+
+// ==================== MCP 服务器管理 ====================
+
+// ListMCPServers MCP 服务器列表
+func (h *Handler) ListMCPServers(c *gin.Context) {
+	m := h.service.MCPManager()
+	if m == nil {
+		c.JSON(http.StatusOK, gin.H{"servers": []MCPServerConfig{}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"servers": m.List()})
+}
+
+// UpsertMCPServer 新增/更新 MCP 服务器
+func (h *Handler) UpsertMCPServer(c *gin.Context) {
+	m := h.service.MCPManager()
+	if m == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "mcp manager unavailable"})
+		return
+	}
+	var cfg MCPServerConfig
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := m.Upsert(cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "server": cfg})
+}
+
+// DeleteMCPServer 删除 MCP 服务器
+func (h *Handler) DeleteMCPServer(c *gin.Context) {
+	m := h.service.MCPManager()
+	if m == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "mcp manager unavailable"})
+		return
+	}
+	name := c.Param("name")
+	if err := m.Delete(name); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// TestMCPServer 连接测试（initialize + tools/list）
+func (h *Handler) TestMCPServer(c *gin.Context) {
+	m := h.service.MCPManager()
+	if m == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "mcp manager unavailable"})
+		return
+	}
+	name := c.Param("name")
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	tools, err := m.TestConnection(ctx, name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "tools": tools})
+}
+
+// ListMCPTools 已启用服务器的桥接工具列表
+func (h *Handler) ListMCPTools(c *gin.Context) {
+	m := h.service.MCPManager()
+	if m == nil {
+		c.JSON(http.StatusOK, gin.H{"tools": []interface{}{}})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	c.JSON(http.StatusOK, gin.H{"tools": m.ToolDefinitions(ctx)})
+}
+
 // WebhookMessage 通用 Webhook 消息
-func (h *Handler) WebhookMessage(c *gin.Context) {
-	adapter := h.gateway.GetAdapter(PlatformWebhook)
+func (h *Handler) WebhookMessage(c *gin.Context) {	adapter := h.gateway.GetAdapter(PlatformWebhook)
 	if adapter == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "webhook not configured"})
 		return

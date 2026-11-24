@@ -4,6 +4,7 @@ package bot
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -59,6 +60,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 		g.GET("/:id/approvals", h.ListApprovals)
 		g.POST("/:id/approvals/:aid/decide", h.DecideApproval)
+		// 按全局编号查询（Web 审批深链 ?approval=<id> → 定位所属 Bot）
+		g.GET("/approvals/by-id/:aid", h.GetApprovalByID)
 
 		g.POST("/:id/takeover", h.Takeover)
 		g.POST("/:id/release", h.Release)
@@ -555,4 +558,19 @@ func (h *Handler) DecideApproval(c *gin.Context) {
 		return
 	}
 	ok(c, reply)
+}
+
+// GetApprovalByID 按全局编号查询审批（Web 审批深链 ?approval=<id>）
+func (h *Handler) GetApprovalByID(c *gin.Context) {
+	aid, err := strconv.ParseUint(c.Param("aid"), 10, 64)
+	if err != nil || aid == 0 {
+		fail(c, 400, "无效审批 ID")
+		return
+	}
+	approval, err := h.approvals.GetByID(uint(aid))
+	if err != nil {
+		fail(c, 404, err.Error())
+		return
+	}
+	ok(c, approval)
 }

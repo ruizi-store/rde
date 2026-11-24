@@ -32,8 +32,17 @@ type TelegramAdapter struct {
 
 // TelegramUpdate Telegram Update 对象
 type TelegramUpdate struct {
-	UpdateID int64            `json:"update_id"`
-	Message  *TelegramMessage `json:"message,omitempty"`
+	UpdateID      int64                  `json:"update_id"`
+	Message       *TelegramMessage       `json:"message,omitempty"`
+	CallbackQuery *TelegramCallbackQuery `json:"callback_query,omitempty"`
+}
+
+// TelegramCallbackQuery inline keyboard 按钮回调
+type TelegramCallbackQuery struct {
+	ID      string          `json:"id"`
+	From    *TelegramUser   `json:"from,omitempty"`
+	Message *TelegramMessage `json:"message,omitempty"`
+	Data    string          `json:"data,omitempty"`
 }
 
 // TelegramMessage Telegram 消息
@@ -74,10 +83,23 @@ type TelegramResponse struct {
 
 // TelegramSendMessage 发送消息请求
 type TelegramSendMessage struct {
-	ChatID           int64  `json:"chat_id"`
-	Text             string `json:"text"`
-	ParseMode        string `json:"parse_mode,omitempty"`
-	ReplyToMessageID int64  `json:"reply_to_message_id,omitempty"`
+	ChatID           int64                   `json:"chat_id"`
+	Text             string                  `json:"text"`
+	ParseMode        string                  `json:"parse_mode,omitempty"`
+	ReplyToMessageID int64                   `json:"reply_to_message_id,omitempty"`
+	ReplyMarkup      *TelegramInlineKeyboard `json:"reply_markup,omitempty"`
+}
+
+// TelegramInlineKeyboard inline keyboard（审批按钮等交互）
+type TelegramInlineKeyboard struct {
+	InlineKeyboard [][]TelegramKeyboardButton `json:"inline_keyboard"`
+}
+
+// TelegramKeyboardButton inline keyboard 按钮
+type TelegramKeyboardButton struct {
+	Text         string `json:"text"`
+	CallbackData string `json:"callback_data,omitempty"`
+	URL          string `json:"url,omitempty"`
 }
 
 // NewTelegramAdapter 创建 Telegram 适配器
@@ -107,11 +129,16 @@ func NewTelegramAdapterWithTimeout(logger *zap.Logger, config *TelegramConfig, g
 		}
 	}
 
+	apiBase := "https://api.telegram.org"
+	if config.APIBase != "" {
+		apiBase = strings.TrimSuffix(config.APIBase, "/")
+	}
+
 	return &TelegramAdapter{
 		logger:  logger,
 		config:  config,
 		gateway: gateway,
-		baseURL: fmt.Sprintf("https://api.telegram.org/bot%s", config.BotToken),
+		baseURL: fmt.Sprintf("%s/bot%s", apiBase, config.BotToken),
 		client: &http.Client{
 			Timeout:   time.Duration(timeoutSec) * time.Second,
 			Transport: transport,
@@ -165,6 +192,11 @@ func (t *TelegramAdapter) SendMessage(ctx context.Context, msg OutgoingMessage) 
 		if replyID, err := strconv.ParseInt(msg.ReplyToMsgID, 10, 64); err == nil {
 			sendMsg.ReplyToMessageID = replyID
 		}
+	}
+
+	// 审批通知 → inline keyboard（按钮回调直接决定）
+	if approvalID, ok := parseApprovalNotification(msg.Text); ok {
+		sendMsg.ReplyMarkup = t.approvalKeyboard(approvalID)
 	}
 
 	body, _ := json.Marshal(sendMsg)
@@ -238,9 +270,87 @@ func (t *TelegramAdapter) HandleWebhook(body []byte) {
 		t.logger.Error("Failed to parse update", zap.Error(err))
 		return
 	}
+	t.dispatchUpdate(&update)
+}
+
+// dispatchUpdate 分发一条 update（消息 / 按钮回调）
+func (t *TelegramAdapter) dispatchUpdate(update *TelegramUpdate) {
 	if update.Message != nil {
 		go t.handleMessage(update.Message)
 	}
+	if update.CallbackQuery != nil {
+		go t.handleCallbackQuery(update.CallbackQuery)
+	}
+}
+
+// approvalKeyboard 审批按钮（callback_data 供回调解析）
+func (t *TelegramAdapter) approvalKeyboard(approvalID uint) *TelegramInlineKeyboard {
+	return &TelegramInlineKeyboard{
+		InlineKeyboard: [][]TelegramKeyboardButton{{
+			{Text: "✅ 批准", CallbackData: fmt.Sprintf("approve:%d", approvalID)},
+			{Text: "🚫 拒绝", CallbackData: fmt.Sprintf("deny:%d", approvalID)},
+		}},
+	}
+}
+
+// handleCallbackQuery 处理审批按钮回调：决定审批 → 应答回调 → 编辑原消息
+func (t *TelegramAdapter) handleCallbackQuery(cb *TelegramCallbackQuery) {
+	parts := strings.SplitN(cb.Data, ":", 2)
+	if len(parts) != 2 || (parts[0] != "approve" && parts[0] != "deny") {
+		t.answerCallbackQuery(cb.ID, "无法识别的按钮")
+		return
+	}
+	approvalID, err := strconv.ParseUint(parts[1], 10, 64)
+	if err != nil {
+		t.answerCallbackQuery(cb.ID, "无效的审批编号")
+		return
+	}
+
+	byUser := "telegram:anonymous"
+	if cb.From != nil {
+		byUser = fmt.Sprintf("telegram:%d", cb.From.ID)
+	}
+	reply, err := t.gateway.HandleApprovalButton(uint(approvalID), parts[0] == "approve", byUser)
+	if err != nil {
+		t.answerCallbackQuery(cb.ID, "❌ "+err.Error())
+		return
+	}
+	t.answerCallbackQuery(cb.ID, reply)
+
+	// 原消息编辑为处理结果（去掉按钮避免重复点击）
+	if cb.Message != nil {
+		t.editMessageText(cb.Message.Chat.ID, cb.Message.MessageID, reply+"\n（由按钮决定，无需再回复命令）")
+	}
+}
+
+// answerCallbackQuery 应答按钮回调（终止客户端 loading 动画）
+func (t *TelegramAdapter) answerCallbackQuery(callbackID, text string) {
+	body, _ := json.Marshal(map[string]string{
+		"callback_query_id": callbackID,
+		"text":              text,
+		"show_alert":        "false",
+	})
+	resp, err := t.client.Post(t.baseURL+"/answerCallbackQuery", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.logger.Warn("answerCallbackQuery failed", zap.Error(err))
+		return
+	}
+	resp.Body.Close()
+}
+
+// editMessageText 编辑已发送消息
+func (t *TelegramAdapter) editMessageText(chatID, messageID int64, text string) {
+	body, _ := json.Marshal(map[string]interface{}{
+		"chat_id":    chatID,
+		"message_id": messageID,
+		"text":       text,
+	})
+	resp, err := t.client.Post(t.baseURL+"/editMessageText", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.logger.Warn("editMessageText failed", zap.Error(err))
+		return
+	}
+	resp.Body.Close()
 }
 
 // TestConnection 测试连接
@@ -307,9 +417,7 @@ func (t *TelegramAdapter) pollLoop() {
 			}
 			for _, update := range updates {
 				t.offset = update.UpdateID + 1
-				if update.Message != nil {
-					go t.handleMessage(update.Message)
-				}
+				t.dispatchUpdate(&update)
 			}
 		}
 	}

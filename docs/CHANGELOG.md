@@ -1,3 +1,34 @@
+rde (0.7.0) unstable; urgency=medium
+
+  * feat(gateway): 审批通知升级为 IM 交互式消息——Telegram inline keyboard
+    （callback_query 应答+原消息编辑）、企微 button_list 模板卡片（task_id=
+    approval_<id>，template_card_event 回调）、飞书 interactive 卡片按钮
+    （card.action.trigger 回调）；钉钉 actionCard 附 Web 审批页深链；
+    文本命令 /approve|/deny 全平台兜底
+  * feat(ai): 新渠道飞书（自建应用机器人：tenant_access_token 发送 +
+    事件订阅回调 /api/v1/ai/gateway/feishu/callback，url_verification 握手与
+    VerificationToken 校验）与钉钉（Stream 模式 WebSocket 长连接，无需公网回调；
+    回复优先 sessionWebhook，群机器人 webhook 加签兜底）
+  * feat(ai): MCP（Model Context Protocol）兼容层——admin 经 REST 配置 MCP 服务器
+    （GET/PUT /ai/mcp/servers、DELETE /ai/mcp/servers/:name、POST .../test、
+    GET /ai/mcp/tools），支持 Streamable HTTP（JSON/SSE 响应、Mcp-Session-Id 会话、
+    失效重连）与 stdio（常驻子进程、换行分隔 JSON-RPC）；工具以 mcp_<server>_<tool>
+    桥接进 Bot 工具列表（可信基础设施，不经沙箱）；配置持久化 dataDir/mcp.json
+  * feat(bot): 审批决定新增全局编号入口 DecideApprovalByID + 深链端点
+    GET /bots/approvals/by-id/:aid；渠道平台白名单加 feishu/dingtalk
+  * feat(auth): none→local Web 升级入口——设置页「登录方式」卡片，
+    POST /users/enable-local-auth（创建/校验管理员 + 写 rde.conf [auth] mode=local，
+    重启生效；幂等、密码不匹配拒绝）与 /users/disable-local-auth；
+    认证模式支持 conf 文件（优先级 env > conf > 默认 none），bootstrap 传递 ConfigPath
+  * feat(frontend): 网关设置加飞书/钉钉/公网地址（PublicBaseURL，审批卡片深链
+    /?approval=<id>）配置；AI 设置新增「MCP 工具」标签页（服务器增删改/测试/启停、
+    桥接工具清单）；Bot 工作台审批深链（自动定位 Bot 并跳审批标签页）；
+    Bot 渠道下拉加飞书/钉钉；i18n zh/en 同步
+  * fix(ci): release.yml 多平台与 load 不兼容——改为 per-arch matrix
+    （amd64/arm64 各导出一份 tar），release 任务聚合产物
+
+ -- RDE Maintainers <maintainers@rde.local>  Tue, 24 Nov 2026 23:00:00 +0800
+
 rde (0.6.0) unstable; urgency=medium
 
   * feat(auth): 免登录单用户模式 RDE_AUTH_MODE=none（默认）——起容器即进桌面，

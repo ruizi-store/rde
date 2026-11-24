@@ -41,6 +41,11 @@
     error = "";
     try {
       const [c, s] = await Promise.all([aiService.getGatewayConfig(), aiService.getGatewayStatus()]);
+      // 兼容未含新平台字段的旧后端响应
+      if (!c.feishu) c.feishu = { enabled: false, app_id: "", app_secret: "", verification_token: "" };
+      if (!c.dingtalk)
+        c.dingtalk = { enabled: false, client_id: "", client_secret: "", webhook_url: "", secret: "" };
+      if (c.public_base_url === undefined) c.public_base_url = "";
       gwConfig = c;
       gwStatus = s;
     } catch (e: any) {
@@ -216,6 +221,74 @@
             <label class="text-xs text-[var(--text-tertiary)]">EncodingAESKey</label>
             <Input bind:value={gwConfig.wecom.encoding_key} />
           </div>
+        </div>
+      </details>
+
+      <!-- Feishu -->
+      <details class="border border-[var(--border-primary)] rounded-lg">
+        <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-[var(--text-primary)] bg-[var(--bg-primary)] rounded-t-lg">
+          飞书
+          {#if gwConfig.feishu?.enabled}
+            <span class="ml-2 text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">{$t("ai.gateway.enable")}</span>
+          {/if}
+        </summary>
+        <div class="p-4 space-y-3">
+          <Switch bind:checked={gwConfig.feishu.enabled} label={$t("ai.gateway.enableFeishu")} />
+          <div>
+            <label class="text-xs text-[var(--text-tertiary)]">App ID</label>
+            <Input bind:value={gwConfig.feishu.app_id} placeholder="cli_..." />
+          </div>
+          <div>
+            <label class="text-xs text-[var(--text-tertiary)]">App Secret</label>
+            <Input bind:value={gwConfig.feishu.app_secret} type="password" />
+          </div>
+          <div>
+            <label class="text-xs text-[var(--text-tertiary)]">{$t("ai.gateway.verificationToken")}</label>
+            <Input bind:value={gwConfig.feishu.verification_token} />
+          </div>
+          <p class="text-xs text-[var(--text-tertiary)]">{$t("ai.gateway.feishuCallbackHint")}</p>
+        </div>
+      </details>
+
+      <!-- Dingtalk -->
+      <details class="border border-[var(--border-primary)] rounded-lg">
+        <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-[var(--text-primary)] bg-[var(--bg-primary)] rounded-t-lg">
+          钉钉
+          {#if gwConfig.dingtalk?.enabled}
+            <span class="ml-2 text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">{$t("ai.gateway.enable")}</span>
+          {/if}
+        </summary>
+        <div class="p-4 space-y-3">
+          <Switch bind:checked={gwConfig.dingtalk.enabled} label={$t("ai.gateway.enableDingtalk")} />
+          <div>
+            <label class="text-xs text-[var(--text-tertiary)]">Client ID</label>
+            <Input bind:value={gwConfig.dingtalk.client_id} />
+          </div>
+          <div>
+            <label class="text-xs text-[var(--text-tertiary)]">Client Secret</label>
+            <Input bind:value={gwConfig.dingtalk.client_secret} type="password" />
+          </div>
+          <div>
+            <label class="text-xs text-[var(--text-tertiary)]">{$t("ai.gateway.groupWebhookUrl")}</label>
+            <Input bind:value={gwConfig.dingtalk.webhook_url} placeholder="https://oapi.dingtalk.com/robot/send?..." />
+          </div>
+          <div>
+            <label class="text-xs text-[var(--text-tertiary)]">{$t("ai.gateway.webhookSecret")}</label>
+            <Input bind:value={gwConfig.dingtalk.secret} type="password" />
+          </div>
+          <p class="text-xs text-[var(--text-tertiary)]">{$t("ai.gateway.dingtalkStreamHint")}</p>
+        </div>
+      </details>
+
+      <!-- Public Base URL -->
+      <details class="border border-[var(--border-primary)] rounded-lg">
+        <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-[var(--text-primary)] bg-[var(--bg-primary)] rounded-t-lg">{$t("ai.gateway.publicAccess")}</summary>
+        <div class="p-4 space-y-3">
+          <div>
+            <label class="text-xs text-[var(--text-tertiary)]">{$t("ai.gateway.publicBaseUrl")}</label>
+            <Input bind:value={gwConfig.public_base_url} placeholder="https://rde.example.com" />
+          </div>
+          <p class="text-xs text-[var(--text-tertiary)]">{$t("ai.gateway.publicBaseUrlHint")}</p>
         </div>
       </details>
 

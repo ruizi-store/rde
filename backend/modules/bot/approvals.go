@@ -137,6 +137,22 @@ func (a *ApprovalService) DecideApproval(botID string, approvalID uint, approve 
 	if err := a.db.Where("id = ? AND bot_id = ?", approvalID, botID).First(&approval).Error; err != nil {
 		return "", fmt.Errorf("审批 #%d 不存在或不属于该 Bot", approvalID)
 	}
+	return a.decide(&approval, approve, byUser)
+}
+
+// DecideApprovalByID 按全局唯一编号决定（实现 ai.ApprovalByIDDecider；
+// 卡片按钮回调不经过会话，拿不到 Bot 绑定）
+func (a *ApprovalService) DecideApprovalByID(approvalID uint, approve bool, byUser string) (string, error) {
+	var approval BotApproval
+	if err := a.db.First(&approval, approvalID).Error; err != nil {
+		return "", fmt.Errorf("审批 #%d 不存在", approvalID)
+	}
+	return a.decide(&approval, approve, byUser)
+}
+
+// decide 执行决定并唤醒等待者
+func (a *ApprovalService) decide(approval *BotApproval, approve bool, byUser string) (string, error) {
+	approvalID := approval.ID
 	if approval.Status != ApprovalPending {
 		return "", fmt.Errorf("审批 #%d 已处理（%s）", approvalID, statusText(approval.Status))
 	}
@@ -182,6 +198,15 @@ func (a *ApprovalService) List(botID, status string, limit int) ([]BotApproval, 
 	var approvals []BotApproval
 	err := q.Order("id DESC").Limit(limit).Find(&approvals).Error
 	return approvals, err
+}
+
+// GetByID 按全局编号获取（Web 审批深链用）
+func (a *ApprovalService) GetByID(approvalID uint) (*BotApproval, error) {
+	var approval BotApproval
+	if err := a.db.First(&approval, approvalID).Error; err != nil {
+		return nil, fmt.Errorf("审批 #%d 不存在", approvalID)
+	}
+	return &approval, nil
 }
 
 // Get 获取单条

@@ -29,7 +29,7 @@
   import { systemPower } from "$shared/stores/system-power.svelte";
   import { api } from "$shared/services/api";
   import { authService } from "$shared/services/auth";
-  import { usersService, type User as ManagedUser, type CreateUserRequest } from "$shared/services/users";
+  import { usersService, type User as ManagedUser, type CreateUserRequest, enableLocalAuth } from "$shared/services/users";
   import { getAvatarUrl } from "$shared/utils/avatar";
   import {
     notificationService,
@@ -78,6 +78,49 @@
   let cnMirrorOptions = $state<I18nOptionsResponse | null>(null);
   let cnMirrorEnabled = $state(false);
   let cnMirrors = $state<Record<string, string>>({});
+
+  /* 登录方式（免登录 → 账号登录升级入口） */
+  let authMode = $state<string>("");
+  let authUpgradeForm = $state({ username: "", password: "", confirm: "" });
+  let authUpgrading = $state(false);
+  let authUpgradeMsg = $state("");
+  let authUpgradeErr = $state("");
+
+  async function loadAuthMode() {
+    try {
+      const status = await setupApi.getStatus();
+      authMode = status.auth_mode || "local";
+    } catch {
+      authMode = "local";
+    }
+  }
+
+  async function submitEnableLocalAuth() {
+    authUpgradeMsg = "";
+    authUpgradeErr = "";
+    const f = authUpgradeForm;
+    if (!f.username.trim()) {
+      authUpgradeErr = $t("settingsPage.security.authUpgradeUsernameRequired");
+      return;
+    }
+    if (f.password.length < 6) {
+      authUpgradeErr = $t("settingsPage.security.authUpgradePasswordShort");
+      return;
+    }
+    if (f.password !== f.confirm) {
+      authUpgradeErr = $t("settingsPage.security.authUpgradePasswordMismatch");
+      return;
+    }
+    authUpgrading = true;
+    try {
+      authUpgradeMsg = await enableLocalAuth(f.username.trim(), f.password);
+      authUpgradeForm = { username: "", password: "", confirm: "" };
+    } catch (e: unknown) {
+      authUpgradeErr = e instanceof Error ? e.message : String(e);
+    } finally {
+      authUpgrading = false;
+    }
+  }
 
   // 从 store 同步镜像状态
   $effect(() => {
@@ -474,6 +517,8 @@
     await wallpaper.loadIndex();
     // 加载当前用户信息
     await loadCurrentUser();
+    // 加载认证模式（免登录升级入口显示条件）
+    loadAuthMode();
     // 加载中国源选项
     loadCnMirrorOptions();
     // 加载 2FA 状态
@@ -1580,6 +1625,46 @@
             </div>
           {/if}
         </div>
+
+        {#if authMode === "none"}
+          <!-- 登录方式（免登录 → 账号登录升级入口） -->
+          <div class="card">
+            <h3>{$t("settingsPage.security.authMode")}</h3>
+            <div class="setting-row">
+              <div>
+                <strong>{$t("settingsPage.security.authModeNone")}</strong>
+                <p>{$t("settingsPage.security.authModeNoneDesc")}</p>
+              </div>
+            </div>
+            <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 10px; max-width: 360px;">
+              <div>
+                <label class="text-xs" style="display:block; margin-bottom:4px;">{$t("settingsPage.security.authUpgradeUsername")}</label>
+                <Input bind:value={authUpgradeForm.username} placeholder="admin" />
+              </div>
+              <div>
+                <label class="text-xs" style="display:block; margin-bottom:4px;">{$t("settingsPage.security.authUpgradePassword")}</label>
+                <Input type="password" bind:value={authUpgradeForm.password} />
+              </div>
+              <div>
+                <label class="text-xs" style="display:block; margin-bottom:4px;">{$t("settingsPage.security.authUpgradeConfirm")}</label>
+                <Input type="password" bind:value={authUpgradeForm.confirm} />
+              </div>
+              {#if authUpgradeErr}
+                <p class="text-sm text-red-500">{authUpgradeErr}</p>
+              {/if}
+              {#if authUpgradeMsg}
+                <p class="text-sm" style="color: var(--text-secondary);">{authUpgradeMsg}</p>
+              {:else}
+                <p class="text-xs" style="color: var(--text-tertiary);">{$t("settingsPage.security.authUpgradeHint")}</p>
+              {/if}
+              <div>
+                <Button variant="primary" onclick={submitEnableLocalAuth} disabled={authUpgrading}>
+                  {#if authUpgrading}<Spinner size="sm" />{:else}{$t("settingsPage.security.authUpgradeAction")}{/if}
+                </Button>
+              </div>
+            </div>
+          </div>
+        {/if}
 
         <div class="card warning-card">
           <div class="warning-header">

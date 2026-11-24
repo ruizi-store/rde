@@ -61,6 +61,9 @@ func main() {
 		dbPath = filepath.Join(*dataFlag, "db", "rde.db")
 	}
 
+	// 认证模式：配置文件 [auth] 段（环境变量 RDE_AUTH_MODE 优先）
+	auth.SetConfigMode(auth.ReadModeFromConfigFile(*configFlag))
+
 	// 决定端口：免登录模式或已初始化读配置文件，未初始化用默认 3080
 	port := DEFAULT_PORT
 	if auth.IsAuthNone() || isSetupCompleted(dbPath) {
@@ -105,10 +108,11 @@ func main() {
 
 	// 创建应用实例
 	app, err := bootstrap.New(&bootstrap.Options{
-		DBPath:  *dbFlag,
-		DataDir: dataDir,
-		LogPath: filepath.Join(dataDir, "logs"),
-		Debug:   *debugFlag,
+		DBPath:     *dbFlag,
+		DataDir:    dataDir,
+		LogPath:    filepath.Join(dataDir, "logs"),
+		Debug:      *debugFlag,
+		ConfigPath: *configFlag,
 	})
 	if err != nil {
 		fmt.Printf("Failed to initialize application: %v\n", err)

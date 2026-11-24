@@ -878,7 +878,18 @@
       "resetFailed": "恢复出厂设置失败",
       "actionFailed": "操作失败",
       "serviceEnabled": "{name}已启用",
-      "serviceDisabled": "{name}已禁用"
+      "serviceDisabled": "{name}已禁用",
+      "authMode": "登录方式",
+      "authModeNone": "免登录模式",
+      "authModeNoneDesc": "当前起容器即用、无需账号。如需对外暴露或多人使用，可启用账号登录。",
+      "authUpgradeUsername": "管理员用户名",
+      "authUpgradePassword": "密码（至少 6 位）",
+      "authUpgradeConfirm": "确认密码",
+      "authUpgradeUsernameRequired": "请输入用户名",
+      "authUpgradePasswordShort": "密码长度至少 6 位",
+      "authUpgradePasswordMismatch": "两次输入的密码不一致",
+      "authUpgradeHint": "启用后需重启 RDE 生效，届时需用该账号密码登录",
+      "authUpgradeAction": "启用账号登录"
     },
     "network": {
       "title": "网络设置",

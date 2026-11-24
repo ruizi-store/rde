@@ -205,6 +205,11 @@ export async function runScheduleNow(id: string, sid: number): Promise<string> {
 export async function listApprovals(id: string, status = ""): Promise<BotApproval[]> {
   return api.get<BotApproval[]>(`/bots/${id}/approvals${status ? `?status=${status}` : ""}`);
 }
+
+// 按全局编号查询审批（Web 审批深链：定位所属 Bot）
+export async function getApprovalByID(aid: number): Promise<BotApproval> {
+  return api.get<BotApproval>(`/bots/approvals/by-id/${aid}`);
+}
 export async function decideApproval(id: string, aid: number, approve: boolean): Promise<string> {
   return api.post<string>(`/bots/${id}/approvals/${aid}/decide`, { approve });
 }

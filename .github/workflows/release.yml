@@ -10,6 +10,16 @@ permissions:
 
 jobs:
   build-image:
+    # Docker 唯一交付形态：多架构镜像（amd64/arm64）
+    # buildx 的 load 只支持单平台镜像 → 按架构 matrix 各建一份 tar
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+          - arch: arm64
+            platform: linux/arm64
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -19,7 +29,6 @@ jobs:
         id: ver
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      # Docker 唯一交付形态：多架构镜像（amd64/arm64），
       # arm64 由 QEMU 模拟构建（前端/Go 构建耗时较长但可接受）
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -27,34 +36,33 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build image (multi-arch)
+      - name: Build image (${{ matrix.arch }})
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: false
           load: true
           build-args: |
             VERSION=${{ steps.ver.outputs.version }}
           tags: |
             rde:${{ steps.ver.outputs.version }}
-            rde:latest
 
-      - name: Export image tarballs
+      - name: Export image tarball
         run: |
           mkdir -p outputs
-          docker save rde:${{ steps.ver.outputs.version }} -o outputs/rde-${{ steps.ver.outputs.version }}-amd64.tar
+          docker save rde:${{ steps.ver.outputs.version }} -o outputs/rde-${{ steps.ver.outputs.version }}-${{ matrix.arch }}.tar
           gzip outputs/*.tar
           ls -lh outputs/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: rde-image
+          name: rde-image-${{ matrix.arch }}
           path: outputs/*.tar.gz
 
   release:
-    needs: build-image
+    needs: [build-image]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -79,7 +87,7 @@ jobs:
           ## Install（Docker 唯一交付形态）
 
           ```bash
-          # 镜像 tar 离线导入
+          # 镜像 tar 离线导入（按 CPU 架构选 amd64 / arm64）
           docker load -i rde-*-amd64.tar.gz
           cd docker && docker compose up -d
           # 浏览器访问 http://<服务器IP>:3080 直接进入桌面（默认免登录）

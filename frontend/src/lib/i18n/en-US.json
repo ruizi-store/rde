@@ -878,7 +878,18 @@
       "resetFailed": "Factory reset failed",
       "actionFailed": "Operation failed",
       "serviceEnabled": "{name} enabled",
-      "serviceDisabled": "{name} disabled"
+      "serviceDisabled": "{name} disabled",
+      "authMode": "Sign-in",
+      "authModeNone": "No-login mode",
+      "authModeNoneDesc": "The desktop is open without an account. Enable account login for public exposure or multi-user usage.",
+      "authUpgradeUsername": "Admin username",
+      "authUpgradePassword": "Password (min 6 chars)",
+      "authUpgradeConfirm": "Confirm password",
+      "authUpgradeUsernameRequired": "Username is required",
+      "authUpgradePasswordShort": "Password must be at least 6 characters",
+      "authUpgradePasswordMismatch": "Passwords do not match",
+      "authUpgradeHint": "Takes effect after restarting RDE; you will then sign in with this account",
+      "authUpgradeAction": "Enable account login"
     },
     "network": {
       "title": "Network Settings",

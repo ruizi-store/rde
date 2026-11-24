@@ -12,12 +12,15 @@
     getBotChannels, setBotChannels, listSkills, reloadSkills,
     listMemories, deleteMemory, listSchedules, createSchedule,
     updateSchedule, deleteSchedule, runScheduleNow,
-    listApprovals, decideApproval,
+    listApprovals, decideApproval, getApprovalByID,
     botStreamUrl, type Bot, type BotMember, type ExecResult,
     type BotChannel, type SkillMeta, type BotMemory, type BotSchedule, type BotApproval,
   } from "$shared/services/bot";
 
   // ==================== 状态 ====================
+
+  // 深链参数：approval=<id>（IM 审批卡片跳转）→ 直接进审批标签页
+  let { approval }: { approval?: string } = $props();
 
   let bots = $state<Bot[]>([]);
   let selectedId = $state<string | null>(null);
@@ -95,6 +98,22 @@
     }
     await refresh();
     refreshTimer = setInterval(refresh, 10000);
+    // 深链：IM 审批卡片 /?approval=<id> → 定位所属 Bot 并跳到审批标签页
+    if (approval) {
+      const aid = parseInt(approval, 10);
+      if (aid > 0) {
+        try {
+          const target = await getApprovalByID(aid);
+          if (target?.bot_id && target.bot_id !== selectedId) {
+            await selectBot(target.bot_id);
+          }
+          approvalFilter = "all";
+          activeTab = "approvals";
+        } catch {
+          showToast("审批记录不存在或已被清理", "warning");
+        }
+      }
+    }
   });
 
   onDestroy(() => clearInterval(refreshTimer));
@@ -547,6 +566,8 @@
     { value: "telegram", label: "Telegram" },
     { value: "wecom", label: "企业微信" },
     { value: "webhook", label: "Webhook" },
+    { value: "feishu", label: "飞书" },
+    { value: "dingtalk", label: "钉钉" },
   ];
 
   let streamUrl = $derived(detail ? botStreamUrl(detail.id) : "");

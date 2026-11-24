@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pquerna/otp/totp"
+	"github.com/ruizi-store/rde/backend/core/auth"
 	"github.com/ruizi-store/rde/backend/core/module"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -43,6 +44,7 @@ type Service struct {
 	activeUsers  map[string]time.Time // user_id -> last active time
 	activeMu     sync.RWMutex
 	avatarsDir   string // 头像存储目录
+	authConfPath string // rde.conf 路径（「启用账号登录」写入 [auth] 段）
 }
 
 // NewService 创建用户服务
@@ -102,6 +104,71 @@ func (s *Service) EnsureAdminExists() error {
 }
 
 // ----- 用户操作 -----
+
+// SetAuthConfPath 设置认证配置文件路径（module Init 从 config 注入）
+func (s *Service) SetAuthConfPath(path string) { s.authConfPath = path }
+
+// EnableLocalAuth 启用账号登录（none→local 升级入口）：
+// 创建管理员账号 + 把 local 模式写入 rde.conf [auth] 段，重启后生效。
+// 返回提示文案。
+func (s *Service) EnableLocalAuth(username, password string) (string, error) {
+	if auth.ResolveAuthMode() == auth.AuthModeLocal {
+		return "", fmt.Errorf("账号登录已启用，无需重复操作")
+	}
+	if len(password) < 6 {
+		return "", fmt.Errorf("密码长度至少 6 位")
+	}
+	if s.authConfPath == "" {
+		s.authConfPath = "/etc/rde/rde.conf"
+	}
+
+	// 用户已存在：校验密码后仅改模式（不覆盖密码）
+	if existing, err := s.GetUserByUsername(username); err == nil && existing != nil {
+		if bcrypt.CompareHashAndPassword([]byte(existing.Password), []byte(password)) != nil {
+			return "", fmt.Errorf("用户 %s 已存在但密码不匹配", username)
+		}
+	} else {
+		if err := s.CreateUser(&CreateUserRequest{
+			Username: username,
+			Password: password,
+			Nickname: "管理员",
+			Role:     RoleAdmin,
+		}); err != nil {
+			if err == ErrUserExists {
+				return "", fmt.Errorf("用户 %s 已存在但密码不匹配", username)
+			}
+			return "", fmt.Errorf("创建管理员失败: %w", err)
+		}
+	}
+
+	if err := auth.WriteModeToConfigFile(s.authConfPath, auth.AuthModeLocal); err != nil {
+		return "", fmt.Errorf("写入配置失败（%s）: %w", s.authConfPath, err)
+	}
+
+	s.logger.Info("Local auth enabled (written to config, takes effect after restart)",
+		zap.String("config", s.authConfPath), zap.String("username", username))
+	return "账号登录已启用，重启 RDE 后生效（届时需用账号密码登录）", nil
+}
+
+// DisableLocalAuth 关闭账号登录（local→none 降级）：移除/改写 [auth] 段。
+func (s *Service) DisableLocalAuth() (string, error) {
+	if auth.ResolveAuthMode() != auth.AuthModeLocal {
+		return "", fmt.Errorf("当前不是账号登录模式")
+	}
+	if s.authConfPath == "" {
+		s.authConfPath = "/etc/rde/rde.conf"
+	}
+	// 环境变量显式指定 local 时 conf 改写无效，需同时提示移除环境变量
+	envOverride := strings.ToLower(strings.TrimSpace(os.Getenv("RDE_AUTH_MODE"))) == auth.AuthModeLocal
+	if err := auth.WriteModeToConfigFile(s.authConfPath, auth.AuthModeNone); err != nil {
+		return "", fmt.Errorf("写入配置失败（%s）: %w", s.authConfPath, err)
+	}
+	msg := "已改回免登录模式，重启 RDE 后生效"
+	if envOverride {
+		msg += "；注意：当前 RDE_AUTH_MODE=local 环境变量会覆盖配置，需一并移除"
+	}
+	return msg, nil
+}
 
 // CreateUser 创建用户
 func (s *Service) CreateUser(req *CreateUserRequest) error {

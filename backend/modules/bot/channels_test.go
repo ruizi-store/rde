@@ -30,8 +30,20 @@ func TestService_UpdateChannels(t *testing.T) {
 	assert.Equal(t, "-100123", channels[0].ChatID)
 
 	// 校验：非法平台
-	_, err = svc.UpdateChannels(b.ID, []BotChannel{{Platform: "feishu", ChatID: "1"}})
+	_, err = svc.UpdateChannels(b.ID, []BotChannel{{Platform: "slack", ChatID: "1"}})
 	assert.ErrorContains(t, err, "无效平台")
+
+	// 新平台 feishu / dingtalk 合法
+	_, err = svc.UpdateChannels(b.ID, []BotChannel{
+		{Platform: "feishu", ChatID: "oc_1", UserID: "ou_1"},
+		{Platform: "dingtalk", ChatID: "cid_1"},
+	})
+	require.NoError(t, err)
+	channels, err = svc.GetChannels(b.ID)
+	require.NoError(t, err)
+	require.Len(t, channels, 2)
+	assert.Equal(t, "feishu", channels[0].Platform)
+	assert.Equal(t, "dingtalk", channels[1].Platform)
 
 	// 校验：chat_id 与 user_id 同时为空
 	_, err = svc.UpdateChannels(b.ID, []BotChannel{{Platform: "telegram"}})

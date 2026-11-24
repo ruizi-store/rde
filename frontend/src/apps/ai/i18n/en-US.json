@@ -180,7 +180,39 @@
       "quietStart": "Quiet Start (hour)",
       "quietEnd": "Quiet End (hour)",
       "alertHistory": "Alert History",
-      "clear": "Clear"
+      "clear": "Clear",
+      "enableFeishu": "Enable Feishu",
+      "verificationToken": "Verification Token",
+      "feishuCallbackHint": "Feishu app bot: set event subscription URL to {public}/api/v1/ai/gateway/feishu/callback with the Verification Token",
+      "enableDingtalk": "Enable DingTalk",
+      "groupWebhookUrl": "Group webhook (fallback)",
+      "webhookSecret": "Signing secret (optional)",
+      "dingtalkStreamHint": "DingTalk app bot receives messages via Stream (WebSocket, no public callback needed); group webhook is the send fallback",
+      "publicAccess": "Public Access",
+      "publicBaseUrl": "Public base URL",
+      "publicBaseUrlHint": "Approval cards include a web link {base}/?approval=<id>; leave empty to show command hints only"
+    },
+    "mcp": {
+      "tab": "MCP Tools",
+      "title": "MCP Servers",
+      "description": "Connect MCP (Model Context Protocol) servers; tools are bridged into the Bot tool list (mcp_<server>_<tool>)",
+      "add": "Add Server",
+      "addTitle": "Add MCP Server",
+      "editTitle": "Edit MCP Server",
+      "edit": "Edit",
+      "test": "Test",
+      "testOk": "Connected, {n} tools found",
+      "deleteConfirm": "Delete MCP server {name}?",
+      "saved": "Saved",
+      "empty": "No MCP servers configured. Add one to expose its tools to bots.",
+      "name": "Name (lowercase/digits/dash)",
+      "transport": "Transport",
+      "command": "Command",
+      "args": "Arguments (one per line)",
+      "env": "Environment variables (KEY=VALUE per line)",
+      "serverDescription": "Description (optional)",
+      "enabled": "Enabled",
+      "tools": "Bridged tools ({n})"
     }
   }
 }

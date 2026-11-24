@@ -180,7 +180,39 @@
       "quietStart": "静默开始 (时)",
       "quietEnd": "静默结束 (时)",
       "alertHistory": "告警历史",
-      "clear": "清除"
+      "clear": "清除",
+      "enableFeishu": "启用飞书",
+      "verificationToken": "Verification Token",
+      "feishuCallbackHint": "飞书自建应用机器人：事件订阅请求地址填 {公网地址}/api/v1/ai/gateway/feishu/callback，并填入 Verification Token 校验",
+      "enableDingtalk": "启用钉钉",
+      "groupWebhookUrl": "群机器人 Webhook（兜底）",
+      "webhookSecret": "加签密钥（可选）",
+      "dingtalkStreamHint": "钉钉企业自建应用：Stream 模式经 WebSocket 接收消息（无需公网回调）；群机器人 Webhook 用于主动推送兜底",
+      "publicAccess": "公网访问",
+      "publicBaseUrl": "对外基础地址",
+      "publicBaseUrlHint": "审批卡片会附上 {地址}/?approval=<编号> 的 Web 链接；留空则只显示回复命令提示"
+    },
+    "mcp": {
+      "tab": "MCP 工具",
+      "title": "MCP 服务器",
+      "description": "接入 MCP（Model Context Protocol）服务器，工具自动桥接进 Bot 工具列表（mcp_<服务器>_<工具>）",
+      "add": "添加服务器",
+      "addTitle": "添加 MCP 服务器",
+      "editTitle": "编辑 MCP 服务器",
+      "edit": "编辑",
+      "test": "测试",
+      "testOk": "连接成功，发现 {n} 个工具",
+      "deleteConfirm": "确定删除 MCP 服务器 {name}？",
+      "saved": "已保存",
+      "empty": "尚未配置 MCP 服务器。添加后其工具可被 Bot 调用。",
+      "name": "名称（小写字母/数字/连字符）",
+      "transport": "传输方式",
+      "command": "命令",
+      "args": "参数（每行一个）",
+      "env": "环境变量（每行 KEY=VALUE）",
+      "serverDescription": "描述（可选）",
+      "enabled": "启用",
+      "tools": "桥接工具（{n}）"
     }
   }
 }

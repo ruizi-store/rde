@@ -17,6 +17,7 @@
   import SetupWizard from "./SetupWizard.svelte";
   import GatewaySettings from "./GatewaySettings.svelte";
   import SkillsPanel from "./SkillsPanel.svelte";
+  import MCPPanel from "./MCPPanel.svelte";
   import { generateUUID } from "$shared/utils/uuid";
 
   // ==================== Markdown ====================
@@ -724,6 +725,7 @@
     { id: "providers", label: $t("ai.providers") },
     { id: "config", label: $t("ai.globalConfig") },
     { id: "gateway", label: $t("ai.gatewayAndAlerts") },
+    { id: "mcp", label: $t("ai.mcp.tab") },
   ]);
 
   const filteredConversations = $derived(
@@ -1075,6 +1077,8 @@
       {/if}
     {:else if tab === "gateway"}
       <GatewaySettings onclose={() => (showSettings = false)} />
+    {:else if tab === "mcp"}
+      <MCPPanel />
     {/if}
     </div>
     {/snippet}

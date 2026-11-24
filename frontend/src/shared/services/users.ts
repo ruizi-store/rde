@@ -118,3 +118,20 @@ class UsersService {
 }
 
 export const usersService = new UsersService();
+
+// ==================== 认证模式切换（免登录 ⇄ 账号登录） ====================
+
+/** 启用账号登录（none→local：创建管理员 + 写配置，重启生效） */
+export async function enableLocalAuth(username: string, password: string): Promise<string> {
+  const resp = await api.post<{ message?: string }>("/users/enable-local-auth", {
+    username,
+    password,
+  });
+  return resp.message || "已启用";
+}
+
+/** 关闭账号登录（回到免登录模式，重启生效） */
+export async function disableLocalAuth(): Promise<string> {
+  const resp = await api.post<{ message?: string }>("/users/disable-local-auth");
+  return resp.message || "已关闭";
+}
